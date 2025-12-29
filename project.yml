@@ -30,3 +30,11 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: 5.9
+schemes:
+  Nummern:
+    build:
+      targets:
+        Nummern: all
+    test:
+      targets:
+        - NummernTests

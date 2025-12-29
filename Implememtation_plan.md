@@ -65,6 +65,9 @@ Unit tests to add/run:
 - `TransactionManagerTests.testEditCellGroupsIntoSingleTransaction()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/CommandSerializationTests`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 3: Document package persistence (Swift)
