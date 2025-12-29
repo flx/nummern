@@ -110,7 +110,7 @@ At any time, the document can be rebuilt by starting from an empty project and r
 
 ### 5.3 Tables on canvas
 Tables are independent objects with:
-- Unique, stable `table_id` (UUID string).
+- Unique, stable `table_id` (short, human-readable identifier like `table_1`).
 - Name (user-facing).
 - Geometry: `x`, `y`, `width`, `height` in canvas coordinates.
 - Grid structure:
@@ -212,7 +212,7 @@ v1:
 The script should use a stable internal API shipped with the app (a Python module bundled inside the app). Example module: `canvassheets_api`.
 
 **Design principles:**
-- **Stable IDs**: All objects referenced by `sheet_id` and `table_id`.
+- **Stable IDs**: All objects referenced by `sheet_id` and `table_id` using short, human-readable identifiers (e.g., `sheet_1`, `table_1`).
 - **Readable**: Users can understand and edit the script.
 - **Composable**: Users can create functions, loops, and reuse logic.
 
@@ -224,7 +224,7 @@ import numpy as np
 from canvassheets_api import Project, Rect
 
 def make_revenue_table(proj, sheet_id, x, y):
-    t = proj.add_table(sheet_id, table_id="tbl_revenue",
+    t = proj.add_table(sheet_id, table_id="table_1",
                        name="Revenue", rect=Rect(x, y, 520, 260),
                        rows=20, cols=6,
                        labels=dict(top=1, left=1, bottom=0, right=0))
@@ -237,20 +237,20 @@ def make_revenue_table(proj, sheet_id, x, y):
 # ---- Auto-generated log (append-only) --------------------------------
 proj = Project()
 
-sheet1 = proj.add_sheet("Tab1", sheet_id="sheet_tab1")
-make_revenue_table(proj, "sheet_tab1", x=120, y=120)
+sheet1 = proj.add_sheet("Tab1", sheet_id="sheet_1")
+make_revenue_table(proj, "sheet_1", x=120, y=120)
 
-proj.add_table("sheet_tab1", table_id="tbl_inputs", name="Inputs",
+proj.add_table("sheet_1", table_id="table_2", name="Inputs",
                rect=Rect(700, 120, 360, 220),
                rows=12, cols=4,
                labels=dict(top=1, left=1, bottom=0, right=0))
 
-proj.table("tbl_inputs").set_cells({
+proj.table("table_2").set_cells({
     "body[B1]": 0.08,   # tax rate
     "left_labels[A1]": "Tax rate",
 })
 
-proj.table("tbl_revenue").set_formula("body[B1:E20]",
+proj.table("table_1").set_formula("body[B1:E20]",
     "=B1*(1+Inputs::B1)"  # example cross-table ref
 )
 
@@ -333,7 +333,7 @@ Commands are grouped into transactions:
 
 ### 8.3 Deterministic IDs
 To support rebuild and cross-references, object IDs must be stable:
-- When creating tables/sheets, generate UUIDs immediately and include in script.
+- When creating tables/sheets, generate short sequential IDs (e.g., `sheet_1`, `table_1`) immediately and include in script.
 - The user-visible name can change without breaking references.
 
 ---
@@ -555,11 +555,11 @@ UI action:
 - Add table on sheet “Tab1” at x=100,y=100
 
 Command:
-- `AddTable(sheet_id="sheet_tab1", table_id="tbl_...", rect=(100,100,520,260), rows=10, cols=6, labels=...)`
+- `AddTable(sheet_id="sheet_1", table_id="table_1", rect=(100,100,520,260), rows=10, cols=6, labels=...)`
 
 Python:
 ```python
-proj.add_table("sheet_tab1", table_id="tbl_abc",
+proj.add_table("sheet_1", table_id="table_1",
                name="Table 1", rect=Rect(100, 100, 520, 260),
                rows=10, cols=6, labels=dict(top=1,left=1,bottom=0,right=0))
 ```
@@ -570,7 +570,7 @@ UI action:
 
 Python:
 ```python
-proj.table("tbl_abc").set_range("body[A1:D10]", values_2d, dtype="float64")
+proj.table("table_1").set_range("body[A1:D10]", values_2d, dtype="float64")
 ```
 
 ### 15.3 Set a formula
@@ -579,13 +579,13 @@ UI action:
 
 Python:
 ```python
-proj.table("tbl_abc").set_formula("body[F1:F20]", "=SUM(B1:E1)")
+proj.table("table_1").set_formula("body[F1:F20]", "=SUM(B1:E1)")
 ```
 
 ### 15.4 Move/resize table
 Python:
 ```python
-proj.table("tbl_abc").set_rect(Rect(220, 120, 600, 280))
+proj.table("table_1").set_rect(Rect(220, 120, 600, 280))
 ```
 
 ---
@@ -703,8 +703,8 @@ class Table:
 ## Appendix B: Suggested Swift types (sketch)
 
 - `ProjectDocument: NSDocument`
-- `SheetModel { id: UUID, name: String, objects: [CanvasObject] }`
-- `TableModel: CanvasObject { id: UUID, name: String, rect: CGRect, gridSpec: GridSpec, ... }`
+- `SheetModel { id: String, name: String, objects: [CanvasObject] }`
+- `TableModel: CanvasObject { id: String, name: String, rect: CGRect, gridSpec: GridSpec, ... }`
 - `Command` protocol + concrete command structs
 - `PythonEngineClient` (XPC client) + `PythonEngineService` (helper)
 
