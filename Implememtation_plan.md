@@ -86,6 +86,9 @@ Unit tests to add/run:
 - `ProjectPersistenceTests.testPackageLayout()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ProjectPersistenceTests`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 4: Canvas UI with tables (SwiftUI + AppKit)

@@ -4,24 +4,26 @@ import UniformTypeIdentifiers
 struct NummernDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.nummernDocument] }
 
-    var projectJSON: String
+    var project: ProjectModel
     var script: String
+    var historyJSON: String?
 
-    init(projectJSON: String = NummernDocument.defaultProjectJSON(),
-         script: String = NummernDocument.defaultScript()) {
-        self.projectJSON = projectJSON
+    init(project: ProjectModel = ProjectModel(),
+         script: String = NummernDocument.defaultScript(),
+         historyJSON: String? = nil) {
+        self.project = project
         self.script = script
+        self.historyJSON = historyJSON
     }
 
     init(configuration: ReadConfiguration) throws {
         let wrapper = configuration.file
         if wrapper.isDirectory {
             let children = wrapper.fileWrappers ?? [:]
-            if let data = children["project.json"]?.regularFileContents,
-               let string = String(data: data, encoding: .utf8) {
-                projectJSON = string
+            if let data = children["project.json"]?.regularFileContents {
+                project = (try? ProjectFileStore.decode(data))?.project ?? ProjectModel()
             } else {
-                projectJSON = NummernDocument.defaultProjectJSON()
+                project = ProjectModel()
             }
             if let data = children["script.py"]?.regularFileContents,
                let string = String(data: data, encoding: .utf8) {
@@ -29,34 +31,41 @@ struct NummernDocument: FileDocument {
             } else {
                 script = NummernDocument.defaultScript()
             }
+            if let data = children["history.json"]?.regularFileContents,
+               let string = String(data: data, encoding: .utf8) {
+                historyJSON = string
+            } else {
+                historyJSON = nil
+            }
         } else if let data = wrapper.regularFileContents,
                   let string = String(data: data, encoding: .utf8) {
-            projectJSON = NummernDocument.defaultProjectJSON()
+            project = ProjectModel()
             script = string
+            historyJSON = nil
         } else {
-            projectJSON = NummernDocument.defaultProjectJSON()
+            project = ProjectModel()
             script = NummernDocument.defaultScript()
+            historyJSON = nil
         }
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        let projectData = projectJSON.data(using: .utf8) ?? Data()
+        try makeFileWrapper()
+    }
+
+    func makeFileWrapper() throws -> FileWrapper {
+        let projectFile = ProjectFileStore.make(project: project)
+        let projectData = try ProjectFileStore.encode(projectFile)
         let scriptData = script.data(using: .utf8) ?? Data()
-        let wrappers: [String: FileWrapper] = [
+        var wrappers: [String: FileWrapper] = [
             "project.json": .init(regularFileWithContents: projectData),
             "script.py": .init(regularFileWithContents: scriptData)
         ]
-        return .init(directoryWithFileWrappers: wrappers)
-    }
-
-    private static func defaultProjectJSON() -> String {
-        """
-        {
-          \"schema_version\": 1,
-          \"sheets\": [],
-          \"objects\": []
+        if let historyJSON,
+           let historyData = historyJSON.data(using: .utf8) {
+            wrappers["history.json"] = .init(regularFileWithContents: historyData)
         }
-        """
+        return .init(directoryWithFileWrappers: wrappers)
     }
 
     private static func defaultScript() -> String {
@@ -70,6 +79,14 @@ struct NummernDocument: FileDocument {
 
         # ---- End of script ----------------------------------------------------
         """
+    }
+
+    var projectJSONString: String {
+        let file = ProjectFileStore.make(project: project)
+        guard let data = try? ProjectFileStore.encode(file) else {
+            return "{}"
+        }
+        return String(data: data, encoding: .utf8) ?? "{}"
     }
 }
 
