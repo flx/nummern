@@ -52,19 +52,7 @@ final class GridView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard rows > 0, cols > 0 else {
-            return
-        }
-
-        let visible = visibleRect
-        let range = GridLayoutCalculator.visibleRange(
-            visibleRect: visible,
-            cellSize: cellSize,
-            rows: rows,
-            cols: cols
-        )
-
-        guard !range.rowRange.isEmpty, !range.colRange.isEmpty else {
+        guard rows > 0, cols > 0, cellSize.width > 0, cellSize.height > 0 else {
             return
         }
 
@@ -73,21 +61,19 @@ final class GridView: NSView {
         strokeColor.setStroke()
         path.lineWidth = 0.5
 
-        let startRow = range.rowRange.lowerBound
-        let endRow = range.rowRange.upperBound
-        let startCol = range.colRange.lowerBound
-        let endCol = range.colRange.upperBound
+        let totalWidth = CGFloat(cols) * cellSize.width
+        let totalHeight = CGFloat(rows) * cellSize.height
 
-        for row in startRow...endRow {
+        for row in 0...rows {
             let y = CGFloat(row) * cellSize.height
-            path.move(to: CGPoint(x: CGFloat(startCol) * cellSize.width, y: y))
-            path.line(to: CGPoint(x: CGFloat(endCol) * cellSize.width, y: y))
+            path.move(to: CGPoint(x: 0, y: y))
+            path.line(to: CGPoint(x: totalWidth, y: y))
         }
 
-        for col in startCol...endCol {
+        for col in 0...cols {
             let x = CGFloat(col) * cellSize.width
-            path.move(to: CGPoint(x: x, y: CGFloat(startRow) * cellSize.height))
-            path.line(to: CGPoint(x: x, y: CGFloat(endRow) * cellSize.height))
+            path.move(to: CGPoint(x: x, y: 0))
+            path.line(to: CGPoint(x: x, y: totalHeight))
         }
 
         path.stroke()

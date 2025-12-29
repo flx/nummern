@@ -10,13 +10,24 @@ final class CanvasViewModel: ObservableObject {
     @Published var selectedCell: CellSelection?
 
     private let transactionManager = TransactionManager()
+    private var seedCommands: [String] = []
 
-    init(project: ProjectModel = ProjectModel()) {
+    init(project: ProjectModel = ProjectModel(), historyJSON: String? = nil) {
         self.project = project
         self.pythonLog = ""
         self.historyJSON = ""
         self.selectedTableId = nil
         self.selectedCell = nil
+        self.seedCommands = decodeHistoryCommands(from: historyJSON)
+        rebuildLogs()
+    }
+
+    func load(project: ProjectModel, historyJSON: String?) {
+        transactionManager.reset()
+        seedCommands = decodeHistoryCommands(from: historyJSON)
+        self.project = project
+        selectedTableId = nil
+        selectedCell = nil
         rebuildLogs()
     }
 
@@ -69,6 +80,7 @@ final class CanvasViewModel: ObservableObject {
 
     func setLabelBands(tableId: String, labelBands: LabelBands) {
         apply(SetLabelBandsCommand(tableId: tableId, labelBands: labelBands))
+        clearCellSelectionIfInvalid(tableId: tableId)
     }
 
     func selectTable(_ tableId: String) {
@@ -84,6 +96,11 @@ final class CanvasViewModel: ObservableObject {
         selectedCell = nil
     }
 
+    func clearSelection() {
+        selectedCell = nil
+        selectedTableId = nil
+    }
+
     func setCellValue(tableId: String,
                       region: GridRegion,
                       row: Int,
@@ -97,6 +114,12 @@ final class CanvasViewModel: ObservableObject {
             value = trimmed.isEmpty ? .empty : .string(trimmed)
         }
         let key = RangeParser.address(region: region, row: row, col: col)
+        if let table = table(withId: tableId) {
+            let existing = table.cellValues[key] ?? .empty
+            if existing == value {
+                return
+            }
+        }
         apply(SetCellsCommand(tableId: tableId, cellMap: [key: value]), kind: .cellEdit)
     }
 
@@ -158,8 +181,9 @@ final class CanvasViewModel: ObservableObject {
     }
 
     private func rebuildLogs() {
-        pythonLog = transactionManager.pythonLog()
-        historyJSON = encodeHistory(commands: transactionManager.allCommands())
+        let commands = seedCommands + transactionManager.allCommands()
+        pythonLog = commands.joined(separator: "\n")
+        historyJSON = encodeHistory(commands: commands)
     }
 
     private func encodeHistory(commands: [String]) -> String {
@@ -170,6 +194,15 @@ final class CanvasViewModel: ObservableObject {
             return "{}"
         }
         return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    private func decodeHistoryCommands(from historyJSON: String?) -> [String] {
+        guard let historyJSON,
+              let data = historyJSON.data(using: .utf8),
+              let history = try? JSONDecoder().decode(CommandHistory.self, from: data) else {
+            return []
+        }
+        return history.commands
     }
 
     private func nextSheetName() -> String {
@@ -201,5 +234,47 @@ final class CanvasViewModel: ObservableObject {
             return nil
         }
         return table(withId: selectedTableId)
+    }
+
+    private func clearCellSelectionIfInvalid(tableId: String) {
+        guard let selection = selectedCell,
+              selection.tableId == tableId,
+              let table = table(withId: tableId),
+              !isSelectionValid(selection, for: table) else {
+            return
+        }
+        selectedCell = nil
+    }
+
+    private func isSelectionValid(_ selection: CellSelection, for table: TableModel) -> Bool {
+        let grid = table.gridSpec
+        let bands = grid.labelBands
+        switch selection.region {
+        case .body:
+            return selection.row >= 0
+                && selection.row < grid.bodyRows
+                && selection.col >= 0
+                && selection.col < grid.bodyCols
+        case .topLabels:
+            return selection.row >= 0
+                && selection.row < bands.topRows
+                && selection.col >= 0
+                && selection.col < grid.bodyCols
+        case .bottomLabels:
+            return selection.row >= 0
+                && selection.row < bands.bottomRows
+                && selection.col >= 0
+                && selection.col < grid.bodyCols
+        case .leftLabels:
+            return selection.row >= 0
+                && selection.row < grid.bodyRows
+                && selection.col >= 0
+                && selection.col < bands.leftCols
+        case .rightLabels:
+            return selection.row >= 0
+                && selection.row < grid.bodyRows
+                && selection.col >= 0
+                && selection.col < bands.rightCols
+        }
     }
 }

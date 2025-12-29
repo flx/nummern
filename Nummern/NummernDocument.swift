@@ -91,5 +91,7 @@ struct NummernDocument: FileDocument {
 }
 
 extension UTType {
-    static var nummernDocument = UTType(exportedAs: "com.digitalhandstand.nummern.document")
+    static var nummernDocument: UTType {
+        UTType(exportedAs: "com.digitalhandstand.nummern.document", conformingTo: .package)
+    }
 }

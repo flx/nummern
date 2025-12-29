@@ -48,4 +48,9 @@ final class TransactionManager {
     func pythonLog() -> String {
         allCommands().joined(separator: "\n")
     }
+
+    func reset() {
+        currentTransaction = nil
+        transactions = []
+    }
 }

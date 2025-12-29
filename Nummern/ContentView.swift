@@ -7,7 +7,8 @@ struct ContentView: View {
 
     init(document: Binding<NummernDocument>) {
         _document = document
-        _viewModel = StateObject(wrappedValue: CanvasViewModel(project: document.wrappedValue.project))
+        _viewModel = StateObject(wrappedValue: CanvasViewModel(project: document.wrappedValue.project,
+                                                               historyJSON: document.wrappedValue.historyJSON))
     }
 
     var body: some View {
@@ -58,9 +59,16 @@ struct ContentView: View {
 
                 Text("Event Log")
                     .font(.headline)
-                TextEditor(text: .constant(viewModel.pythonLog))
-                    .font(.system(.body, design: .monospaced))
-                    .disabled(true)
+                ScrollView {
+                    Text(viewModel.pythonLog)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .textSelection(.enabled)
+                        .padding(.vertical, 4)
+                }
+                .frame(minHeight: 140)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(4)
 
                 Text("script.py")
                     .font(.headline)
@@ -101,6 +109,12 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.project) { _, newValue in
             document.project = newValue
+        }
+        .onChange(of: document.project) { _, newValue in
+            if newValue != viewModel.project {
+                viewModel.load(project: newValue, historyJSON: document.historyJSON)
+                selectedSheetId = newValue.sheets.first?.id
+            }
         }
         .onChange(of: viewModel.historyJSON) { _, newValue in
             document.historyJSON = newValue

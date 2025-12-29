@@ -68,25 +68,25 @@ struct TableCellOverlay: View {
 
     @State private var editingCell: CellSelection?
     @State private var editingText: String = ""
-    @FocusState private var focusedCell: CellSelection?
+    @FocusState private var isEditingFocused: Bool
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(selectionGesture)
+
             cellRegion(region: .topLabels, rows: metrics.topRows, cols: metrics.bodyCols)
             cellRegion(region: .leftLabels, rows: metrics.bodyRows, cols: metrics.leftCols)
             cellRegion(region: .body, rows: metrics.bodyRows, cols: metrics.bodyCols)
             cellRegion(region: .rightLabels, rows: metrics.bodyRows, cols: metrics.rightCols)
             cellRegion(region: .bottomLabels, rows: metrics.bottomRows, cols: metrics.bodyCols)
+
+            selectionOverlay()
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
         .onChange(of: selectedCell) { _, newValue in
             guard let editingCell, editingCell != newValue else {
-                return
-            }
-            commitEdit()
-        }
-        .onChange(of: focusedCell) { _, newValue in
-            guard editingCell != nil, newValue != editingCell else {
                 return
             }
             commitEdit()
@@ -107,38 +107,17 @@ struct TableCellOverlay: View {
     private func cellView(region: GridRegion, row: Int, col: Int) -> some View {
         let selection = CellSelection(tableId: table.id, region: region, row: row, col: col)
         let frame = metrics.cellFrame(region: region, row: row, col: col)
-        let isSelected = selectedCell == selection
-        let isEditing = editingCell == selection
         let value = displayValue(for: selection)
+        let isEditing = editingCell == selection
 
-        return ZStack(alignment: .leading) {
-            if isEditing {
-                TextField("", text: $editingText)
-                    .textFieldStyle(.plain)
-                    .focused($focusedCell, equals: selection)
-                    .onSubmit {
-                        commitEdit()
-                    }
-                    .padding(.horizontal, 4)
-            } else {
-                Text(value)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .padding(.horizontal, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(width: metrics.cellSize.width, height: metrics.cellSize.height, alignment: .leading)
-        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-        .overlay(
-            Rectangle()
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
-        )
-        .offset(x: frame.minX, y: frame.minY)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            beginEditing(selection)
-        }
+        return Text(value)
+            .font(.system(size: 12))
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .frame(width: metrics.cellSize.width, height: metrics.cellSize.height, alignment: .leading)
+            .position(x: frame.midX, y: frame.midY)
+            .opacity(isEditing ? 0 : 1)
+            .allowsHitTesting(false)
     }
 
     private func beginEditing(_ selection: CellSelection) {
@@ -148,7 +127,7 @@ struct TableCellOverlay: View {
             editingText = displayValue(for: selection)
         }
         onSelect(selection)
-        focusedCell = selection
+        isEditingFocused = true
     }
 
     private func commitEdit() {
@@ -158,12 +137,119 @@ struct TableCellOverlay: View {
         let committedCell = editingCell
         let committedText = editingText
         self.editingCell = nil
-        focusedCell = nil
+        isEditingFocused = false
         onCommit(committedCell, committedText)
     }
 
     private func displayValue(for selection: CellSelection) -> String {
         let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
         return table.cellValues[key]?.displayString ?? ""
+    }
+
+    private func selectionOverlay() -> some View {
+        Group {
+            if let selection = editingCell ?? selectedCell {
+                let frame = metrics.cellFrame(region: selection.region, row: selection.row, col: selection.col)
+                ZStack {
+                    Rectangle()
+                        .stroke(Color.accentColor, lineWidth: 1)
+                        .frame(width: frame.width, height: frame.height)
+                        .position(x: frame.midX, y: frame.midY)
+                        .allowsHitTesting(false)
+
+                    if editingCell != nil {
+                        TextField("", text: $editingText)
+                            .textFieldStyle(.plain)
+                            .focused($isEditingFocused)
+                            .onSubmit {
+                                commitEdit()
+                            }
+                            .padding(.horizontal, 4)
+                            .frame(width: frame.width, height: frame.height, alignment: .leading)
+                            .position(x: frame.midX, y: frame.midY)
+                    }
+                }
+            }
+        }
+    }
+
+    private var selectionGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onEnded { value in
+                guard let selection = selection(at: value.location) else {
+                    return
+                }
+                beginEditing(selection)
+            }
+    }
+
+    private func selection(at location: CGPoint) -> CellSelection? {
+        let x = location.x
+        let y = location.y
+        guard x >= 0, y >= 0, x < metrics.totalWidth, y < metrics.totalHeight else {
+            return nil
+        }
+
+        if metrics.topRows > 0 {
+            let minX = metrics.leftWidth
+            let maxX = metrics.leftWidth + metrics.bodyWidth
+            let minY: CGFloat = 0
+            let maxY = metrics.topHeight
+            if x >= minX, x < maxX, y >= minY, y < maxY {
+                let row = Int((y - minY) / metrics.cellSize.height)
+                let col = Int((x - minX) / metrics.cellSize.width)
+                return CellSelection(tableId: table.id, region: .topLabels, row: row, col: col)
+            }
+        }
+
+        if metrics.bottomRows > 0 {
+            let minX = metrics.leftWidth
+            let maxX = metrics.leftWidth + metrics.bodyWidth
+            let minY = metrics.topHeight + metrics.bodyHeight
+            let maxY = minY + metrics.bottomHeight
+            if x >= minX, x < maxX, y >= minY, y < maxY {
+                let row = Int((y - minY) / metrics.cellSize.height)
+                let col = Int((x - minX) / metrics.cellSize.width)
+                return CellSelection(tableId: table.id, region: .bottomLabels, row: row, col: col)
+            }
+        }
+
+        if metrics.leftCols > 0 {
+            let minX: CGFloat = 0
+            let maxX = metrics.leftWidth
+            let minY = metrics.topHeight
+            let maxY = minY + metrics.bodyHeight
+            if x >= minX, x < maxX, y >= minY, y < maxY {
+                let row = Int((y - minY) / metrics.cellSize.height)
+                let col = Int((x - minX) / metrics.cellSize.width)
+                return CellSelection(tableId: table.id, region: .leftLabels, row: row, col: col)
+            }
+        }
+
+        if metrics.rightCols > 0 {
+            let minX = metrics.leftWidth + metrics.bodyWidth
+            let maxX = minX + metrics.rightWidth
+            let minY = metrics.topHeight
+            let maxY = minY + metrics.bodyHeight
+            if x >= minX, x < maxX, y >= minY, y < maxY {
+                let row = Int((y - minY) / metrics.cellSize.height)
+                let col = Int((x - minX) / metrics.cellSize.width)
+                return CellSelection(tableId: table.id, region: .rightLabels, row: row, col: col)
+            }
+        }
+
+        if metrics.bodyRows > 0, metrics.bodyCols > 0 {
+            let minX = metrics.leftWidth
+            let maxX = metrics.leftWidth + metrics.bodyWidth
+            let minY = metrics.topHeight
+            let maxY = metrics.topHeight + metrics.bodyHeight
+            if x >= minX, x < maxX, y >= minY, y < maxY {
+                let row = Int((y - minY) / metrics.cellSize.height)
+                let col = Int((x - minX) / metrics.cellSize.width)
+                return CellSelection(tableId: table.id, region: .body, row: row, col: col)
+            }
+        }
+
+        return nil
     }
 }

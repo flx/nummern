@@ -26,4 +26,24 @@ final class CanvasViewModelTests: XCTestCase {
         XCTAssertEqual(updated.width, 240)
         XCTAssertEqual(updated.height, 180)
     }
+
+    func testReducingLabelBandsClearsInvalidSelection() {
+        let labels = LabelBands(topRows: 2, bottomRows: 0, leftCols: 1, rightCols: 0)
+        let table = TableModel(id: "table_1",
+                               name: "Table",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 10,
+                               cols: 6,
+                               labelBands: labels)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        viewModel.selectCell(CellSelection(tableId: "table_1", region: .topLabels, row: 1, col: 0))
+        XCTAssertNotNil(viewModel.selectedCell)
+
+        viewModel.setLabelBands(tableId: "table_1",
+                                labelBands: LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0))
+
+        XCTAssertNil(viewModel.selectedCell)
+    }
 }

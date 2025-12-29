@@ -13,6 +13,12 @@ struct CanvasView: View {
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
             ZStack(alignment: .topLeading) {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.clearSelection()
+                    }
+
                 ForEach(sheet.tables, id: \.id) { table in
                     TableCanvasItem(table: table, viewModel: viewModel)
                 }

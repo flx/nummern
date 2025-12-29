@@ -52,7 +52,7 @@
             <string>Nummern Document</string>
             <key>UTTypeConformsTo</key>
             <array>
-                <string>public.data</string>
+                <string>com.apple.package</string>
             </array>
             <key>UTTypeTagSpecification</key>
             <dict>
