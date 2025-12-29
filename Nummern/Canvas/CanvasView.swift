@@ -19,8 +19,8 @@ struct CanvasView: View {
             }
             .frame(width: canvasSize.width, height: canvasSize.height)
             .background(Color(nsColor: .windowBackgroundColor))
+            .coordinateSpace(name: CanvasCoordinateSpace.name)
         }
-        .coordinateSpace(name: CanvasCoordinateSpace.name)
     }
 }
 
@@ -41,7 +41,6 @@ struct TableCanvasItem: View {
         let originY = table.rect.y + Double(dragOffset.height)
         let centerX = originX + width / 2.0
         let centerY = originY + height / 2.0
-
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color(nsColor: .textBackgroundColor))
@@ -65,7 +64,7 @@ struct TableCanvasItem: View {
                 .cornerRadius(4)
                 .padding(6)
         }
-        .frame(width: CGFloat(width), height: CGFloat(height))
+        .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
         .overlay(alignment: .bottomTrailing) {
             Rectangle()
                 .fill(Color.secondary)

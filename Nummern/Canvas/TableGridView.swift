@@ -46,6 +46,10 @@ final class GridView: NSView {
         layer?.backgroundColor = NSColor.clear.cgColor
     }
 
+    override var isFlipped: Bool {
+        true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard rows > 0, cols > 0 else {
