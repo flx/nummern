@@ -106,6 +106,9 @@ Unit tests to add/run:
 - `CanvasViewModelTests.testResizeTableUpdatesRect()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/CanvasViewModelTests`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 5: Grid rendering + address parsing (AppKit-backed grid)

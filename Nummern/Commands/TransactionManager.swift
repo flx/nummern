@@ -41,9 +41,11 @@ final class TransactionManager {
         return current
     }
 
+    func allCommands() -> [String] {
+        transactions.flatMap { $0.commands.map { $0.serializeToPython() } }
+    }
+
     func pythonLog() -> String {
-        transactions
-            .flatMap { $0.commands.map { $0.serializeToPython() } }
-            .joined(separator: "\n")
+        allCommands().joined(separator: "\n")
     }
 }

@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0B4405965E928B07131C0F13 /* LabelBandData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247437215C5CC2969FB24818 /* LabelBandData.swift */; };
+		1BE775B41FA8F5C10C075702 /* CanvasViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E96D26742C86692E8604981 /* CanvasViewModel.swift */; };
+		23DE5EA9C617A0EE2DC94741 /* CanvasViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */; };
 		2BEB6238E61CA1A9B7FFFA2C /* Rect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848A74834C9B64BB2A3A5C11 /* Rect.swift */; };
 		2DCBF4E938848506A9521557 /* ProjectPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */; };
 		35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */; };
@@ -24,8 +26,10 @@
 		8F29DDF933107F09D1A05D48 /* ModelID.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BCD5355B35385CFC67DF43 /* ModelID.swift */; };
 		94C4CC6CD5CE95F8575C72AD /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B82F4A255B7DAB418255A4 /* ProjectFile.swift */; };
 		A82FD8D7B24AD47B6A57C253 /* LabelBands.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83AA4FCCDD1D7029D61101C /* LabelBands.swift */; };
+		A923BD2EDDA6AE387C1E4840 /* CommandHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B703FB5092F617A340F6C2 /* CommandHistory.swift */; };
 		A93BE7E2C6B7FF09E348C959 /* NummernDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0BB9BA53EC49F3671905B1 /* NummernDocument.swift */; };
 		AA3E5A4FCF43048050C6A528 /* CommandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262FADB3F6F55F753C35CCA0 /* CommandTypes.swift */; };
+		AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F53315EB6A192D34ACF893 /* CanvasView.swift */; };
 		B4E72779647944C948964B1C /* ProjectModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */; };
 		C30C534A48A306701490610B /* CommandSerializationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */; };
 		C7CA1C4EC164B823B41C73F4 /* GridSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A449A0D60042794DDBB4C2F /* GridSpec.swift */; };
@@ -50,6 +54,7 @@
 /* Begin PBXFileReference section */
 		03AA6410B8450253CC842448 /* NummernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NummernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0C293E8112BB1FDDD5D6393B /* CanvasObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasObject.swift; sourceTree = "<group>"; };
+		0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasViewModelTests.swift; sourceTree = "<group>"; };
 		1676FCC88696E991DCC95B4F /* TransactionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionManager.swift; sourceTree = "<group>"; };
 		22E96DE31E8300F89C1ED797 /* RangeValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeValue.swift; sourceTree = "<group>"; };
 		247437215C5CC2969FB24818 /* LabelBandData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelBandData.swift; sourceTree = "<group>"; };
@@ -57,6 +62,7 @@
 		35231066F4D104796642FF38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		3DC8BFE6A5B0A659DD026F58 /* SheetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetModel.swift; sourceTree = "<group>"; };
 		41B82F4A255B7DAB418255A4 /* ProjectFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFile.swift; sourceTree = "<group>"; };
+		5E96D26742C86692E8604981 /* CanvasViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasViewModel.swift; sourceTree = "<group>"; };
 		5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPersistenceTests.swift; sourceTree = "<group>"; };
 		6300FAA3CFD8B34F9AF41F8F /* CommandApplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandApplyTests.swift; sourceTree = "<group>"; };
 		66A2EF042D0FAB77F6BF4843 /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
@@ -70,7 +76,9 @@
 		BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonLiteralEncoder.swift; sourceTree = "<group>"; };
 		D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableModelTests.swift; sourceTree = "<group>"; };
 		D83AA4FCCDD1D7029D61101C /* LabelBands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelBands.swift; sourceTree = "<group>"; };
+		D8B703FB5092F617A340F6C2 /* CommandHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandHistory.swift; sourceTree = "<group>"; };
 		D9EDC9D8B1E1E5C904FC8B0A /* FormulaSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaSpec.swift; sourceTree = "<group>"; };
+		D9F53315EB6A192D34ACF893 /* CanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasView.swift; sourceTree = "<group>"; };
 		DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NummernApp.swift; sourceTree = "<group>"; };
 		DF4DFC8BA610B026B324FE89 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DF7B64F552EBAC3CC91EE4A0 /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
@@ -88,6 +96,7 @@
 				35231066F4D104796642FF38 /* ContentView.swift */,
 				DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */,
 				9D0BB9BA53EC49F3671905B1 /* NummernDocument.swift */,
+				8E611E3B2EF5C2CDFBEC5926 /* Canvas */,
 				9DDDC048ABE88BCA8ABE8179 /* Commands */,
 				B4CBF0ADCE1994BB6F33B8B7 /* Model */,
 			);
@@ -103,6 +112,15 @@
 			);
 			sourceTree = "<group>";
 		};
+		8E611E3B2EF5C2CDFBEC5926 /* Canvas */ = {
+			isa = PBXGroup;
+			children = (
+				D9F53315EB6A192D34ACF893 /* CanvasView.swift */,
+				5E96D26742C86692E8604981 /* CanvasViewModel.swift */,
+			);
+			path = Canvas;
+			sourceTree = "<group>";
+		};
 		91C3558B4F2D77B51E2A1270 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -115,6 +133,7 @@
 		921E28C28FE3E9C5102A5C57 /* NummernTests */ = {
 			isa = PBXGroup;
 			children = (
+				0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */,
 				6300FAA3CFD8B34F9AF41F8F /* CommandApplyTests.swift */,
 				FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */,
 				B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */,
@@ -129,6 +148,7 @@
 			isa = PBXGroup;
 			children = (
 				66A2EF042D0FAB77F6BF4843 /* Command.swift */,
+				D8B703FB5092F617A340F6C2 /* CommandHistory.swift */,
 				262FADB3F6F55F753C35CCA0 /* CommandTypes.swift */,
 				BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */,
 				1676FCC88696E991DCC95B4F /* TransactionManager.swift */,
@@ -241,6 +261,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				23DE5EA9C617A0EE2DC94741 /* CanvasViewModelTests.swift in Sources */,
 				7373D82DBD234A48B895BD47 /* CommandApplyTests.swift in Sources */,
 				C30C534A48A306701490610B /* CommandSerializationTests.swift in Sources */,
 				B4E72779647944C948964B1C /* ProjectModelTests.swift in Sources */,
@@ -255,8 +276,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				ED14A3EA839D73CCD8AD873D /* CanvasObject.swift in Sources */,
+				AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */,
+				1BE775B41FA8F5C10C075702 /* CanvasViewModel.swift in Sources */,
 				6CDF0D8474B4B166CEA93E93 /* CellValue.swift in Sources */,
 				5779FA418579A5857DBE7D71 /* Command.swift in Sources */,
+				A923BD2EDDA6AE387C1E4840 /* CommandHistory.swift in Sources */,
 				AA3E5A4FCF43048050C6A528 /* CommandTypes.swift in Sources */,
 				4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */,
 				5AED8B6972872050C89B19D1 /* FormulaSpec.swift in Sources */,
