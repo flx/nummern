@@ -50,6 +50,13 @@ struct TableCanvasItem: View {
                         .stroke(Color.secondary, lineWidth: 1)
                 )
 
+            TableGridView(rows: table.gridSpec.bodyRows,
+                          cols: table.gridSpec.bodyCols,
+                          cellSize: CGSize(width: 80, height: 24))
+                .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
+                .clipped()
+                .allowsHitTesting(false)
+
             Text(table.name)
                 .font(.caption)
                 .padding(.horizontal, 6)

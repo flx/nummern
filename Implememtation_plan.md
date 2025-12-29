@@ -127,6 +127,9 @@ Unit tests to add/run:
 - `GridIndexingTests.testVisibleRangeMapping()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/RangeParserTests`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 6: Cell editing, label bands, and clipboard (Swift)

@@ -8,13 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		0B4405965E928B07131C0F13 /* LabelBandData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247437215C5CC2969FB24818 /* LabelBandData.swift */; };
+		143032EC3C2116A0EE408084 /* RangeParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B684243D5DD572E453B014C /* RangeParserTests.swift */; };
 		1BE775B41FA8F5C10C075702 /* CanvasViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E96D26742C86692E8604981 /* CanvasViewModel.swift */; };
 		23DE5EA9C617A0EE2DC94741 /* CanvasViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */; };
+		2862798CD87A8DF77BFF9626 /* GridIndexingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83AED9256F065BF56EFB8B06 /* GridIndexingTests.swift */; };
 		2BEB6238E61CA1A9B7FFFA2C /* Rect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848A74834C9B64BB2A3A5C11 /* Rect.swift */; };
 		2DCBF4E938848506A9521557 /* ProjectPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */; };
 		35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */; };
 		3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */; };
 		4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35231066F4D104796642FF38 /* ContentView.swift */; };
+		4E3133FE111436B4AA335EA6 /* RangeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE0AAB5B269E0057CC9EC67 /* RangeParser.swift */; };
 		5518E63FAFC03F62581E9282 /* TransactionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1676FCC88696E991DCC95B4F /* TransactionManager.swift */; };
 		5779FA418579A5857DBE7D71 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A2EF042D0FAB77F6BF4843 /* Command.swift */; };
 		5AED8B6972872050C89B19D1 /* FormulaSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9EDC9D8B1E1E5C904FC8B0A /* FormulaSpec.swift */; };
@@ -25,6 +28,7 @@
 		8DC6F51903CA527B6D9E7642 /* ProjectModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B56862FEFAFB6F8392487F /* ProjectModel.swift */; };
 		8F29DDF933107F09D1A05D48 /* ModelID.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BCD5355B35385CFC67DF43 /* ModelID.swift */; };
 		94C4CC6CD5CE95F8575C72AD /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B82F4A255B7DAB418255A4 /* ProjectFile.swift */; };
+		A34D99D8600E93D43FC83220 /* TableGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */; };
 		A82FD8D7B24AD47B6A57C253 /* LabelBands.swift in Sources */ = {isa = PBXBuildFile; fileRef = D83AA4FCCDD1D7029D61101C /* LabelBands.swift */; };
 		A923BD2EDDA6AE387C1E4840 /* CommandHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B703FB5092F617A340F6C2 /* CommandHistory.swift */; };
 		A93BE7E2C6B7FF09E348C959 /* NummernDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0BB9BA53EC49F3671905B1 /* NummernDocument.swift */; };
@@ -37,6 +41,7 @@
 		CE65C31521B34C61110917ED /* PythonLiteralEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */; };
 		E4624504F8A13197D4926BE4 /* TableModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F63BF5DB9B3A405D04E20CC5 /* TableModel.swift */; };
 		ED14A3EA839D73CCD8AD873D /* CanvasObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C293E8112BB1FDDD5D6393B /* CanvasObject.swift */; };
+		F201453C36AC12AA7503454A /* GridLayoutCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE983BB66412136FAAB2E74 /* GridLayoutCalculator.swift */; };
 		F2721778DFDD0D7E4A8AA776 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF4DFC8BA610B026B324FE89 /* Assets.xcassets */; };
 		FCC987B218C475E1F73688ED /* RangeValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E96DE31E8300F89C1ED797 /* RangeValue.swift */; };
 /* End PBXBuildFile section */
@@ -62,18 +67,23 @@
 		35231066F4D104796642FF38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		3DC8BFE6A5B0A659DD026F58 /* SheetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetModel.swift; sourceTree = "<group>"; };
 		41B82F4A255B7DAB418255A4 /* ProjectFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFile.swift; sourceTree = "<group>"; };
+		4B684243D5DD572E453B014C /* RangeParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeParserTests.swift; sourceTree = "<group>"; };
 		5E96D26742C86692E8604981 /* CanvasViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasViewModel.swift; sourceTree = "<group>"; };
 		5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPersistenceTests.swift; sourceTree = "<group>"; };
 		6300FAA3CFD8B34F9AF41F8F /* CommandApplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandApplyTests.swift; sourceTree = "<group>"; };
 		66A2EF042D0FAB77F6BF4843 /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
+		6DE983BB66412136FAAB2E74 /* GridLayoutCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridLayoutCalculator.swift; sourceTree = "<group>"; };
+		83AED9256F065BF56EFB8B06 /* GridIndexingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridIndexingTests.swift; sourceTree = "<group>"; };
 		848A74834C9B64BB2A3A5C11 /* Rect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rect.swift; sourceTree = "<group>"; };
 		92C7767C155DC4ECE3B70378 /* TransactionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionManagerTests.swift; sourceTree = "<group>"; };
 		9A449A0D60042794DDBB4C2F /* GridSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridSpec.swift; sourceTree = "<group>"; };
 		9D0BB9BA53EC49F3671905B1 /* NummernDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NummernDocument.swift; sourceTree = "<group>"; };
+		A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableGridView.swift; sourceTree = "<group>"; };
 		B2E923F4F4C1A8BB56932C00 /* CellValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellValue.swift; sourceTree = "<group>"; };
 		B8B56862FEFAFB6F8392487F /* ProjectModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModel.swift; sourceTree = "<group>"; };
 		B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModelTests.swift; sourceTree = "<group>"; };
 		BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonLiteralEncoder.swift; sourceTree = "<group>"; };
+		CDE0AAB5B269E0057CC9EC67 /* RangeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeParser.swift; sourceTree = "<group>"; };
 		D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableModelTests.swift; sourceTree = "<group>"; };
 		D83AA4FCCDD1D7029D61101C /* LabelBands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelBands.swift; sourceTree = "<group>"; };
 		D8B703FB5092F617A340F6C2 /* CommandHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandHistory.swift; sourceTree = "<group>"; };
@@ -98,6 +108,7 @@
 				9D0BB9BA53EC49F3671905B1 /* NummernDocument.swift */,
 				8E611E3B2EF5C2CDFBEC5926 /* Canvas */,
 				9DDDC048ABE88BCA8ABE8179 /* Commands */,
+				6A8D4D78E87EF9086A6E67A3 /* Grid */,
 				B4CBF0ADCE1994BB6F33B8B7 /* Model */,
 			);
 			path = Nummern;
@@ -112,11 +123,21 @@
 			);
 			sourceTree = "<group>";
 		};
+		6A8D4D78E87EF9086A6E67A3 /* Grid */ = {
+			isa = PBXGroup;
+			children = (
+				6DE983BB66412136FAAB2E74 /* GridLayoutCalculator.swift */,
+				CDE0AAB5B269E0057CC9EC67 /* RangeParser.swift */,
+			);
+			path = Grid;
+			sourceTree = "<group>";
+		};
 		8E611E3B2EF5C2CDFBEC5926 /* Canvas */ = {
 			isa = PBXGroup;
 			children = (
 				D9F53315EB6A192D34ACF893 /* CanvasView.swift */,
 				5E96D26742C86692E8604981 /* CanvasViewModel.swift */,
+				A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */,
 			);
 			path = Canvas;
 			sourceTree = "<group>";
@@ -136,8 +157,10 @@
 				0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */,
 				6300FAA3CFD8B34F9AF41F8F /* CommandApplyTests.swift */,
 				FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */,
+				83AED9256F065BF56EFB8B06 /* GridIndexingTests.swift */,
 				B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */,
 				5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */,
+				4B684243D5DD572E453B014C /* RangeParserTests.swift */,
 				D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */,
 				92C7767C155DC4ECE3B70378 /* TransactionManagerTests.swift */,
 			);
@@ -264,8 +287,10 @@
 				23DE5EA9C617A0EE2DC94741 /* CanvasViewModelTests.swift in Sources */,
 				7373D82DBD234A48B895BD47 /* CommandApplyTests.swift in Sources */,
 				C30C534A48A306701490610B /* CommandSerializationTests.swift in Sources */,
+				2862798CD87A8DF77BFF9626 /* GridIndexingTests.swift in Sources */,
 				B4E72779647944C948964B1C /* ProjectModelTests.swift in Sources */,
 				2DCBF4E938848506A9521557 /* ProjectPersistenceTests.swift in Sources */,
+				143032EC3C2116A0EE408084 /* RangeParserTests.swift in Sources */,
 				35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */,
 				86E965BEDCB0FD026920A7DA /* TransactionManagerTests.swift in Sources */,
 			);
@@ -284,6 +309,7 @@
 				AA3E5A4FCF43048050C6A528 /* CommandTypes.swift in Sources */,
 				4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */,
 				5AED8B6972872050C89B19D1 /* FormulaSpec.swift in Sources */,
+				F201453C36AC12AA7503454A /* GridLayoutCalculator.swift in Sources */,
 				C7CA1C4EC164B823B41C73F4 /* GridSpec.swift in Sources */,
 				0B4405965E928B07131C0F13 /* LabelBandData.swift in Sources */,
 				A82FD8D7B24AD47B6A57C253 /* LabelBands.swift in Sources */,
@@ -294,9 +320,11 @@
 				8DC6F51903CA527B6D9E7642 /* ProjectModel.swift in Sources */,
 				6042EC4A04847341BBFABB89 /* ProjectStore.swift in Sources */,
 				CE65C31521B34C61110917ED /* PythonLiteralEncoder.swift in Sources */,
+				4E3133FE111436B4AA335EA6 /* RangeParser.swift in Sources */,
 				FCC987B218C475E1F73688ED /* RangeValue.swift in Sources */,
 				2BEB6238E61CA1A9B7FFFA2C /* Rect.swift in Sources */,
 				CC53D32CD24C0388FE32FDD9 /* SheetModel.swift in Sources */,
+				A34D99D8600E93D43FC83220 /* TableGridView.swift in Sources */,
 				E4624504F8A13197D4926BE4 /* TableModel.swift in Sources */,
 				5518E63FAFC03F62581E9282 /* TransactionManager.swift in Sources */,
 			);
