@@ -1,0 +1,32 @@
+name: Nummern
+options:
+  bundleIdPrefix: com.digitalhandstand
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  Nummern:
+    type: application
+    platform: macOS
+    sources:
+      - path: Nummern
+    resources:
+      - path: Nummern/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.digitalhandstand.nummern
+        INFOPLIST_FILE: Config/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        SWIFT_VERSION: 5.9
+  NummernTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: NummernTests
+    dependencies:
+      - target: Nummern
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: 5.9
