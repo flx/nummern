@@ -23,3 +23,14 @@ struct ProjectModel: Codable, Equatable {
         }
     }
 }
+
+extension ProjectModel {
+    func nextSheetId() -> String {
+        ModelID.nextSheetId(existingIDs: sheets.map(\.id))
+    }
+
+    func nextTableId() -> String {
+        let ids = sheets.flatMap { $0.tables.map(\.id) }
+        return ModelID.nextTableId(existingIDs: ids)
+    }
+}

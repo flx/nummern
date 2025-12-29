@@ -5,7 +5,7 @@ struct SheetModel: Identifiable, Codable, Equatable, Hashable {
     var name: String
     var tables: [TableModel]
 
-    init(id: String = ModelID.make(), name: String, tables: [TableModel] = []) {
+    init(id: String, name: String, tables: [TableModel] = []) {
         self.id = id
         self.name = name
         self.tables = tables

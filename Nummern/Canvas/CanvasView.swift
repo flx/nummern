@@ -122,11 +122,12 @@ struct TableCanvasItem: View {
 
             Text(table.name)
                 .font(.caption)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
                 .background(Color(nsColor: .windowBackgroundColor))
                 .cornerRadius(4)
-                .padding(6)
+                .padding(.leading, 12)
+                .offset(y: -8)
                 .gesture(moveGesture)
                 .onTapGesture {
                     viewModel.selectTable(table.id)

@@ -3,7 +3,7 @@ import XCTest
 
 final class TableModelTests: XCTestCase {
     func testGridSpecDefaults() {
-        let table = TableModel(name: "Table", rect: Rect(x: 0, y: 0, width: 10, height: 10))
+        let table = TableModel(id: "table_1", name: "Table", rect: Rect(x: 0, y: 0, width: 10, height: 10))
 
         XCTAssertEqual(table.gridSpec.bodyRows, 10)
         XCTAssertEqual(table.gridSpec.bodyCols, 6)
@@ -11,7 +11,7 @@ final class TableModelTests: XCTestCase {
     }
 
     func testRectMutation() {
-        var table = TableModel(name: "Table", rect: Rect(x: 0, y: 0, width: 10, height: 10))
+        var table = TableModel(id: "table_1", name: "Table", rect: Rect(x: 0, y: 0, width: 10, height: 10))
         let updated = Rect(x: 12, y: 34, width: 56, height: 78)
 
         table.rect = updated

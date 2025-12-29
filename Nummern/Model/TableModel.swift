@@ -11,7 +11,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
     var formulas: [String: FormulaSpec]
     var labelBandValues: LabelBandData
 
-    init(id: String = ModelID.make(),
+    init(id: String,
          name: String,
          rect: Rect,
          rows: Int = 10,

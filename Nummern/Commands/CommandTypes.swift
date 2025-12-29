@@ -9,7 +9,7 @@ struct AddSheetCommand: Command {
     init(commandId: String = ModelID.make(),
          timestamp: Date = Date(),
          name: String,
-         sheetId: String = ModelID.make()) {
+         sheetId: String) {
         self.commandId = commandId
         self.timestamp = timestamp
         self.name = name
@@ -66,7 +66,7 @@ struct AddTableCommand: Command {
     init(commandId: String = ModelID.make(),
          timestamp: Date = Date(),
          sheetId: String,
-         tableId: String = ModelID.make(),
+         tableId: String,
          name: String,
          rect: Rect,
          rows: Int,

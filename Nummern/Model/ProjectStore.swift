@@ -10,7 +10,8 @@ final class ProjectStore: ObservableObject {
 
     @discardableResult
     func addSheet(name: String) -> SheetModel {
-        let sheet = SheetModel(name: name)
+        let sheetId = project.nextSheetId()
+        let sheet = SheetModel(id: sheetId, name: name)
         project.sheets.append(sheet)
         return sheet
     }
@@ -32,7 +33,8 @@ final class ProjectStore: ObservableObject {
         guard let index = project.sheets.firstIndex(where: { $0.id == sheetId }) else {
             return nil
         }
-        let table = TableModel(name: name, rect: rect, rows: rows, cols: cols, labelBands: labelBands)
+        let tableId = project.nextTableId()
+        let table = TableModel(id: tableId, name: name, rect: rect, rows: rows, cols: cols, labelBands: labelBands)
         project.sheets[index].tables.append(table)
         return table
     }

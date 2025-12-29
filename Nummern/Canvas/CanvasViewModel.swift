@@ -34,9 +34,10 @@ final class CanvasViewModel: ObservableObject {
     @discardableResult
     func addSheet(named name: String? = nil) -> SheetModel {
         let sheetName = name ?? nextSheetName()
-        let command = AddSheetCommand(name: sheetName)
+        let sheetId = project.nextSheetId()
+        let command = AddSheetCommand(name: sheetName, sheetId: sheetId)
         apply(command)
-        return project.sheets.first { $0.id == command.sheetId } ?? SheetModel(id: command.sheetId, name: sheetName)
+        return project.sheets.first { $0.id == sheetId } ?? SheetModel(id: sheetId, name: sheetName)
     }
 
     @discardableResult
@@ -48,7 +49,7 @@ final class CanvasViewModel: ObservableObject {
                   labels: LabelBands = LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0)) -> TableModel? {
         let tableName = name ?? nextTableName()
         let baseRect = rect ?? defaultTableRect()
-        let tableId = ModelID.make()
+        let tableId = project.nextTableId()
         let command = AddTableCommand(
             sheetId: sheetId,
             tableId: tableId,
