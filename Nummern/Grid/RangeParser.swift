@@ -110,4 +110,18 @@ struct RangeParser {
     static func cellLabel(row: Int, col: Int) -> String {
         "\(columnLabel(from: col))\(row + 1)"
     }
+
+    static func address(region: GridRegion, row: Int, col: Int) -> String {
+        "\(region.rawValue)[\(cellLabel(row: row, col: col))]"
+    }
+
+    static func rangeString(region: GridRegion,
+                            startRow: Int,
+                            startCol: Int,
+                            endRow: Int,
+                            endCol: Int) -> String {
+        let start = cellLabel(row: startRow, col: startCol)
+        let end = cellLabel(row: endRow, col: endCol)
+        return "\(region.rawValue)[\(start):\(end)]"
+    }
 }

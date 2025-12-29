@@ -149,6 +149,7 @@ struct ResizeTableCommand: Command {
             if let cols {
                 table.gridSpec.bodyCols = cols
             }
+            table.normalizeColumnTypes()
         }
     }
 
@@ -162,6 +163,33 @@ struct ResizeTableCommand: Command {
         }
         let joined = args.joined(separator: ", ")
         return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).resize(\(joined))"
+    }
+}
+
+struct SetLabelBandsCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let tableId: String
+    let labelBands: LabelBands
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         tableId: String,
+         labelBands: LabelBands) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.tableId = tableId
+        self.labelBands = labelBands
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateTable(id: tableId) { table in
+            table.gridSpec.labelBands = labelBands
+        }
+    }
+
+    func serializeToPython() -> String {
+        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_labels(top=\(labelBands.topRows), left=\(labelBands.leftCols), bottom=\(labelBands.bottomRows), right=\(labelBands.rightCols))"
     }
 }
 
@@ -184,6 +212,13 @@ struct SetCellsCommand: Command {
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
             table.cellValues.merge(cellMap) { _, new in new }
+            for (key, value) in cellMap {
+                guard let parsed = try? RangeParser.parse(key),
+                      parsed.region == .body else {
+                    continue
+                }
+                table.updateColumnType(forBodyColumn: parsed.start.col, value: value)
+            }
         }
     }
 
@@ -228,6 +263,22 @@ struct SetRangeCommand: Command {
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
             table.rangeValues[range] = RangeValue(values: values, dtype: dtype)
+            guard let parsed = try? RangeParser.parse(range) else {
+                return
+            }
+            let startRow = parsed.start.row
+            let startCol = parsed.start.col
+            for (rowIndex, rowValues) in values.enumerated() {
+                for (colIndex, value) in rowValues.enumerated() {
+                    let row = startRow + rowIndex
+                    let col = startCol + colIndex
+                    let key = RangeParser.address(region: parsed.region, row: row, col: col)
+                    table.cellValues[key] = value
+                    if parsed.region == .body {
+                        table.updateColumnType(forBodyColumn: col, value: value)
+                    }
+                }
+            }
         }
     }
 
@@ -358,6 +409,7 @@ struct InsertColsCommand: Command {
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
             table.gridSpec.bodyCols += count
+            table.normalizeColumnTypes()
         }
     }
 

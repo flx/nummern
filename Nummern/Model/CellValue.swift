@@ -49,4 +49,38 @@ enum CellValue: Codable, Equatable, Hashable {
             try container.encode(ValueType.empty, forKey: .type)
         }
     }
+
+    static func fromUserInput(_ input: String) -> CellValue {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .empty
+        }
+        let lower = trimmed.lowercased()
+        if lower == "true" {
+            return .bool(true)
+        }
+        if lower == "false" {
+            return .bool(false)
+        }
+        if let number = Double(trimmed) {
+            return .number(number)
+        }
+        return .string(trimmed)
+    }
+
+    var displayString: String {
+        switch self {
+        case .string(let value):
+            return value
+        case .number(let value):
+            if value.rounded() == value {
+                return String(Int(value))
+            }
+            return String(value)
+        case .bool(let value):
+            return value ? "TRUE" : "FALSE"
+        case .empty:
+            return ""
+        }
+    }
 }

@@ -144,10 +144,13 @@ Testable increment:
 - Users can edit cells, paste ranges, and edit label bands with logged Python commands.
 
 Unit tests to add/run:
-- `CellEditTests.testSetCellsCommandGrouping()`
+- `CellEditTests.testSetRangePopulatesCellValues()`
 - `LabelBandTests.testAdjustLabelBandCounts()`
-- `TypeInferenceTests.testColumnPromotesToObjectOnString()`
+- `TypeInferenceTests.testColumnPromotesToStringOnText()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/LabelBandTests`
+
+Status:
+- [x] Completed
 
 ---
 

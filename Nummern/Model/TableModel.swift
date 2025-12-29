@@ -5,6 +5,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
     var name: String
     var rect: Rect
     var gridSpec: GridSpec
+    var bodyColumnTypes: [ColumnDataType]
     var cellValues: [String: CellValue]
     var rangeValues: [String: RangeValue]
     var formulas: [String: FormulaSpec]
@@ -16,6 +17,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
          rows: Int = 10,
          cols: Int = 6,
          labelBands: LabelBands = .zero,
+         bodyColumnTypes: [ColumnDataType] = [],
          cellValues: [String: CellValue] = [:],
          rangeValues: [String: RangeValue] = [:],
          formulas: [String: FormulaSpec] = [:],
@@ -24,9 +26,87 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         self.name = name
         self.rect = rect
         self.gridSpec = GridSpec(bodyRows: rows, bodyCols: cols, labelBands: labelBands)
+        if bodyColumnTypes.isEmpty {
+            self.bodyColumnTypes = Array(repeating: .number, count: cols)
+        } else {
+            self.bodyColumnTypes = bodyColumnTypes
+        }
         self.cellValues = cellValues
         self.rangeValues = rangeValues
         self.formulas = formulas
         self.labelBandValues = labelBandValues
+        normalizeColumnTypes()
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case rect
+        case gridSpec
+        case bodyColumnTypes
+        case cellValues
+        case rangeValues
+        case formulas
+        case labelBandValues
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        rect = try container.decode(Rect.self, forKey: .rect)
+        gridSpec = try container.decode(GridSpec.self, forKey: .gridSpec)
+        bodyColumnTypes = (try? container.decode([ColumnDataType].self, forKey: .bodyColumnTypes)) ?? []
+        cellValues = try container.decodeIfPresent([String: CellValue].self, forKey: .cellValues) ?? [:]
+        rangeValues = try container.decodeIfPresent([String: RangeValue].self, forKey: .rangeValues) ?? [:]
+        formulas = try container.decodeIfPresent([String: FormulaSpec].self, forKey: .formulas) ?? [:]
+        labelBandValues = try container.decodeIfPresent(LabelBandData.self, forKey: .labelBandValues) ?? LabelBandData()
+        if bodyColumnTypes.isEmpty {
+            bodyColumnTypes = Array(repeating: .number, count: gridSpec.bodyCols)
+        }
+        normalizeColumnTypes()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(rect, forKey: .rect)
+        try container.encode(gridSpec, forKey: .gridSpec)
+        try container.encode(bodyColumnTypes, forKey: .bodyColumnTypes)
+        try container.encode(cellValues, forKey: .cellValues)
+        try container.encode(rangeValues, forKey: .rangeValues)
+        try container.encode(formulas, forKey: .formulas)
+        try container.encode(labelBandValues, forKey: .labelBandValues)
+    }
+
+    mutating func normalizeColumnTypes() {
+        let target = gridSpec.bodyCols
+        if bodyColumnTypes.count < target {
+            let missing = target - bodyColumnTypes.count
+            bodyColumnTypes.append(contentsOf: Array(repeating: .number, count: missing))
+        } else if bodyColumnTypes.count > target {
+            bodyColumnTypes = Array(bodyColumnTypes.prefix(target))
+        }
+    }
+
+    mutating func updateColumnType(forBodyColumn col: Int, value: CellValue) {
+        guard col >= 0 else {
+            return
+        }
+        if bodyColumnTypes.count <= col {
+            let missing = col - bodyColumnTypes.count + 1
+            bodyColumnTypes.append(contentsOf: Array(repeating: .number, count: missing))
+        }
+        switch value {
+        case .string:
+            bodyColumnTypes[col] = .string
+        case .number, .bool:
+            if bodyColumnTypes[col] != .string {
+                bodyColumnTypes[col] = .number
+            }
+        case .empty:
+            break
+        }
     }
 }

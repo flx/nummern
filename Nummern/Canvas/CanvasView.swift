@@ -33,6 +33,7 @@ struct TableCanvasItem: View {
     @State private var isResizing = false
 
     private let minSize = CGSize(width: 140, height: 90)
+    private let cellSize = CGSize(width: 80, height: 24)
 
     var body: some View {
         let width = max(Double(minSize.width), table.rect.width + Double(resizeDelta.width))
@@ -41,6 +42,12 @@ struct TableCanvasItem: View {
         let originY = table.rect.y + Double(dragOffset.height)
         let centerX = originX + width / 2.0
         let centerY = originY + height / 2.0
+        let metrics = TableGridMetrics(cellSize: cellSize,
+                                       bodyRows: table.gridSpec.bodyRows,
+                                       bodyCols: table.gridSpec.bodyCols,
+                                       labelBands: table.gridSpec.labelBands)
+        let selectedCell = viewModel.selectedCell?.tableId == table.id ? viewModel.selectedCell : nil
+
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color(nsColor: .textBackgroundColor))
@@ -49,12 +56,63 @@ struct TableCanvasItem: View {
                         .stroke(Color.secondary, lineWidth: 1)
                 )
 
-            TableGridView(rows: table.gridSpec.bodyRows,
-                          cols: table.gridSpec.bodyCols,
-                          cellSize: CGSize(width: 80, height: 24))
-                .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
-                .clipped()
-                .allowsHitTesting(false)
+            ZStack(alignment: .topLeading) {
+                if metrics.topRows > 0 {
+                    TableGridView(rows: metrics.topRows,
+                                  cols: metrics.bodyCols,
+                                  cellSize: cellSize)
+                        .frame(width: metrics.bodyWidth, height: metrics.topHeight, alignment: .topLeading)
+                        .offset(x: metrics.leftWidth, y: 0)
+                        .allowsHitTesting(false)
+                }
+                if metrics.leftCols > 0 {
+                    TableGridView(rows: metrics.bodyRows,
+                                  cols: metrics.leftCols,
+                                  cellSize: cellSize)
+                        .frame(width: metrics.leftWidth, height: metrics.bodyHeight, alignment: .topLeading)
+                        .offset(x: 0, y: metrics.topHeight)
+                        .allowsHitTesting(false)
+                }
+                TableGridView(rows: metrics.bodyRows,
+                              cols: metrics.bodyCols,
+                              cellSize: cellSize)
+                    .frame(width: metrics.bodyWidth, height: metrics.bodyHeight, alignment: .topLeading)
+                    .offset(x: metrics.leftWidth, y: metrics.topHeight)
+                    .allowsHitTesting(false)
+                if metrics.rightCols > 0 {
+                    TableGridView(rows: metrics.bodyRows,
+                                  cols: metrics.rightCols,
+                                  cellSize: cellSize)
+                        .frame(width: metrics.rightWidth, height: metrics.bodyHeight, alignment: .topLeading)
+                        .offset(x: metrics.leftWidth + metrics.bodyWidth, y: metrics.topHeight)
+                        .allowsHitTesting(false)
+                }
+                if metrics.bottomRows > 0 {
+                    TableGridView(rows: metrics.bottomRows,
+                                  cols: metrics.bodyCols,
+                                  cellSize: cellSize)
+                        .frame(width: metrics.bodyWidth, height: metrics.bottomHeight, alignment: .topLeading)
+                        .offset(x: metrics.leftWidth, y: metrics.topHeight + metrics.bodyHeight)
+                        .allowsHitTesting(false)
+                }
+
+                TableCellOverlay(table: table,
+                                 metrics: metrics,
+                                 selectedCell: selectedCell,
+                                 onSelect: { selection in
+                                     viewModel.selectCell(selection)
+                                 },
+                                 onCommit: { selection, value in
+                                     viewModel.setCellValue(tableId: selection.tableId,
+                                                            region: selection.region,
+                                                            row: selection.row,
+                                                            col: selection.col,
+                                                            rawValue: value)
+                                 })
+                    .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
+            }
+            .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
+            .clipped()
 
             Text(table.name)
                 .font(.caption)
@@ -63,6 +121,10 @@ struct TableCanvasItem: View {
                 .background(Color(nsColor: .windowBackgroundColor))
                 .cornerRadius(4)
                 .padding(6)
+                .gesture(moveGesture)
+                .onTapGesture {
+                    viewModel.selectTable(table.id)
+                }
         }
         .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
         .overlay(alignment: .bottomTrailing) {
@@ -74,7 +136,6 @@ struct TableCanvasItem: View {
                 .gesture(resizeGesture())
         }
         .position(x: CGFloat(centerX), y: CGFloat(centerY))
-        .gesture(moveGesture)
     }
 
     private var moveGesture: some Gesture {

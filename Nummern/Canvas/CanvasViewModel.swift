@@ -1,10 +1,13 @@
-import Foundation
+import AppKit
 import Combine
+import Foundation
 
 final class CanvasViewModel: ObservableObject {
     @Published private(set) var project: ProjectModel
     @Published private(set) var pythonLog: String
     @Published private(set) var historyJSON: String
+    @Published var selectedTableId: String?
+    @Published var selectedCell: CellSelection?
 
     private let transactionManager = TransactionManager()
 
@@ -12,6 +15,8 @@ final class CanvasViewModel: ObservableObject {
         self.project = project
         self.pythonLog = ""
         self.historyJSON = ""
+        self.selectedTableId = nil
+        self.selectedCell = nil
         rebuildLogs()
     }
 
@@ -62,6 +67,86 @@ final class CanvasViewModel: ObservableObject {
         apply(SetTableRectCommand(tableId: tableId, rect: rect))
     }
 
+    func setLabelBands(tableId: String, labelBands: LabelBands) {
+        apply(SetLabelBandsCommand(tableId: tableId, labelBands: labelBands))
+    }
+
+    func selectTable(_ tableId: String) {
+        selectedTableId = tableId
+    }
+
+    func selectCell(_ selection: CellSelection) {
+        selectedTableId = selection.tableId
+        selectedCell = selection
+    }
+
+    func clearCellSelection() {
+        selectedCell = nil
+    }
+
+    func setCellValue(tableId: String,
+                      region: GridRegion,
+                      row: Int,
+                      col: Int,
+                      rawValue: String) {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value: CellValue
+        if region == .body {
+            value = CellValue.fromUserInput(rawValue)
+        } else {
+            value = trimmed.isEmpty ? .empty : .string(trimmed)
+        }
+        let key = RangeParser.address(region: region, row: row, col: col)
+        apply(SetCellsCommand(tableId: tableId, cellMap: [key: value]), kind: .cellEdit)
+    }
+
+    func setRange(tableId: String,
+                  region: GridRegion,
+                  startRow: Int,
+                  startCol: Int,
+                  values: [[CellValue]]) {
+        guard let firstRow = values.first, !firstRow.isEmpty else {
+            return
+        }
+        let endRow = startRow + values.count - 1
+        let endCol = startCol + firstRow.count - 1
+        let range = RangeParser.rangeString(region: region,
+                                            startRow: startRow,
+                                            startCol: startCol,
+                                            endRow: endRow,
+                                            endCol: endCol)
+        apply(SetRangeCommand(tableId: tableId, range: range, values: values), kind: .general)
+    }
+
+    func copySelectionToClipboard() {
+        guard let selection = selectedCell,
+              let table = table(withId: selection.tableId) else {
+            return
+        }
+        let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
+        let text = table.cellValues[key]?.displayString ?? ""
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    func pasteFromClipboard() {
+        guard let selection = selectedCell,
+              let text = NSPasteboard.general.string(forType: .string),
+              !text.isEmpty else {
+            return
+        }
+        let values = ClipboardParser.values(from: text, region: selection.region)
+        guard !values.isEmpty, !(values.first?.isEmpty ?? true) else {
+            return
+        }
+        setRange(tableId: selection.tableId,
+                 region: selection.region,
+                 startRow: selection.row,
+                 startCol: selection.col,
+                 values: values)
+    }
+
     private func apply(_ command: any Command, kind: TransactionKind = .general) {
         transactionManager.begin(kind: kind)
         transactionManager.record(command)
@@ -109,5 +194,12 @@ final class CanvasViewModel: ObservableObject {
             }
         }
         return nil
+    }
+
+    func selectedTable() -> TableModel? {
+        guard let selectedTableId else {
+            return nil
+        }
+        return table(withId: selectedTableId)
     }
 }

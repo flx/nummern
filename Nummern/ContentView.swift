@@ -36,6 +36,26 @@ struct ContentView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
+                if let selectedTable = viewModel.selectedTable() {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected Table")
+                            .font(.headline)
+                        Text(selectedTable.name)
+                            .font(.subheadline)
+                        labelBandStepper(title: "Top Labels",
+                                          value: labelBandBinding(table: selectedTable, keyPath: \.topRows))
+                        labelBandStepper(title: "Left Labels",
+                                          value: labelBandBinding(table: selectedTable, keyPath: \.leftCols))
+                        labelBandStepper(title: "Bottom Labels",
+                                          value: labelBandBinding(table: selectedTable, keyPath: \.bottomRows))
+                        labelBandStepper(title: "Right Labels",
+                                          value: labelBandBinding(table: selectedTable, keyPath: \.rightCols))
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .cornerRadius(6)
+                }
+
                 Text("Event Log")
                     .font(.headline)
                 TextEditor(text: .constant(viewModel.pythonLog))
@@ -49,6 +69,21 @@ struct ContentView: View {
             }
             .frame(minWidth: 320)
             .padding(12)
+        }
+        .overlay {
+            HStack {
+                Button("Copy") {
+                    viewModel.copySelectionToClipboard()
+                }
+                .keyboardShortcut("c", modifiers: .command)
+
+                Button("Paste") {
+                    viewModel.pasteFromClipboard()
+                }
+                .keyboardShortcut("v", modifiers: .command)
+            }
+            .frame(width: 0, height: 0)
+            .opacity(0)
         }
         .toolbar {
             ToolbarItemGroup {
@@ -64,10 +99,10 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: viewModel.project) { newValue in
+        .onChange(of: viewModel.project) { _, newValue in
             document.project = newValue
         }
-        .onChange(of: viewModel.historyJSON) { newValue in
+        .onChange(of: viewModel.historyJSON) { _, newValue in
             document.historyJSON = newValue
         }
         .onAppear {
@@ -91,5 +126,22 @@ struct ContentView: View {
             return
         }
         _ = viewModel.addTable(toSheetId: sheetId)
+    }
+
+    private func labelBandBinding(table: TableModel,
+                                  keyPath: WritableKeyPath<LabelBands, Int>) -> Binding<Int> {
+        Binding(
+            get: { table.gridSpec.labelBands[keyPath: keyPath] },
+            set: { newValue in
+                var bands = table.gridSpec.labelBands
+                bands[keyPath: keyPath] = max(0, newValue)
+                viewModel.setLabelBands(tableId: table.id, labelBands: bands)
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func labelBandStepper(title: String, value: Binding<Int>) -> some View {
+        Stepper("\(title): \(value.wrappedValue)", value: value, in: 0...10)
     }
 }
