@@ -160,7 +160,7 @@ Deliverable:
 - Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
   - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
 - Add a Swift `PythonEngineClient` that runs the script in a Python process and returns a reconstructed `ProjectModel`.
-- Ensure the engine can execute formulas in Python once dependencies are known (evaluation can be stubbed initially).
+- Ensure the engine can execute the script end-to-end and return a project (formula translation/execution lands in Step 9).
 - Add a repo-level virtualenv (`.venv`) workflow with pinned `requirements.txt`, and prefer that venv when launching Python.
 - Future: bundle a universal2 Python interpreter + stdlib inside the app bundle and point the engine at it for distribution.
 
@@ -176,25 +176,40 @@ Status:
 
 ---
 
-## Step 8: Formula dependency parsing and graph (Swift)
+## Step 8: Table naming alignment (IDs as labels)
 
 Deliverable:
-- Implement a lightweight Swift parser to extract references from formulas (no evaluation).
-- Build a dependency graph per table and across tables.
-- Implement recalculation scheduling on cell edits and structural changes.
+- Use `table_id` as the visible label in the model and UI (no custom table names in MVP).
+- Ensure script references and UI labels always match the table ID.
+- Reserve a display-name field for future use (not shown in UI yet).
 
 Testable increment:
-- Entering `=SUM(B1:E1)` updates dependencies and triggers a recalculation event (execution stays in Python).
+- New tables show their ID (e.g., `table_1`) in the canvas title bar and inspector.
 
 Unit tests to add/run:
-- `FormulaParserTests.testSimpleAggregate()`
-- `DependencyGraphTests.testCrossTableReference()`
-- `DependencyGraphTests.testRowInsertInvalidatesReferences()`
-- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/FormulaParserTests`
+- `TableNamingTests.testTableNameDefaultsToId()`
+- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/TableNamingTests`
 
 ---
 
-## Step 9: Rebuild-from-script + code panel
+## Step 9: Formula syntax + translation to Python (MVP)
+
+Deliverable:
+- Define spreadsheet formula grammar and reference syntax (default region is `body`, cross-table references use `table_id`).
+- Implement translation to Python helper expressions (`cell`, `col`, `rng`, `set_cell`, `set_col`, `set_range`, `cs_*`).
+- Support cell-level formulas and range formulas with relative reference expansion.
+- Generate Python formula expressions after data writes during script generation.
+
+Testable increment:
+- Entering a spreadsheet formula produces readable Python expressions in the script, and rerunning the script updates computed values.
+
+Unit tests to add/run:
+- Python: `canvassheets_api/tests/test_formula_translation.py`
+- Run: `python -m pytest -k formula_translation`
+
+---
+
+## Step 10: Rebuild-from-script + code panel
 
 Deliverable:
 - Implement code panel with user/generated/entrypoint sections.
@@ -212,7 +227,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 10: Undo/redo and transaction coherence
+## Step 11: Undo/redo and transaction coherence
 
 Deliverable:
 - Integrate `UndoManager` with command transactions.
@@ -229,7 +244,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 11: CSV import/export (Swift + Python)
+## Step 12: CSV import/export (Swift + Python)
 
 Deliverable:
 - Implement CSV import into a new table with dtype inference.
@@ -246,7 +261,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 12: Summary tables (v1 feature)
+## Step 13: Summary tables (v1 feature)
 
 Deliverable:
 - Implement `CreateSummaryTable` command and UI flow.
@@ -262,7 +277,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 13: Snapshot caching (optional but recommended)
+## Step 14: Snapshot caching (optional but recommended)
 
 Deliverable:
 - Save/load snapshots for faster open (`snapshots/latest.snapshot`).
@@ -277,7 +292,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 14: Polishing, performance, and accessibility
+## Step 15: Polishing, performance, and accessibility
 
 Deliverable:
 - Virtualized grid performance improvements (range-based rendering and diff updates).
@@ -296,6 +311,12 @@ Unit tests to add/run:
 
 ## Definition of Done Checkpoints
 
-- MVP complete after Step 11.
-- v1 core feature complete after Step 12.
-- Optional performance snapshot complete after Step 13.
+- MVP complete after Step 12.
+- v1 core feature complete after Step 13.
+- Optional performance snapshot complete after Step 14.
+
+---
+
+## TODO bucket (future)
+
+- Add display names for sheets/tables (UI-only; references remain ID-based).

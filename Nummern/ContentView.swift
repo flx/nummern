@@ -4,6 +4,8 @@ struct ContentView: View {
     @Binding var document: NummernDocument
     @StateObject private var viewModel: CanvasViewModel
     @State private var selectedSheetId: String?
+    @State private var pythonRunError: String?
+    @State private var isRunningScript = false
 
     init(document: Binding<NummernDocument>) {
         _document = document
@@ -93,6 +95,17 @@ struct ContentView: View {
             .frame(width: 0, height: 0)
             .opacity(0)
         }
+        .alert("Python Run Failed", isPresented: Binding(get: {
+            pythonRunError != nil
+        }, set: { newValue in
+            if !newValue {
+                pythonRunError = nil
+            }
+        })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(pythonRunError ?? "Unknown error")
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -105,6 +118,12 @@ struct ContentView: View {
                 } label: {
                     Label("Add Table", systemImage: "tablecells")
                 }
+                Button {
+                    runScript()
+                } label: {
+                    Label("Run Script", systemImage: "play.circle")
+                }
+                .disabled(isRunningScript)
             }
         }
         .onChange(of: viewModel.project) { _, newValue in
@@ -140,6 +159,30 @@ struct ContentView: View {
             return
         }
         _ = viewModel.addTable(toSheetId: sheetId)
+    }
+
+    private func runScript() {
+        guard !isRunningScript else {
+            return
+        }
+        isRunningScript = true
+        let script = document.script
+        let historyJSON = document.historyJSON
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let engine = try PythonEngineClient()
+                let result = try engine.runProject(script: script)
+                DispatchQueue.main.async {
+                    viewModel.load(project: result.project, historyJSON: historyJSON)
+                    isRunningScript = false
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    pythonRunError = error.localizedDescription
+                    isRunningScript = false
+                }
+            }
+        }
     }
 
     private func labelBandBinding(table: TableModel,

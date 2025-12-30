@@ -111,7 +111,7 @@ At any time, the document can be rebuilt by starting from an empty project and r
 ### 5.3 Tables on canvas
 Tables are independent objects with:
 - Unique, stable `table_id` (short, human-readable identifier like `table_1`).
-- Name (user-facing).
+- Display label: use `table_id` in MVP (no custom table names yet).
 - Geometry: `x`, `y`, `width`, `height` in canvas coordinates.
 - Grid structure:
   - Body rows/cols.
@@ -135,6 +135,7 @@ The app must support:
 - A1-style addressing (e.g., `A1`, `B2:D20`).
 - Addressing that includes label bands: treat labels as distinct address spaces (preferred, clearer).
 - Use distinct regions to avoid ambiguity: `body[A1]`, `top_labels[A1]`, `left_labels[A1]`, etc.
+- Bare `A1` references default to `body[A1]`.
 - Provide convenience helpers for common patterns (e.g., “column label” = top label row 1).
 
 ### 5.5 Formulas
@@ -150,7 +151,7 @@ Support two formula modes:
   - Date/time basics: `TODAY, NOW, DATE, YEAR, MONTH, DAY`
 - Cell references can point to:
   - Same table ranges
-  - Other tables (via table name or id)
+  - Other tables (via `table_id` only in MVP)
 - Relative/absolute references:
   - `A1`, `$A$1`, `A$1`, `$A1`
 
@@ -160,15 +161,23 @@ Support two formula modes:
   - `py: body[:, 3] * 1.2`
 - The app provides a safe evaluation context (see §9.3).
 
-#### 5.5.3 Recalculation model
+#### 5.5.3 Python translation + evaluation (MVP)
+- Spreadsheet formulas are stored as text but compiled into Python expressions in the generated script.
+- Generated script uses helper functions (see §6.2.1) to read ranges/columns and write results back into tables for a readable grid after rerun.
+- Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
+- Prefer vectorized evaluation over per-cell loops when a formula targets a range.
+
+#### 5.5.4 Recalculation model (future optimization)
 - Maintain a dependency graph per table and across tables.
 - Recalc triggers:
   - On cell commit
   - On formula change
   - On structure change (insert row/col)
-- Performance:
-  - Prefer vectorized evaluation over per-cell loops.
-  - Allow “range formulas” (one formula producing a whole column).
+
+#### 5.5.5 Formula expansion + simplification (planned)
+- Drag-fill expands cell formulas with relative reference shifts.
+- Later: simplify repeated cell formulas into column/range formulas when safe.
+- Non-vectorizable formulas (e.g., `A2 = A1 + B2`) remain row-wise.
 
 ### 5.6 Pivot tables / summaries
 MVP can ship without full pivots, but v1 should include at least:
@@ -215,23 +224,38 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Stable IDs**: All objects referenced by `sheet_id` and `table_id` using short, human-readable identifiers (e.g., `sheet_1`, `table_1`).
 - **Readable**: Users can understand and edit the script.
 - **Composable**: Users can create functions, loops, and reuse logic.
+- **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
+
+### 6.2.1 Formula helper API (Python)
+Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:
+- `cell(table, "A1")` -> scalar (default region is `body`)
+- `col(table, "A")` -> 1D NumPy array (body column)
+- `rng(table, "A1:B10")` -> 2D NumPy array
+- `set_cell(table, "A1", value)` -> write scalar into the table
+- `set_col(table, "A", values)` -> write a column vector
+- `set_range(table, "A1:B10", values)` -> write a 2D range
+- `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, etc. -> spreadsheet-like helpers implemented over NumPy
+
+Notes:
+- Bare addresses default to `body[...]`.
+- Label bands require explicit region prefixes (e.g., `top_labels[A1]`).
 
 ### 6.3 Example generated script (illustrative)
 
 ```python
 # ---- User code (editable) ---------------------------------------------
 import numpy as np
-from canvassheets_api import Project, Rect
+from canvassheets_api import Project, Rect, cell, rng, set_col, set_range, cs_sum
 
 def make_revenue_table(proj, sheet_id, x, y):
     t = proj.add_table(sheet_id, table_id="table_1",
-                       name="Revenue", rect=Rect(x, y, 520, 260),
+                       name="table_1", rect=Rect(x, y, 520, 260),
                        rows=20, cols=6,
                        labels=dict(top=1, left=1, bottom=0, right=0))
     t.set_top_labels(0, ["", "Q1", "Q2", "Q3", "Q4", "Total"])
     t.set_left_labels(0, [f"Week {i+1}" for i in range(20)])
-    t.set_range("body[B1:E20]", 0.0, dtype="float64")
-    t.set_formula("body[F1:F20]", "=SUM(B1:E1)")
+    set_range(t, "body[B1:E20]", 0.0, dtype="float64")
+    set_col(t, "F", cs_sum(rng(t, "B1:E20"), axis=1))
     return t
 
 # ---- Auto-generated log (append-only) --------------------------------
@@ -240,7 +264,7 @@ proj = Project()
 sheet1 = proj.add_sheet("Tab1", sheet_id="sheet_1")
 make_revenue_table(proj, "sheet_1", x=120, y=120)
 
-proj.add_table("sheet_1", table_id="table_2", name="Inputs",
+proj.add_table("sheet_1", table_id="table_2", name="table_2",
                rect=Rect(700, 120, 360, 220),
                rows=12, cols=4,
                labels=dict(top=1, left=1, bottom=0, right=0))
@@ -250,8 +274,10 @@ proj.table("table_2").set_cells({
     "left_labels[A1]": "Tax rate",
 })
 
-proj.table("table_1").set_formula("body[B1:E20]",
-    "=B1*(1+Inputs::B1)"  # example cross-table ref
+t1 = proj.table("table_1")
+inputs = proj.table("table_2")
+set_range(t1, "body[B1:E20]",
+    rng(t1, "B1:E20") * (1 + cell(inputs, "B1"))  # example cross-table ref
 )
 
 # ---- End of script ----------------------------------------------------
@@ -266,6 +292,7 @@ To enable user refactoring while keeping generated output reliable, the script s
 2) **Generated region** (append-only by default)
 - The app writes commands here.
 - The user may edit it, but the app warns on syntax errors and offers “Repair” by regenerating from internal history.
+- Generated output is ordered: data writes first, then formula application, then the entrypoint.
 
 3) **Entrypoint region**
 - The canonical execution entrypoint used for rebuild.
@@ -316,7 +343,7 @@ All changes are represented as commands with:
 
 Examples:
 - `AddSheet(name, sheet_id)`
-- `AddTable(sheet_id, table_id, rect, rows, cols, labels, name)`
+- `AddTable(sheet_id, table_id, rect, rows, cols, labels, name?)` (name defaults to `table_id`)
 - `MoveTable(table_id, rect)`
 - `ResizeTable(table_id, rect)`
 - `SetCells(table_id, cell_map)`
@@ -334,7 +361,7 @@ Commands are grouped into transactions:
 ### 8.3 Deterministic IDs
 To support rebuild and cross-references, object IDs must be stable:
 - When creating tables/sheets, generate short sequential IDs (e.g., `sheet_1`, `table_1`) immediately and include in script.
-- The user-visible name can change without breaking references.
+- Table display label uses `table_id` in MVP; custom display names are a future feature.
 
 ---
 
@@ -419,7 +446,7 @@ To make open fast for large files:
 - Sheet tab bar (top).
 - Canvas (center).
 - Right-side Inspector (optional):
-  - Table properties (name, size, labels, formats)
+  - Table properties (id, size, labels, formats)
   - Data type info
   - Formula help
 - Bottom or side “Code” panel:
@@ -430,7 +457,7 @@ To make open fast for large files:
 - Selecting a table shows:
   - bounding box
   - resize handles
-  - title bar with table name
+  - title bar with table id
 - Double-click enters cell edit.
 - Dragging:
   - moves table
@@ -528,16 +555,14 @@ For distribution reliability:
 ## 14. Formula engine design
 
 ### 14.1 Parsing
-- Implement a spreadsheet formula parser in Swift **or** in Python.
-- Recommendation:
-  - Parse in Swift for immediate UI feedback (syntax errors, highlighting).
-  - Compile to an intermediate representation (IR).
-  - Execute IR via Python/NumPy for vectorized evaluation.
+- Implement a spreadsheet formula parser in Python for MVP.
+- Later, optionally add Swift-side parsing for immediate UI feedback (syntax errors, highlighting).
+- Compile to an intermediate representation (IR) that maps cleanly to the helper API in §6.2.1.
+- Execute IR via Python/NumPy for vectorized evaluation.
 
 ### 14.2 Cross-table references
 Define a clear syntax, e.g.:
-- `TableName::A1`
-- `TableID::A1`
+- `table_1::A1`
 - `SheetName/TableName::A1` (optional)
 
 Internally, resolve references to IDs.
@@ -545,6 +570,7 @@ Internally, resolve references to IDs.
 ### 14.3 Vectorization
 Encourage column/range formulas:
 - If a formula is applied to `F1:F20`, compile to a single vector expression rather than 20 scalar ones.
+- Preserve row-wise evaluation for non-vectorizable formulas (e.g., cumulative references).
 
 ---
 
@@ -560,7 +586,7 @@ Command:
 Python:
 ```python
 proj.add_table("sheet_1", table_id="table_1",
-               name="Table 1", rect=Rect(100, 100, 520, 260),
+               name="table_1", rect=Rect(100, 100, 520, 260),
                rows=10, cols=6, labels=dict(top=1,left=1,bottom=0,right=0))
 ```
 
@@ -579,7 +605,8 @@ UI action:
 
 Python:
 ```python
-proj.table("table_1").set_formula("body[F1:F20]", "=SUM(B1:E1)")
+t = proj.table("table_1")
+set_col(t, "F", cs_sum(rng(t, "B1:E20"), axis=1))
 ```
 
 ### 15.4 Move/resize table
@@ -696,6 +723,19 @@ class Table:
     def set_range(self, range_str: str, values, dtype: str = None): ...
     def set_formula(self, target_range: str, formula: str, mode: str = "spreadsheet"): ...
     def to_numpy(self): ...
+
+# Formula helpers (module-level)
+def cell(table: Table, ref: str): ...
+def col(table: Table, ref: str): ...
+def rng(table: Table, ref: str): ...
+def set_cell(table: Table, ref: str, value): ...
+def set_col(table: Table, ref: str, values): ...
+def set_range(table: Table, ref: str, values, dtype: str = None): ...
+def cs_sum(*args, **kwargs): ...
+def cs_avg(*args, **kwargs): ...
+def cs_min(*args, **kwargs): ...
+def cs_max(*args, **kwargs): ...
+def cs_if(condition, true_val, false_val): ...
 ```
 
 ---
@@ -704,7 +744,7 @@ class Table:
 
 - `ProjectDocument: NSDocument`
 - `SheetModel { id: String, name: String, objects: [CanvasObject] }`
-- `TableModel: CanvasObject { id: String, name: String, rect: CGRect, gridSpec: GridSpec, ... }`
+- `TableModel: CanvasObject { id: String, name: String (same as id in MVP), rect: CGRect, gridSpec: GridSpec, ... }`
 - `Command` protocol + concrete command structs
 - `PythonEngineClient` (XPC client) + `PythonEngineService` (helper)
 

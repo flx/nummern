@@ -124,13 +124,18 @@ final class PythonEngineClient {
             }
         }
 
+        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let repoURL = cwd.appendingPathComponent("python")
+        if moduleExists(at: repoURL),
+           venvRoot(fromModuleURL: repoURL) != nil {
+            return repoURL
+        }
+
         if let bundleURL = Bundle.main.resourceURL?.appendingPathComponent("python"),
            moduleExists(at: bundleURL) {
             return bundleURL
         }
 
-        let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let repoURL = cwd.appendingPathComponent("python")
         if moduleExists(at: repoURL) {
             return repoURL
         }
