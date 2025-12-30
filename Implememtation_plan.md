@@ -190,6 +190,9 @@ Unit tests to add/run:
 - `TableNamingTests.testTableNameDefaultsToId()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/TableNamingTests`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 9: Formula syntax + translation to Python (MVP)

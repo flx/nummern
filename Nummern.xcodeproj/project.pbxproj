@@ -19,6 +19,7 @@
 		2DCBF4E938848506A9521557 /* ProjectPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */; };
 		35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */; };
 		3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */; };
+		4BBE9833E24005E38FBF8558 /* TableNamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2AA4346C212D960F7A074A /* TableNamingTests.swift */; };
 		4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35231066F4D104796642FF38 /* ContentView.swift */; };
 		4E3133FE111436B4AA335EA6 /* RangeParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE0AAB5B269E0057CC9EC67 /* RangeParser.swift */; };
 		5518E63FAFC03F62581E9282 /* TransactionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1676FCC88696E991DCC95B4F /* TransactionManager.swift */; };
@@ -113,6 +114,7 @@
 		F63BF5DB9B3A405D04E20CC5 /* TableModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableModel.swift; sourceTree = "<group>"; };
 		F94ADEA377BFD4CC45042A25 /* Nummern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nummern.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F9BCD5355B35385CFC67DF43 /* ModelID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelID.swift; sourceTree = "<group>"; };
+		FC2AA4346C212D960F7A074A /* TableNamingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableNamingTests.swift; sourceTree = "<group>"; };
 		FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandSerializationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -195,6 +197,7 @@
 				7239D9E02F0325132C215688 /* PythonBridgeTests.swift */,
 				4B684243D5DD572E453B014C /* RangeParserTests.swift */,
 				D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */,
+				FC2AA4346C212D960F7A074A /* TableNamingTests.swift */,
 				92C7767C155DC4ECE3B70378 /* TransactionManagerTests.swift */,
 				0D4585FB1906D3CE198A72F2 /* TypeInferenceTests.swift */,
 			);
@@ -330,6 +333,7 @@
 				007DC920B00E7EA9C35A78D0 /* PythonBridgeTests.swift in Sources */,
 				143032EC3C2116A0EE408084 /* RangeParserTests.swift in Sources */,
 				35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */,
+				4BBE9833E24005E38FBF8558 /* TableNamingTests.swift in Sources */,
 				86E965BEDCB0FD026920A7DA /* TransactionManagerTests.swift in Sources */,
 				FA314B3EAF11ADDAEBC1A8F5 /* TypeInferenceTests.swift in Sources */,
 			);

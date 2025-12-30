@@ -43,7 +43,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Selected Table")
                             .font(.headline)
-                        Text(selectedTable.name)
+                        Text(selectedTable.id)
                             .font(.subheadline)
                         labelBandStepper(title: "Top Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.topRows))

@@ -120,7 +120,7 @@ struct TableCanvasItem: View {
             .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
             .clipped()
 
-            Text(table.name)
+            Text(table.id)
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)

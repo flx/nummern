@@ -47,9 +47,9 @@ final class CanvasViewModel: ObservableObject {
                   rows: Int = 10,
                   cols: Int = 6,
                   labels: LabelBands = LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0)) -> TableModel? {
-        let tableName = name ?? nextTableName()
-        let baseRect = rect ?? defaultTableRect()
         let tableId = project.nextTableId()
+        let tableName = name ?? tableId
+        let baseRect = rect ?? defaultTableRect()
         let command = AddTableCommand(
             sheetId: sheetId,
             tableId: tableId,
@@ -208,11 +208,6 @@ final class CanvasViewModel: ObservableObject {
 
     private func nextSheetName() -> String {
         "Sheet \(project.sheets.count + 1)"
-    }
-
-    private func nextTableName() -> String {
-        let count = project.sheets.reduce(0) { $0 + $1.tables.count }
-        return "Table \(count + 1)"
     }
 
     private func defaultTableRect() -> Rect {
