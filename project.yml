@@ -11,6 +11,7 @@ targets:
       - path: Nummern
     resources:
       - path: Nummern/Assets.xcassets
+      - path: python
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.digitalhandstand.nummern

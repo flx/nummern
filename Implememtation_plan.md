@@ -32,7 +32,7 @@ Status:
 
 Deliverable:
 - Define core model types with stable IDs and geometry: `ProjectModel`, `SheetModel`, `TableModel`, `CanvasObject`, `GridSpec`, `LabelBands`, `Rect`.
-- Implement consistent ID creation (UUID strings) and name handling.
+- Implement consistent ID creation (short sequential IDs like `sheet_1` and `table_1`) and name handling.
 - Add a minimal `ProjectStore` with in-memory state and mutation APIs.
 
 Testable increment:
@@ -154,40 +154,43 @@ Status:
 
 ---
 
-## Step 7: Formula parsing and dependency graph (Swift)
+## Step 7: Python API module + engine bridge (moved earlier)
 
 Deliverable:
-- Implement a Swift formula parser for spreadsheet formulas and compile to an IR.
+- Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
+  - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
+- Add a Swift `PythonEngineClient` that runs the script in a Python process and returns a reconstructed `ProjectModel`.
+- Ensure the engine can execute formulas in Python once dependencies are known (evaluation can be stubbed initially).
+- Add a repo-level virtualenv (`.venv`) workflow with pinned `requirements.txt`, and prefer that venv when launching Python.
+- Future: bundle a universal2 Python interpreter + stdlib inside the app bundle and point the engine at it for distribution.
+
+Testable increment:
+- Running the generated script reconstructs tables and returns a `ProjectModel` derived from Python output.
+
+Unit tests to add/run:
+- Swift: `PythonBridgeTests.testRunScriptBuildsTables()`
+- Run: `RUN_PYTHON_BRIDGE_TESTS=1 xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/PythonBridgeTests`
+
+Status:
+- [x] Completed
+
+---
+
+## Step 8: Formula dependency parsing and graph (Swift)
+
+Deliverable:
+- Implement a lightweight Swift parser to extract references from formulas (no evaluation).
 - Build a dependency graph per table and across tables.
 - Implement recalculation scheduling on cell edits and structural changes.
 
 Testable increment:
-- Entering `=SUM(B1:E1)` updates dependencies and triggers a recalculation event (even if evaluation is stubbed at this step).
+- Entering `=SUM(B1:E1)` updates dependencies and triggers a recalculation event (execution stays in Python).
 
 Unit tests to add/run:
 - `FormulaParserTests.testSimpleAggregate()`
 - `DependencyGraphTests.testCrossTableReference()`
 - `DependencyGraphTests.testRowInsertInvalidatesReferences()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/FormulaParserTests`
-
----
-
-## Step 8: Python API module + engine bridge
-
-Deliverable:
-- Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
-  - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
-- Store table data as columnar NumPy arrays with dtype inference.
-- Implement a Python execution service (XPC) and Swift client (`PythonEngineClient`).
-- Support running the generated script in a fresh interpreter and returning computed diffs.
-
-Testable increment:
-- Running the generated script reconstructs tables and returns computed cell values from Python.
-
-Unit tests to add/run:
-- Python: `test_project_add_table`, `test_set_range_dtype_inference`, `test_set_formula_vectorized` (pytest)
-- Swift: `PythonBridgeTests.testRunScriptBuildsTables()`
-- Run: `python3 -m pytest canvassheets_api/tests` and `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/PythonBridgeTests`
 
 ---
 
