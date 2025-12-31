@@ -97,6 +97,9 @@ Deliverable:
 - Implement window layout (toolbar, sheet tabs, canvas, optional inspector).
 - Render tables as draggable/resizable canvas objects (frame only) using SwiftUI + NSViewRepresentable where needed.
 - Wire Add Sheet/Add Table actions to commands and event log.
+- Canvas auto-sizes to the visible window or to fit all tables, whichever is larger.
+- Table sizing snaps to grid footprint; resize adds/removes body rows/cols and snaps on release.
+- Inspector includes body row/column controls alongside label bands.
 
 Testable increment:
 - Users can add a sheet, add a table, move/resize it, and see Python log updates.

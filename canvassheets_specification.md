@@ -107,6 +107,7 @@ At any time, the document can be rebuilt by starting from an empty project and r
 - Each sheet has an infinite (or very large) scrollable canvas.
 - Canvas zoom (25%–400%).
 - Snap-to-grid and alignment guides.
+- Canvas size should be at least the visible window size, and expand to fit all canvas objects (whichever is larger).
 
 ### 5.3 Tables on canvas
 Tables are independent objects with:
@@ -123,12 +124,17 @@ Tables are independent objects with:
 **Interactions:**
 - Create table by clicking “Add Table” then dragging a rectangle, or default size.
 - Move table by dragging its frame.
-- Resize table with handles.
+- Resize table with handles; size always snaps to the grid footprint.
 - Add/remove body rows/cols.
 - Adjust label band counts independently (top/left/bottom/right).
 - Direct edit cells.
 - Copy/paste ranges, fill series, drag fill handle.
 - Sort/filter (optional in v1; may be post-MVP).
+
+**Sizing rules:**
+- Table size is determined by grid size (body + label bands) and always snaps to cell boundaries.
+- Changing label band counts expands/contracts the table size.
+- Drag-resize adds/removes body rows/cols as the bounds cross cell thresholds and snaps on release.
 
 ### 5.4 Cell and range addressing
 The app must support:
@@ -446,7 +452,7 @@ To make open fast for large files:
 - Sheet tab bar (top).
 - Canvas (center).
 - Right-side Inspector (optional):
-  - Table properties (id, size, labels, formats)
+  - Table properties (id, body rows/cols, label bands, formats)
   - Data type info
   - Formula help
 - Bottom or side “Code” panel:
