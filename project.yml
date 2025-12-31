@@ -3,6 +3,11 @@ options:
   bundleIdPrefix: com.digitalhandstand
   deploymentTarget:
     macOS: "14.0"
+settings:
+  base:
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
 targets:
   Nummern:
     type: application
@@ -20,6 +25,9 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
         SWIFT_VERSION: 5.9
+        DEAD_CODE_STRIPPING: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+        STRING_CATALOG_GENERATE_SYMBOLS: YES
   NummernTests:
     type: bundle.unit-test
     platform: macOS
@@ -31,6 +39,8 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: 5.9
+        DEAD_CODE_STRIPPING: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
 schemes:
   Nummern:
     build:

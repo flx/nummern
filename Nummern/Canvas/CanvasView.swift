@@ -8,26 +8,36 @@ struct CanvasView: View {
     let sheet: SheetModel
     @ObservedObject var viewModel: CanvasViewModel
 
-    private let canvasSize = CGSize(width: 2400, height: 1600)
-
     var body: some View {
-        ScrollView([.horizontal, .vertical]) {
-            ZStack(alignment: .topLeading) {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.clearSelection()
-                    }
+        GeometryReader { proxy in
+            let contentSize = canvasContentSize(containerSize: proxy.size, tables: sheet.tables)
 
-                ForEach(sheet.tables, id: \.id) { table in
-                    TableCanvasItem(table: table, viewModel: viewModel)
+            ScrollView([.horizontal, .vertical]) {
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.clearSelection()
+                        }
+
+                    ForEach(sheet.tables, id: \.id) { table in
+                        TableCanvasItem(table: table, viewModel: viewModel)
+                    }
                 }
+                .frame(width: contentSize.width, height: contentSize.height)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .coordinateSpace(name: CanvasCoordinateSpace.name)
             }
-            .frame(width: canvasSize.width, height: canvasSize.height)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .coordinateSpace(name: CanvasCoordinateSpace.name)
         }
     }
+}
+
+private func canvasContentSize(containerSize: CGSize, tables: [TableModel]) -> CGSize {
+    let maxX = tables.map { $0.rect.x + $0.rect.width }.max() ?? 0
+    let maxY = tables.map { $0.rect.y + $0.rect.height }.max() ?? 0
+    let width = max(containerSize.width, CGFloat(maxX))
+    let height = max(containerSize.height, CGFloat(maxY))
+    return CGSize(width: width, height: height)
 }
 
 struct TableCanvasItem: View {
@@ -35,23 +45,23 @@ struct TableCanvasItem: View {
     @ObservedObject var viewModel: CanvasViewModel
 
     @State private var dragOffset: CGSize = .zero
-    @State private var resizeDelta: CGSize = .zero
     @State private var isResizing = false
-
-    private let minSize = CGSize(width: 140, height: 90)
-    private let cellSize = CGSize(width: 80, height: 24)
+    @State private var previewBodyRows: Int?
+    @State private var previewBodyCols: Int?
 
     var body: some View {
-        let width = max(Double(minSize.width), table.rect.width + Double(resizeDelta.width))
-        let height = max(Double(minSize.height), table.rect.height + Double(resizeDelta.height))
+        let bodyRows = previewBodyRows ?? table.gridSpec.bodyRows
+        let bodyCols = previewBodyCols ?? table.gridSpec.bodyCols
+        let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                       bodyRows: bodyRows,
+                                       bodyCols: bodyCols,
+                                       labelBands: table.gridSpec.labelBands)
+        let width = Double(metrics.totalWidth)
+        let height = Double(metrics.totalHeight)
         let originX = table.rect.x + Double(dragOffset.width)
         let originY = table.rect.y + Double(dragOffset.height)
         let centerX = originX + width / 2.0
         let centerY = originY + height / 2.0
-        let metrics = TableGridMetrics(cellSize: cellSize,
-                                       bodyRows: table.gridSpec.bodyRows,
-                                       bodyCols: table.gridSpec.bodyCols,
-                                       labelBands: table.gridSpec.labelBands)
         let selectedCell = viewModel.selectedCell?.tableId == table.id ? viewModel.selectedCell : nil
 
         ZStack(alignment: .topLeading) {
@@ -66,7 +76,7 @@ struct TableCanvasItem: View {
                 if metrics.topRows > 0 {
                     TableGridView(rows: metrics.topRows,
                                   cols: metrics.bodyCols,
-                                  cellSize: cellSize)
+                                  cellSize: CanvasGridSizing.cellSize)
                         .frame(width: metrics.bodyWidth, height: metrics.topHeight, alignment: .topLeading)
                         .offset(x: metrics.leftWidth, y: 0)
                         .allowsHitTesting(false)
@@ -74,21 +84,21 @@ struct TableCanvasItem: View {
                 if metrics.leftCols > 0 {
                     TableGridView(rows: metrics.bodyRows,
                                   cols: metrics.leftCols,
-                                  cellSize: cellSize)
+                                  cellSize: CanvasGridSizing.cellSize)
                         .frame(width: metrics.leftWidth, height: metrics.bodyHeight, alignment: .topLeading)
                         .offset(x: 0, y: metrics.topHeight)
                         .allowsHitTesting(false)
                 }
                 TableGridView(rows: metrics.bodyRows,
                               cols: metrics.bodyCols,
-                              cellSize: cellSize)
+                              cellSize: CanvasGridSizing.cellSize)
                     .frame(width: metrics.bodyWidth, height: metrics.bodyHeight, alignment: .topLeading)
                     .offset(x: metrics.leftWidth, y: metrics.topHeight)
                     .allowsHitTesting(false)
                 if metrics.rightCols > 0 {
                     TableGridView(rows: metrics.bodyRows,
                                   cols: metrics.rightCols,
-                                  cellSize: cellSize)
+                                  cellSize: CanvasGridSizing.cellSize)
                         .frame(width: metrics.rightWidth, height: metrics.bodyHeight, alignment: .topLeading)
                         .offset(x: metrics.leftWidth + metrics.bodyWidth, y: metrics.topHeight)
                         .allowsHitTesting(false)
@@ -96,10 +106,37 @@ struct TableCanvasItem: View {
                 if metrics.bottomRows > 0 {
                     TableGridView(rows: metrics.bottomRows,
                                   cols: metrics.bodyCols,
-                                  cellSize: cellSize)
+                                  cellSize: CanvasGridSizing.cellSize)
                         .frame(width: metrics.bodyWidth, height: metrics.bottomHeight, alignment: .topLeading)
                         .offset(x: metrics.leftWidth, y: metrics.topHeight + metrics.bodyHeight)
                         .allowsHitTesting(false)
+                }
+                if metrics.topRows > 0 || metrics.bottomRows > 0 || metrics.leftCols > 0 || metrics.rightCols > 0 {
+                    Path { path in
+                        let leftX = metrics.leftWidth
+                        let rightX = metrics.leftWidth + metrics.bodyWidth
+                        let topY = metrics.topHeight
+                        let bottomY = metrics.topHeight + metrics.bodyHeight
+
+                        if metrics.topRows > 0 {
+                            path.move(to: CGPoint(x: leftX, y: topY))
+                            path.addLine(to: CGPoint(x: rightX, y: topY))
+                        }
+                        if metrics.bottomRows > 0 {
+                            path.move(to: CGPoint(x: leftX, y: bottomY))
+                            path.addLine(to: CGPoint(x: rightX, y: bottomY))
+                        }
+                        if metrics.leftCols > 0 {
+                            path.move(to: CGPoint(x: leftX, y: topY))
+                            path.addLine(to: CGPoint(x: leftX, y: bottomY))
+                        }
+                        if metrics.rightCols > 0 {
+                            path.move(to: CGPoint(x: rightX, y: topY))
+                            path.addLine(to: CGPoint(x: rightX, y: bottomY))
+                        }
+                    }
+                    .stroke(Color(nsColor: .gridColor), lineWidth: 2)
+                    .allowsHitTesting(false)
                 }
 
                 TableCellOverlay(table: table,
@@ -153,11 +190,15 @@ struct TableCanvasItem: View {
             }
             .onEnded { value in
                 guard !isResizing else { return }
+                let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                               bodyRows: table.gridSpec.bodyRows,
+                                               bodyCols: table.gridSpec.bodyCols,
+                                               labelBands: table.gridSpec.labelBands)
                 let newRect = Rect(
                     x: table.rect.x + Double(value.translation.width),
                     y: table.rect.y + Double(value.translation.height),
-                    width: table.rect.width,
-                    height: table.rect.height
+                    width: Double(metrics.totalWidth),
+                    height: Double(metrics.totalHeight)
                 )
                 dragOffset = .zero
                 viewModel.moveTable(tableId: table.id, to: newRect)
@@ -169,16 +210,36 @@ struct TableCanvasItem: View {
             .onChanged { value in
                 isResizing = true
                 dragOffset = .zero
-                let proposedWidth = max(Double(minSize.width), table.rect.width + Double(value.translation.width))
-                let proposedHeight = max(Double(minSize.height), table.rect.height + Double(value.translation.height))
-                resizeDelta = CGSize(width: proposedWidth - table.rect.width, height: proposedHeight - table.rect.height)
+                let size = resizedBodySize(for: value.translation)
+                previewBodyRows = size.rows
+                previewBodyCols = size.cols
             }
-            .onEnded { _ in
-                let newWidth = max(Double(minSize.width), table.rect.width + Double(resizeDelta.width))
-                let newHeight = max(Double(minSize.height), table.rect.height + Double(resizeDelta.height))
-                resizeDelta = .zero
+            .onEnded { value in
+                let size = resizedBodySize(for: value.translation)
+                previewBodyRows = nil
+                previewBodyCols = nil
                 isResizing = false
-                viewModel.resizeTable(tableId: table.id, width: newWidth, height: newHeight)
+                if size.rows != table.gridSpec.bodyRows || size.cols != table.gridSpec.bodyCols {
+                    viewModel.setBodySize(tableId: table.id, rows: size.rows, cols: size.cols)
+                }
             }
+    }
+
+    private func resizedBodySize(for translation: CGSize) -> (rows: Int, cols: Int) {
+        let baseMetrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                           bodyRows: table.gridSpec.bodyRows,
+                                           bodyCols: table.gridSpec.bodyCols,
+                                           labelBands: table.gridSpec.labelBands)
+        let proposedWidth = baseMetrics.totalWidth + translation.width
+        let proposedHeight = baseMetrics.totalHeight + translation.height
+        let minCols = CanvasGridSizing.minBodyCols
+        let minRows = CanvasGridSizing.minBodyRows
+        let bodyWidth = max(CanvasGridSizing.cellSize.width * CGFloat(minCols),
+                            proposedWidth - baseMetrics.leftWidth - baseMetrics.rightWidth)
+        let bodyHeight = max(CanvasGridSizing.cellSize.height * CGFloat(minRows),
+                             proposedHeight - baseMetrics.topHeight - baseMetrics.bottomHeight)
+        let cols = max(minCols, Int(floor(bodyWidth / CanvasGridSizing.cellSize.width)))
+        let rows = max(minRows, Int(floor(bodyHeight / CanvasGridSizing.cellSize.height)))
+        return (rows, cols)
     }
 }

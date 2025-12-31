@@ -16,15 +16,25 @@ final class CanvasViewModelTests: XCTestCase {
     }
 
     func testResizeTableUpdatesRect() {
-        let table = TableModel(id: "table_1", name: "Table", rect: Rect(x: 0, y: 0, width: 100, height: 80))
+        let labels = LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0)
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 10,
+                               cols: 6,
+                               labelBands: labels)
         let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
         let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
 
-        viewModel.resizeTable(tableId: "table_1", width: 240, height: 180)
+        viewModel.setBodySize(tableId: "table_1", rows: 8, cols: 4)
 
-        let updated = viewModel.project.sheets[0].tables[0].rect
-        XCTAssertEqual(updated.width, 240)
-        XCTAssertEqual(updated.height, 180)
+        let updatedTable = viewModel.project.sheets[0].tables[0]
+        let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                       bodyRows: 8,
+                                       bodyCols: 4,
+                                       labelBands: labels)
+        XCTAssertEqual(updatedTable.rect.width, Double(metrics.totalWidth))
+        XCTAssertEqual(updatedTable.rect.height, Double(metrics.totalHeight))
     }
 
     func testReducingLabelBandsClearsInvalidSelection() {

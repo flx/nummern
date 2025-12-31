@@ -45,6 +45,12 @@ struct ContentView: View {
                             .font(.headline)
                         Text(selectedTable.id)
                             .font(.subheadline)
+                        labelBandStepper(title: "Body Rows",
+                                          value: bodyRowsBinding(table: selectedTable),
+                                          range: 1...200)
+                        labelBandStepper(title: "Body Columns",
+                                          value: bodyColsBinding(table: selectedTable),
+                                          range: 1...200)
                         labelBandStepper(title: "Top Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.topRows))
                         labelBandStepper(title: "Left Labels",
@@ -198,7 +204,29 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func labelBandStepper(title: String, value: Binding<Int>) -> some View {
-        Stepper("\(title): \(value.wrappedValue)", value: value, in: 0...10)
+    private func labelBandStepper(title: String,
+                                  value: Binding<Int>,
+                                  range: ClosedRange<Int> = 0...10) -> some View {
+        Stepper("\(title): \(value.wrappedValue)", value: value, in: range)
+    }
+
+    private func bodyRowsBinding(table: TableModel) -> Binding<Int> {
+        Binding(
+            get: { table.gridSpec.bodyRows },
+            set: { newValue in
+                viewModel.setBodyRows(tableId: table.id,
+                                      rows: max(CanvasGridSizing.minBodyRows, newValue))
+            }
+        )
+    }
+
+    private func bodyColsBinding(table: TableModel) -> Binding<Int> {
+        Binding(
+            get: { table.gridSpec.bodyCols },
+            set: { newValue in
+                viewModel.setBodyCols(tableId: table.id,
+                                      cols: max(CanvasGridSizing.minBodyCols, newValue))
+            }
+        )
     }
 }

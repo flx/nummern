@@ -11,6 +11,7 @@ final class CanvasViewModel: ObservableObject {
 
     private let transactionManager = TransactionManager()
     private var seedCommands: [String] = []
+    private let cellSize = CanvasGridSizing.cellSize
 
     init(project: ProjectModel = ProjectModel(), historyJSON: String? = nil) {
         self.project = project
@@ -49,12 +50,13 @@ final class CanvasViewModel: ObservableObject {
                   labels: LabelBands = LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0)) -> TableModel? {
         let tableId = project.nextTableId()
         let tableName = name ?? tableId
-        let baseRect = rect ?? defaultTableRect()
+        let baseRect = rect ?? defaultTableRect(rows: rows, cols: cols, labelBands: labels)
+        let sizedRect = rectWithGridSize(baseRect, rows: rows, cols: cols, labelBands: labels)
         let command = AddTableCommand(
             sheetId: sheetId,
             tableId: tableId,
             name: tableName,
-            rect: baseRect,
+            rect: sizedRect,
             rows: rows,
             cols: cols,
             labels: labels
@@ -67,21 +69,33 @@ final class CanvasViewModel: ObservableObject {
         apply(SetTableRectCommand(tableId: tableId, rect: rect))
     }
 
-    func resizeTable(tableId: String, width: Double, height: Double) {
-        guard let table = table(withId: tableId) else {
-            return
-        }
-        let rect = Rect(x: table.rect.x, y: table.rect.y, width: width, height: height)
-        apply(SetTableRectCommand(tableId: tableId, rect: rect))
-    }
-
     func updateTableRect(tableId: String, rect: Rect) {
         apply(SetTableRectCommand(tableId: tableId, rect: rect))
     }
 
     func setLabelBands(tableId: String, labelBands: LabelBands) {
         apply(SetLabelBandsCommand(tableId: tableId, labelBands: labelBands))
+        syncTableRect(tableId: tableId)
         clearCellSelectionIfInvalid(tableId: tableId)
+    }
+
+    func setBodySize(tableId: String, rows: Int, cols: Int) {
+        let safeRows = max(CanvasGridSizing.minBodyRows, rows)
+        let safeCols = max(CanvasGridSizing.minBodyCols, cols)
+        apply(ResizeTableCommand(tableId: tableId, rows: safeRows, cols: safeCols))
+        syncTableRect(tableId: tableId)
+    }
+
+    func setBodyRows(tableId: String, rows: Int) {
+        let safeRows = max(CanvasGridSizing.minBodyRows, rows)
+        apply(ResizeTableCommand(tableId: tableId, rows: safeRows))
+        syncTableRect(tableId: tableId)
+    }
+
+    func setBodyCols(tableId: String, cols: Int) {
+        let safeCols = max(CanvasGridSizing.minBodyCols, cols)
+        apply(ResizeTableCommand(tableId: tableId, cols: safeCols))
+        syncTableRect(tableId: tableId)
     }
 
     func selectTable(_ tableId: String) {
@@ -210,10 +224,43 @@ final class CanvasViewModel: ObservableObject {
         "Sheet \(project.sheets.count + 1)"
     }
 
-    private func defaultTableRect() -> Rect {
+    private func defaultTableRect(rows: Int, cols: Int, labelBands: LabelBands) -> Rect {
         let count = project.sheets.reduce(0) { $0 + $1.tables.count }
         let offset = Double(count) * 24.0
-        return Rect(x: 80 + offset, y: 80 + offset, width: 320, height: 200)
+        let size = gridSize(rows: rows, cols: cols, labelBands: labelBands)
+        return Rect(x: 80 + offset,
+                    y: 80 + offset,
+                    width: Double(size.width),
+                    height: Double(size.height))
+    }
+
+    private func rectWithGridSize(_ rect: Rect, rows: Int, cols: Int, labelBands: LabelBands) -> Rect {
+        let size = gridSize(rows: rows, cols: cols, labelBands: labelBands)
+        return Rect(x: rect.x, y: rect.y, width: Double(size.width), height: Double(size.height))
+    }
+
+    private func gridSize(rows: Int, cols: Int, labelBands: LabelBands) -> CGSize {
+        let metrics = TableGridMetrics(cellSize: cellSize,
+                                       bodyRows: rows,
+                                       bodyCols: cols,
+                                       labelBands: labelBands)
+        return CGSize(width: metrics.totalWidth, height: metrics.totalHeight)
+    }
+
+    private func syncTableRect(tableId: String) {
+        guard let table = table(withId: tableId) else {
+            return
+        }
+        let size = gridSize(rows: table.gridSpec.bodyRows,
+                            cols: table.gridSpec.bodyCols,
+                            labelBands: table.gridSpec.labelBands)
+        let targetWidth = Double(size.width)
+        let targetHeight = Double(size.height)
+        guard table.rect.width != targetWidth || table.rect.height != targetHeight else {
+            return
+        }
+        let rect = Rect(x: table.rect.x, y: table.rect.y, width: targetWidth, height: targetHeight)
+        apply(SetTableRectCommand(tableId: tableId, rect: rect))
     }
 
     private func table(withId id: String) -> TableModel? {
