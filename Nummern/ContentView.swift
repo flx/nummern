@@ -6,6 +6,11 @@ struct ContentView: View {
     @State private var selectedSheetId: String?
     @State private var pythonRunError: String?
     @State private var isRunningScript = false
+    @State private var autoRunWorkItem: DispatchWorkItem?
+    @State private var pendingAutoRun = false
+    @State private var didAppear = false
+    @State private var lastPrintedPythonLog: String = ""
+    private let autoRunDelay: TimeInterval = 0.4
 
     init(document: Binding<NummernDocument>) {
         _document = document
@@ -64,19 +69,6 @@ struct ContentView: View {
                     .background(Color(nsColor: .windowBackgroundColor))
                     .cornerRadius(6)
                 }
-
-                Text("Event Log")
-                    .font(.headline)
-                ScrollView {
-                    Text(viewModel.pythonLog)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .textSelection(.enabled)
-                        .padding(.vertical, 4)
-                }
-                .frame(minHeight: 140)
-                .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(4)
 
                 Text("script.py")
                     .font(.headline)
@@ -144,10 +136,19 @@ struct ContentView: View {
         .onChange(of: viewModel.historyJSON) { _, newValue in
             document.historyJSON = newValue
         }
+        .onChange(of: viewModel.pythonLog) { _, newValue in
+            document.script = ScriptComposer.compose(existing: document.script,
+                                                     generatedLog: newValue)
+            logPythonChanges(newValue)
+            if didAppear {
+                scheduleAutoRun()
+            }
+        }
         .onAppear {
             if selectedSheetId == nil {
                 selectedSheetId = viewModel.project.sheets.first?.id
             }
+            didAppear = true
         }
         .frame(minWidth: 900, minHeight: 600)
     }
@@ -181,14 +182,41 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     viewModel.load(project: result.project, historyJSON: historyJSON)
                     isRunningScript = false
+                    handlePendingAutoRun()
                 }
             } catch {
                 DispatchQueue.main.async {
                     pythonRunError = error.localizedDescription
                     isRunningScript = false
+                    handlePendingAutoRun()
                 }
             }
         }
+    }
+
+    private func scheduleAutoRun() {
+        autoRunWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            triggerAutoRun()
+        }
+        autoRunWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + autoRunDelay, execute: workItem)
+    }
+
+    private func triggerAutoRun() {
+        if isRunningScript {
+            pendingAutoRun = true
+            return
+        }
+        runScript()
+    }
+
+    private func handlePendingAutoRun() {
+        guard pendingAutoRun else {
+            return
+        }
+        pendingAutoRun = false
+        scheduleAutoRun()
     }
 
     private func labelBandBinding(table: TableModel,
@@ -228,5 +256,27 @@ struct ContentView: View {
                                       cols: max(CanvasGridSizing.minBodyCols, newValue))
             }
         )
+    }
+
+    private func logPythonChanges(_ newValue: String) {
+        guard !newValue.isEmpty else {
+            lastPrintedPythonLog = ""
+            return
+        }
+
+        let output: String
+        if newValue.hasPrefix(lastPrintedPythonLog) {
+            let start = newValue.index(newValue.startIndex, offsetBy: lastPrintedPythonLog.count)
+            let delta = String(newValue[start...]).trimmingCharacters(in: .newlines)
+            if delta.isEmpty {
+                return
+            }
+            output = delta
+        } else {
+            output = newValue
+        }
+
+        lastPrintedPythonLog = newValue
+        print("Event Log:\n\(output)")
     }
 }

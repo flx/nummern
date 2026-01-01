@@ -68,6 +68,7 @@ struct TableCellOverlay: View {
 
     @State private var editingCell: CellSelection?
     @State private var editingText: String = ""
+    @State private var originalEditingText: String = ""
     @FocusState private var isEditingFocused: Bool
 
     var body: some View {
@@ -85,12 +86,6 @@ struct TableCellOverlay: View {
             selectionOverlay()
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
-        .onChange(of: selectedCell) { _, newValue in
-            guard let editingCell, editingCell != newValue else {
-                return
-            }
-            commitEdit()
-        }
     }
 
     @ViewBuilder
@@ -122,9 +117,9 @@ struct TableCellOverlay: View {
 
     private func beginEditing(_ selection: CellSelection) {
         if editingCell != selection {
-            commitEdit()
             editingCell = selection
-            editingText = displayValue(for: selection)
+            editingText = editingValue(for: selection)
+            originalEditingText = editingText
         }
         onSelect(selection)
         isEditingFocused = true
@@ -141,9 +136,33 @@ struct TableCellOverlay: View {
         onCommit(committedCell, committedText)
     }
 
+    private func cancelEdit() {
+        editingText = originalEditingText
+        editingCell = nil
+        isEditingFocused = false
+    }
+
     private func displayValue(for selection: CellSelection) -> String {
         let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
-        return table.cellValues[key]?.displayString ?? ""
+        if let value = table.cellValues[key], value != .empty {
+            return value.displayString
+        }
+        if selection.region == .body,
+           let formula = table.formulas[key]?.formula,
+           !formula.isEmpty {
+            return formula
+        }
+        return ""
+    }
+
+    private func editingValue(for selection: CellSelection) -> String {
+        let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
+        if selection.region == .body,
+           let formula = table.formulas[key]?.formula,
+           !formula.isEmpty {
+            return formula
+        }
+        return displayValue(for: selection)
     }
 
     private func selectionOverlay() -> some View {
@@ -164,6 +183,9 @@ struct TableCellOverlay: View {
                             .onSubmit {
                                 commitEdit()
                             }
+                            .onExitCommand {
+                                cancelEdit()
+                            }
                             .padding(.horizontal, 4)
                             .frame(width: frame.width, height: frame.height, alignment: .leading)
                             .position(x: frame.midX, y: frame.midY)
@@ -179,8 +201,46 @@ struct TableCellOverlay: View {
                 guard let selection = selection(at: value.location) else {
                     return
                 }
+                if let editingCell {
+                    if editingCell == selection {
+                        isEditingFocused = true
+                        return
+                    }
+                    handleReferenceInsert(from: selection, editingCell: editingCell)
+                    return
+                }
                 beginEditing(selection)
             }
+    }
+
+    private func handleReferenceInsert(from selection: CellSelection, editingCell: CellSelection) {
+        guard editingCell.region == .body else {
+            onSelect(selection)
+            return
+        }
+        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("=") else {
+            onSelect(selection)
+            return
+        }
+        let reference = formulaReference(for: selection, editingCell: editingCell)
+        editingText += reference
+        onSelect(selection)
+        isEditingFocused = true
+    }
+
+    private func formulaReference(for selection: CellSelection, editingCell: CellSelection) -> String {
+        let cellLabel = RangeParser.cellLabel(row: selection.row, col: selection.col)
+        let regionPrefix: String
+        if selection.region == .body {
+            regionPrefix = cellLabel
+        } else {
+            regionPrefix = "\(selection.region.rawValue)[\(cellLabel)]"
+        }
+        if selection.tableId == editingCell.tableId {
+            return regionPrefix
+        }
+        return "\(selection.tableId)::\(regionPrefix)"
     }
 
     private func selection(at location: CGPoint) -> CellSelection? {

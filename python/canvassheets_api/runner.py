@@ -4,17 +4,18 @@ import argparse
 import json
 import sys
 
-from canvassheets_api import Project
+from canvassheets_api import FormulaLocals, Project
 
 
 def run_script(path: str) -> Project:
-    globals_dict = {"__file__": path, "__name__": "__main__"}
+    globals_dict = FormulaLocals({"__file__": path, "__name__": "__main__", "__builtins__": __builtins__})
     with open(path, "r", encoding="utf-8") as handle:
         source = handle.read()
     exec(compile(source, path, "exec"), globals_dict, globals_dict)
     proj = globals_dict.get("proj")
     if not isinstance(proj, Project):
         raise RuntimeError("Script must define `proj = Project()`")
+    proj.apply_formulas()
     return proj
 
 

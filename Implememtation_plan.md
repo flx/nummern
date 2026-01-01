@@ -213,6 +213,9 @@ Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_translation.py`
 - Run: `python -m pytest -k formula_translation`
 
+Status:
+- [x] Completed
+
 ---
 
 ## Step 10: Rebuild-from-script + code panel

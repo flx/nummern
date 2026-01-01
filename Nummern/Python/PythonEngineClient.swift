@@ -124,6 +124,12 @@ final class PythonEngineClient {
             }
         }
 
+#if DEBUG
+        if let debugURL = debugModuleURL(), moduleExists(at: debugURL) {
+            return debugURL
+        }
+#endif
+
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let repoURL = cwd.appendingPathComponent("python")
         if moduleExists(at: repoURL),
@@ -142,6 +148,17 @@ final class PythonEngineClient {
 
         throw PythonEngineError.modulePathNotFound
     }
+
+#if DEBUG
+    private static func debugModuleURL() -> URL? {
+        let sourceURL = URL(fileURLWithPath: #file)
+        let repoURL = sourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return repoURL.appendingPathComponent("python")
+    }
+#endif
 
     private static func resolvePythonExecutable(_ provided: URL?,
                                                 moduleURL: URL) -> (url: URL, argumentsPrefix: [String], venvURL: URL?) {

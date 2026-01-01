@@ -1,15 +1,65 @@
 {
   "images" : [
-    { "idiom" : "mac", "size" : "16x16", "scale" : "1x" },
-    { "idiom" : "mac", "size" : "16x16", "scale" : "2x" },
-    { "idiom" : "mac", "size" : "32x32", "scale" : "1x" },
-    { "idiom" : "mac", "size" : "32x32", "scale" : "2x" },
-    { "idiom" : "mac", "size" : "128x128", "scale" : "1x" },
-    { "idiom" : "mac", "size" : "128x128", "scale" : "2x" },
-    { "idiom" : "mac", "size" : "256x256", "scale" : "1x" },
-    { "idiom" : "mac", "size" : "256x256", "scale" : "2x" },
-    { "idiom" : "mac", "size" : "512x512", "scale" : "1x" },
-    { "idiom" : "mac", "size" : "512x512", "scale" : "2x" }
+    {
+      "filename" : "Nummern-16.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "Nummern-32.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "16x16"
+    },
+    {
+      "filename" : "Nummern-32 1.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "Nummern-64.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "32x32"
+    },
+    {
+      "filename" : "Nummern-128.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "Nummern-256.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "128x128"
+    },
+    {
+      "filename" : "Nummern-256 1.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "Nummern-512.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "256x256"
+    },
+    {
+      "filename" : "Nummern-512 1.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "512x512"
+    },
+    {
+      "filename" : "Nummern-1024.png",
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "512x512"
+    }
   ],
   "info" : {
     "author" : "xcode",

@@ -122,18 +122,42 @@ final class CanvasViewModel: ObservableObject {
                       col: Int,
                       rawValue: String) {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = RangeParser.address(region: region, row: row, col: col)
+        guard let table = table(withId: tableId) else {
+            return
+        }
+
+        if region == .body, trimmed.hasPrefix("=") {
+            let formulaText = trimmed == "=" ? "" : trimmed
+            let existingFormula = table.formulas[key]?.formula ?? ""
+            if existingFormula == formulaText {
+                return
+            }
+            apply(SetFormulaCommand(tableId: tableId,
+                                    targetRange: key,
+                                    formula: formulaText),
+                  kind: .cellEdit)
+            return
+        }
+
+        if region == .body,
+           let existingFormula = table.formulas[key],
+           !existingFormula.formula.isEmpty {
+            apply(SetFormulaCommand(tableId: tableId,
+                                    targetRange: key,
+                                    formula: ""),
+                  kind: .cellEdit)
+        }
+
         let value: CellValue
         if region == .body {
             value = CellValue.fromUserInput(rawValue)
         } else {
             value = trimmed.isEmpty ? .empty : .string(trimmed)
         }
-        let key = RangeParser.address(region: region, row: row, col: col)
-        if let table = table(withId: tableId) {
-            let existing = table.cellValues[key] ?? .empty
-            if existing == value {
-                return
-            }
+        let existing = table.cellValues[key] ?? .empty
+        if existing == value {
+            return
         }
         apply(SetCellsCommand(tableId: tableId, cellMap: [key: value]), kind: .cellEdit)
     }
@@ -197,7 +221,8 @@ final class CanvasViewModel: ObservableObject {
 
     private func rebuildLogs() {
         let commands = seedCommands + transactionManager.allCommands()
-        pythonLog = commands.joined(separator: "\n")
+        let rawLog = commands.joined(separator: "\n")
+        pythonLog = PythonLogNormalizer.normalize(rawLog)
         historyJSON = encodeHistory(commands: commands)
     }
 
@@ -319,5 +344,79 @@ final class CanvasViewModel: ObservableObject {
                 && selection.col >= 0
                 && selection.col < bands.rightCols
         }
+    }
+}
+
+enum PythonLogNormalizer {
+    static func normalize(_ rawLog: String) -> String {
+        guard !rawLog.isEmpty else {
+            return ""
+        }
+
+        let lines = rawLog.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var output: [String] = []
+        var index = 0
+
+        while index < lines.count {
+            let line = lines[index]
+            if isTableLine(line),
+               index + 1 < lines.count {
+                let contextLine = lines[index + 1]
+                if isContextLine(contextLine) {
+                    var assignments: [String] = []
+                    var cursor = index + 2
+                    while cursor < lines.count, isIndented(lines[cursor]) {
+                        assignments.append(lines[cursor])
+                        cursor += 1
+                    }
+                    if assignments.isEmpty {
+                        output.append(line)
+                        output.append(contextLine)
+                        index = cursor
+                        continue
+                    }
+
+                    while cursor + 1 < lines.count {
+                        if lines[cursor] != line || lines[cursor + 1] != contextLine {
+                            break
+                        }
+                        var nextAssignments: [String] = []
+                        var scan = cursor + 2
+                        while scan < lines.count, isIndented(lines[scan]) {
+                            nextAssignments.append(lines[scan])
+                            scan += 1
+                        }
+                        if nextAssignments.isEmpty {
+                            break
+                        }
+                        assignments.append(contentsOf: nextAssignments)
+                        cursor = scan
+                    }
+
+                    output.append(line)
+                    output.append(contextLine)
+                    output.append(contentsOf: assignments)
+                    index = cursor
+                    continue
+                }
+            }
+
+            output.append(line)
+            index += 1
+        }
+
+        return output.joined(separator: "\n")
+    }
+
+    private static func isTableLine(_ line: String) -> Bool {
+        line.hasPrefix("t = proj.table(")
+    }
+
+    private static func isContextLine(_ line: String) -> Bool {
+        line.hasPrefix("with formula_context(t):") || line.hasPrefix("with label_context(t,")
+    }
+
+    private static func isIndented(_ line: String) -> Bool {
+        line.hasPrefix("    ")
     }
 }

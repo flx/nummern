@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import math
+import re
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+import numpy as np
 
 
 class RangeParserError(ValueError):
@@ -82,14 +87,767 @@ def parse_range(range_str: str) -> Tuple[str, int, int, int, int]:
     raise RangeParserError("Invalid range format")
 
 
+class FormulaError(ValueError):
+    pass
+
+
+_FORMULA_CELL_RE = re.compile(r"^[A-Za-z]+[0-9]+$")
+_active_formula_table: Optional["Table"] = None
+_active_label_context: Optional[Tuple["Table", str]] = None
+_DEFAULT_CELL_WIDTH = 80.0
+_DEFAULT_CELL_HEIGHT = 24.0
+_DEFAULT_TABLE_OFFSET = 24.0
+_DEFAULT_TABLE_ORIGIN = 80.0
+
+
+class FormulaExpr:
+    def __init__(self, expr: str) -> None:
+        self.expr = expr
+
+    def __add__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}+{_formula_literal(other)}")
+
+    def __radd__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}+{self.expr}")
+
+    def __sub__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}-{_formula_literal(other)}")
+
+    def __rsub__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}-{self.expr}")
+
+    def __mul__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}*{_formula_literal(other)}")
+
+    def __rmul__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}*{self.expr}")
+
+    def __truediv__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}/{_formula_literal(other)}")
+
+    def __rtruediv__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}/{self.expr}")
+
+    def __pow__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}^{_formula_literal(other)}")
+
+    def __rpow__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}^{self.expr}")
+
+    def __xor__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{self.expr}^{_formula_literal(other)}")
+
+    def __rxor__(self, other: Any) -> "FormulaExpr":
+        return FormulaExpr(f"{_formula_literal(other)}^{self.expr}")
+
+    def __neg__(self) -> "FormulaExpr":
+        return FormulaExpr(f"-{self.expr}")
+
+    def __pos__(self) -> "FormulaExpr":
+        return FormulaExpr(f"+{self.expr}")
+
+
+class FormulaCell(FormulaExpr):
+    def __init__(self, cell_ref: str) -> None:
+        super().__init__(cell_ref)
+
+
+def _formula_literal(value: Any) -> str:
+    if isinstance(value, FormulaExpr):
+        return value.expr
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float, np.number)):
+        return str(value)
+    if isinstance(value, str):
+        escaped = value.replace('"', '""')
+        return f"\"{escaped}\""
+    raise FormulaError("Unsupported literal in formula expression")
+
+
+def formula_mode(table: Optional["Table"]) -> None:
+    global _active_formula_table
+    _active_formula_table = table
+
+
+def formula(text: str) -> FormulaExpr:
+    if not isinstance(text, str):
+        raise FormulaError("formula() expects a string")
+    trimmed = text.strip()
+    if trimmed.startswith("="):
+        trimmed = trimmed[1:].strip()
+    if not trimmed:
+        raise FormulaError("formula() cannot be empty")
+    return FormulaExpr(trimmed)
+
+
+@contextmanager
+def formula_context(table: "Table"):
+    previous = _active_formula_table
+    formula_mode(table)
+    try:
+        yield
+    finally:
+        formula_mode(previous)
+
+
+@contextmanager
+def label_context(table: "Table", region: str):
+    global _active_label_context, _active_formula_table
+    previous_label = _active_label_context
+    previous_formula = _active_formula_table
+    _active_label_context = (table, region)
+    _active_formula_table = None
+    try:
+        yield
+    finally:
+        _active_label_context = previous_label
+        _active_formula_table = previous_formula
+
+
+class FormulaLocals(dict):
+    def __missing__(self, key: str) -> Any:
+        if _active_formula_table is not None and _FORMULA_CELL_RE.match(key):
+            cell_ref = key.upper()
+            value = FormulaCell(cell_ref)
+            self[key] = value
+            return value
+        builtins_obj = self.get("__builtins__", __builtins__)
+        if isinstance(builtins_obj, dict):
+            if key in builtins_obj:
+                return builtins_obj[key]
+        else:
+            if hasattr(builtins_obj, key):
+                return getattr(builtins_obj, key)
+        raise KeyError(key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if _active_formula_table is not None and _FORMULA_CELL_RE.match(key):
+            cell_ref = key.upper()
+            if isinstance(value, FormulaExpr):
+                _active_formula_table.set_formula(f"body[{cell_ref}]", f"={value.expr}")
+                return super().__setitem__(key, FormulaCell(cell_ref))
+            _active_formula_table.set_cells({f"body[{cell_ref}]": value})
+            return super().__setitem__(key, FormulaCell(cell_ref))
+        if _active_label_context is not None and _FORMULA_CELL_RE.match(key):
+            table, region = _active_label_context
+            cell_ref = key.upper()
+            table.set_cells({f"{region}[{cell_ref}]": value})
+            return super().__setitem__(key, FormulaCell(cell_ref))
+        return super().__setitem__(key, value)
+
+
+@dataclass(frozen=True)
+class Token:
+    type: str
+    value: str
+    pos: int
+
+
+_CELL_TOKEN_RE = re.compile(r"\$?[A-Za-z]+\$?\d+")
+_NUMBER_TOKEN_RE = re.compile(r"(?:\d+\.\d*|\d+|\.\d+)")
+_IDENT_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_\.]*")
+_CELL_REF_RE = re.compile(r"(\$?)([A-Za-z]+)(\$?)(\d+)")
+
+
+def _tokenize_formula(text: str) -> List[Token]:
+    tokens: List[Token] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        ch = text[index]
+        if ch.isspace():
+            index += 1
+            continue
+        if text.startswith("::", index):
+            tokens.append(Token("DCOLON", "::", index))
+            index += 2
+            continue
+        if ch in "+-*/^":
+            tokens.append(Token("OP", ch, index))
+            index += 1
+            continue
+        if ch in "(),:[]":
+            tokens.append(Token(ch, ch, index))
+            index += 1
+            continue
+        match = _CELL_TOKEN_RE.match(text, index)
+        if match:
+            tokens.append(Token("CELL", match.group(0), index))
+            index = match.end()
+            continue
+        match = _NUMBER_TOKEN_RE.match(text, index)
+        if match:
+            tokens.append(Token("NUMBER", match.group(0), index))
+            index = match.end()
+            continue
+        match = _IDENT_TOKEN_RE.match(text, index)
+        if match:
+            tokens.append(Token("IDENT", match.group(0), index))
+            index = match.end()
+            continue
+        raise FormulaError(f"Unexpected character '{ch}' at position {index}")
+    tokens.append(Token("EOF", "", index))
+    return tokens
+
+
+@dataclass(frozen=True)
+class CellRef:
+    row: int
+    col: int
+    row_abs: bool
+    col_abs: bool
+
+
+@dataclass(frozen=True)
+class NumberNode:
+    value: float
+
+
+@dataclass(frozen=True)
+class BoolNode:
+    value: bool
+
+
+@dataclass(frozen=True)
+class UnaryOpNode:
+    op: str
+    operand: Any
+
+
+@dataclass(frozen=True)
+class BinaryOpNode:
+    op: str
+    left: Any
+    right: Any
+
+
+@dataclass(frozen=True)
+class FuncCallNode:
+    name: str
+    args: List[Any]
+
+
+@dataclass(frozen=True)
+class CellRefNode:
+    table_id: Optional[str]
+    region: str
+    cell: CellRef
+
+
+@dataclass(frozen=True)
+class RangeRefNode:
+    table_id: Optional[str]
+    region: str
+    start: CellRef
+    end: CellRef
+
+
+@dataclass(frozen=True)
+class ColumnRefNode:
+    table_id: Optional[str]
+    region: str
+    col: int
+
+
+@dataclass(frozen=True)
+class RowRefNode:
+    table_id: Optional[str]
+    region: str
+    row: int
+
+
+class FormulaParser:
+    def __init__(self, text: str) -> None:
+        trimmed = text.strip()
+        if trimmed.startswith("="):
+            trimmed = trimmed[1:].strip()
+        self.text = trimmed
+        self.tokens = _tokenize_formula(self.text)
+        self.index = 0
+
+    def parse(self) -> Any:
+        if self._peek().type == "EOF":
+            raise FormulaError("Empty formula")
+        expr = self._parse_expression()
+        if self._peek().type != "EOF":
+            token = self._peek()
+            raise FormulaError(f"Unexpected token '{token.value}' at position {token.pos}")
+        return expr
+
+    def _peek(self, offset: int = 0) -> Token:
+        return self.tokens[self.index + offset]
+
+    def _advance(self) -> Token:
+        token = self.tokens[self.index]
+        self.index += 1
+        return token
+
+    def _match(self, token_type: str) -> bool:
+        if self._peek().type == token_type:
+            self._advance()
+            return True
+        return False
+
+    def _parse_expression(self) -> Any:
+        node = self._parse_term()
+        while self._peek().type == "OP" and self._peek().value in "+-":
+            op = self._advance().value
+            right = self._parse_term()
+            node = BinaryOpNode(op=op, left=node, right=right)
+        return node
+
+    def _parse_term(self) -> Any:
+        node = self._parse_power()
+        while self._peek().type == "OP" and self._peek().value in "*/":
+            op = self._advance().value
+            right = self._parse_power()
+            node = BinaryOpNode(op=op, left=node, right=right)
+        return node
+
+    def _parse_power(self) -> Any:
+        node = self._parse_unary()
+        if self._peek().type == "OP" and self._peek().value == "^":
+            op = self._advance().value
+            right = self._parse_power()
+            node = BinaryOpNode(op=op, left=node, right=right)
+        return node
+
+    def _parse_unary(self) -> Any:
+        if self._peek().type == "OP" and self._peek().value in "+-":
+            op = self._advance().value
+            operand = self._parse_unary()
+            return UnaryOpNode(op=op, operand=operand)
+        return self._parse_primary()
+
+    def _parse_primary(self) -> Any:
+        token = self._peek()
+        if token.type == "NUMBER":
+            self._advance()
+            return NumberNode(value=float(token.value))
+        if token.type == "CELL":
+            return self._parse_reference()
+        if token.type == "IDENT":
+            upper = token.value.upper()
+            if upper in {"COL", "ROW"} and self._peek(1).type == "(":
+                return self._parse_col_row_function()
+            if self._peek(1).type == "DCOLON":
+                table_id = self._advance().value
+                self._advance()
+                if self._peek().type == "NUMBER":
+                    row = self._parse_row_number(self._advance())
+                    return RowRefNode(table_id=table_id, region="body", row=row)
+                return self._parse_reference(table_id)
+            if self._peek(1).type == "(":
+                return self._parse_function_call()
+            if self._peek(1).type == "[":
+                return self._parse_reference()
+            if upper == "TRUE" or upper == "FALSE":
+                self._advance()
+                return BoolNode(value=(upper == "TRUE"))
+        if token.type == "(":
+            self._advance()
+            expr = self._parse_expression()
+            if not self._match(")"):
+                raise FormulaError("Expected ')'")
+            return expr
+        raise FormulaError(f"Unexpected token '{token.value}' at position {token.pos}")
+
+    def _parse_function_call(self) -> Any:
+        name = self._advance().value
+        if not self._match("("):
+            raise FormulaError("Expected '(' after function name")
+        args: List[Any] = []
+        if self._peek().type != ")":
+            while True:
+                args.append(self._parse_expression())
+                if self._match(")"):
+                    break
+                if not self._match(","):
+                    raise FormulaError("Expected ',' or ')' in function call")
+        else:
+            self._advance()
+        return FuncCallNode(name=name, args=args)
+
+    def _parse_reference(self, table_id: Optional[str] = None) -> Any:
+        token = self._peek()
+        if token.type == "IDENT" and self._peek(1).type == "[":
+            region = self._advance().value
+            self._advance()
+            start = self._parse_cell_token()
+            end = start
+            if self._match(":"):
+                end = self._parse_cell_token()
+            if not self._match("]"):
+                raise FormulaError("Expected ']' in range reference")
+            if start == end:
+                return CellRefNode(table_id=table_id, region=region, cell=start)
+            return RangeRefNode(table_id=table_id, region=region, start=start, end=end)
+        if token.type == "IDENT" and self._peek(1).type != "[":
+            if table_id is not None:
+                col = self._parse_column_label(self._advance())
+                return ColumnRefNode(table_id=table_id, region="body", col=col)
+        if token.type == "CELL":
+            start = self._parse_cell_token()
+            end = start
+            if self._match(":"):
+                end = self._parse_cell_token()
+            if start == end:
+                return CellRefNode(table_id=table_id, region="body", cell=start)
+            return RangeRefNode(table_id=table_id, region="body", start=start, end=end)
+        raise FormulaError("Invalid reference syntax")
+
+    def _parse_cell_token(self) -> CellRef:
+        token = self._advance()
+        if token.type != "CELL":
+            raise FormulaError("Expected cell reference")
+        match = _CELL_REF_RE.fullmatch(token.value)
+        if not match:
+            raise FormulaError("Invalid cell reference")
+        col_abs = match.group(1) == "$"
+        row_abs = match.group(3) == "$"
+        col_label = match.group(2)
+        row_number = int(match.group(4))
+        if row_number <= 0:
+            raise FormulaError("Invalid cell reference")
+        return CellRef(
+            row=row_number - 1,
+            col=column_index(col_label),
+            row_abs=row_abs,
+            col_abs=col_abs,
+        )
+
+    def _parse_column_label(self, token: Token) -> int:
+        label = token.value
+        if not label.isalpha():
+            raise FormulaError("Invalid column reference")
+        return column_index(label)
+
+    def _parse_row_number(self, token: Token) -> int:
+        if not token.value.isdigit():
+            raise FormulaError("Row reference must be an integer")
+        row_number = int(token.value)
+        if row_number <= 0:
+            raise FormulaError("Invalid row reference")
+        return row_number - 1
+
+    def _parse_col_row_function(self) -> Any:
+        name = self._advance().value.upper()
+        if not self._match("("):
+            raise FormulaError("Expected '(' after function name")
+        token = self._peek()
+        if name == "COL":
+            if token.type == "CELL":
+                cell = self._parse_cell_token()
+                col = cell.col
+            elif token.type == "IDENT":
+                col = self._parse_column_label(self._advance())
+            else:
+                raise FormulaError("Invalid COL reference")
+            if not self._match(")"):
+                raise FormulaError("Expected ')' after COL")
+            return ColumnRefNode(table_id=None, region="body", col=col)
+        if name == "ROW":
+            if token.type == "CELL":
+                cell = self._parse_cell_token()
+                row = cell.row
+            elif token.type == "NUMBER":
+                row = self._parse_row_number(self._advance())
+            else:
+                raise FormulaError("Invalid ROW reference")
+            if not self._match(")"):
+                raise FormulaError("Expected ')' after ROW")
+            return RowRefNode(table_id=None, region="body", row=row)
+        raise FormulaError(f"Unknown function: {name}")
+
+
+@dataclass(frozen=True)
+class FormulaContext:
+    project: "Project"
+    table: "Table"
+    anchor_row: int
+    anchor_col: int
+    target_row: int
+    target_col: int
+
+
+def _normalize_ref(ref: str) -> str:
+    trimmed = ref.strip()
+    if "[" in trimmed:
+        return trimmed
+    return f"body[{trimmed}]"
+
+
+def _unwrap_value(value: Any) -> Any:
+    if isinstance(value, dict) and "type" in value:
+        value_type = value.get("type")
+        if value_type == "number":
+            return float(value.get("value", 0))
+        if value_type == "string":
+            return str(value.get("value", ""))
+        if value_type == "bool":
+            return bool(value.get("value", False))
+        return None
+    return value
+
+
+def _resolve_cell_ref(cell: CellRef, context: FormulaContext) -> Tuple[int, int]:
+    row_offset = context.target_row - context.anchor_row
+    col_offset = context.target_col - context.anchor_col
+    row = cell.row if cell.row_abs else cell.row + row_offset
+    col = cell.col if cell.col_abs else cell.col + col_offset
+    if row < 0 or col < 0:
+        raise FormulaError("Reference out of bounds")
+    return row, col
+
+
+def _resolve_table(context: FormulaContext, table_id: Optional[str]) -> "Table":
+    if table_id is None:
+        return context.table
+    return context.project.table(table_id)
+
+
+def _cell_value(table: "Table", region: str, row: int, col: int) -> Any:
+    key = address(region, row, col)
+    return _unwrap_value(table.cell_values.get(key))
+
+
+def _range_values(table: "Table", region: str, start: CellRef, end: CellRef,
+                  context: FormulaContext) -> List[List[Any]]:
+    start_row, start_col = _resolve_cell_ref(start, context)
+    end_row, end_col = _resolve_cell_ref(end, context)
+    row_start, row_end = sorted((start_row, end_row))
+    col_start, col_end = sorted((start_col, end_col))
+    values: List[List[Any]] = []
+    for row in range(row_start, row_end + 1):
+        row_values = []
+        for col in range(col_start, col_end + 1):
+            row_values.append(_cell_value(table, region, row, col))
+        values.append(row_values)
+    return values
+
+
+def _column_values(table: "Table", region: str, col: int) -> List[Any]:
+    if region != "body":
+        raise FormulaError("Column references require body region")
+    return [_cell_value(table, region, row, col) for row in range(table.grid_spec.bodyRows)]
+
+
+def _row_values(table: "Table", region: str, row: int) -> List[Any]:
+    if region != "body":
+        raise FormulaError("Row references require body region")
+    return [_cell_value(table, region, row, col) for col in range(table.grid_spec.bodyCols)]
+
+
+def _iter_values(value: Any) -> Iterable[Any]:
+    if isinstance(value, np.ndarray):
+        for item in value.flat:
+            yield item
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _iter_values(item)
+    else:
+        yield value
+
+
+def _coerce_number(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float, np.number)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _require_number(value: Any) -> float:
+    number = _coerce_number(value)
+    if number is None:
+        raise FormulaError("Expected numeric value")
+    return number
+
+
+def _numeric_values(value: Any) -> List[float]:
+    numbers: List[float] = []
+    for item in _iter_values(value):
+        number = _coerce_number(item)
+        if number is not None:
+            numbers.append(number)
+    return numbers
+
+
+def _ensure_scalar(value: Any) -> Any:
+    if isinstance(value, np.ndarray):
+        if value.size == 1:
+            return value.item()
+        raise FormulaError("Expected scalar value")
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1 and not isinstance(value[0], (list, tuple, np.ndarray)):
+            return value[0]
+        raise FormulaError("Expected scalar value")
+    return value
+
+
+def _to_numeric_array(values: Any) -> np.ndarray:
+    array = np.array(values, dtype=object)
+
+    def convert(item: Any) -> float:
+        number = _coerce_number(item)
+        return math.nan if number is None else number
+
+    return np.vectorize(convert, otypes=[float])(array)
+
+
+def cs_sum(*args: Any, axis: Optional[int] = None) -> Any:
+    if axis is not None:
+        values = args[0] if len(args) == 1 else list(args)
+        return np.nansum(_to_numeric_array(values), axis=axis)
+    values = args[0] if len(args) == 1 else list(args)
+    numbers = _numeric_values(values)
+    return sum(numbers)
+
+
+def cs_avg(*args: Any, axis: Optional[int] = None) -> Any:
+    if axis is not None:
+        values = args[0] if len(args) == 1 else list(args)
+        return np.nanmean(_to_numeric_array(values), axis=axis)
+    values = args[0] if len(args) == 1 else list(args)
+    numbers = _numeric_values(values)
+    if not numbers:
+        return math.nan
+    return sum(numbers) / len(numbers)
+
+
+def cs_min(*args: Any) -> Any:
+    values = args[0] if len(args) == 1 else list(args)
+    numbers = _numeric_values(values)
+    return min(numbers) if numbers else None
+
+
+def cs_max(*args: Any) -> Any:
+    values = args[0] if len(args) == 1 else list(args)
+    numbers = _numeric_values(values)
+    return max(numbers) if numbers else None
+
+
+def cs_count(*args: Any) -> int:
+    values = args[0] if len(args) == 1 else list(args)
+    return sum(1 for value in _iter_values(values) if _coerce_number(value) is not None)
+
+
+def cs_counta(*args: Any) -> int:
+    values = args[0] if len(args) == 1 else list(args)
+    return sum(1 for value in _iter_values(values) if value not in (None, ""))
+
+
+def cs_if(condition: Any, true_value: Any, false_value: Any) -> Any:
+    if isinstance(condition, np.ndarray):
+        return np.where(condition, true_value, false_value)
+    return true_value if bool(condition) else false_value
+
+
+def cs_and(*args: Any) -> bool:
+    values = args[0] if len(args) == 1 else list(args)
+    return all(bool(value) for value in _iter_values(values))
+
+
+def cs_or(*args: Any) -> bool:
+    values = args[0] if len(args) == 1 else list(args)
+    return any(bool(value) for value in _iter_values(values))
+
+
+def cs_not(value: Any) -> bool:
+    return not bool(value)
+
+
+def _evaluate_formula(node: Any, context: FormulaContext) -> Any:
+    if isinstance(node, NumberNode):
+        return node.value
+    if isinstance(node, BoolNode):
+        return node.value
+    if isinstance(node, UnaryOpNode):
+        value = _ensure_scalar(_evaluate_formula(node.operand, context))
+        if node.op == "-":
+            return -_require_number(value)
+        if node.op == "+":
+            return _require_number(value)
+        raise FormulaError(f"Unsupported unary operator: {node.op}")
+    if isinstance(node, BinaryOpNode):
+        left = _ensure_scalar(_evaluate_formula(node.left, context))
+        right = _ensure_scalar(_evaluate_formula(node.right, context))
+        if node.op == "+":
+            return _require_number(left) + _require_number(right)
+        if node.op == "-":
+            return _require_number(left) - _require_number(right)
+        if node.op == "*":
+            return _require_number(left) * _require_number(right)
+        if node.op == "/":
+            return _require_number(left) / _require_number(right)
+        if node.op == "^":
+            return math.pow(_require_number(left), _require_number(right))
+        raise FormulaError(f"Unsupported operator: {node.op}")
+    if isinstance(node, FuncCallNode):
+        name = node.name.upper()
+        if "." in name:
+            name = name.split(".")[-1]
+        if name == "MEAN":
+            name = "AVERAGE"
+        args = [_evaluate_formula(arg, context) for arg in node.args]
+        if name == "SUM":
+            return cs_sum(*args)
+        if name == "AVERAGE":
+            return cs_avg(*args)
+        if name == "MIN":
+            return cs_min(*args)
+        if name == "MAX":
+            return cs_max(*args)
+        if name == "COUNT":
+            return cs_count(*args)
+        if name == "COUNTA":
+            return cs_counta(*args)
+        if name == "IF":
+            if len(args) != 3:
+                raise FormulaError("IF requires 3 arguments")
+            return cs_if(args[0], args[1], args[2])
+        if name == "AND":
+            return cs_and(*args)
+        if name == "OR":
+            return cs_or(*args)
+        if name == "NOT":
+            if len(args) != 1:
+                raise FormulaError("NOT requires 1 argument")
+            return cs_not(args[0])
+        raise FormulaError(f"Unknown function: {name}")
+    if isinstance(node, CellRefNode):
+        table = _resolve_table(context, node.table_id)
+        row, col = _resolve_cell_ref(node.cell, context)
+        return _cell_value(table, node.region, row, col)
+    if isinstance(node, RangeRefNode):
+        table = _resolve_table(context, node.table_id)
+        return _range_values(table, node.region, node.start, node.end, context)
+    if isinstance(node, ColumnRefNode):
+        table = _resolve_table(context, node.table_id)
+        values = _column_values(table, node.region, node.col)
+        return np.array(values, dtype=object)
+    if isinstance(node, RowRefNode):
+        table = _resolve_table(context, node.table_id)
+        values = _row_values(table, node.region, node.row)
+        return np.array(values, dtype=object)
+    raise FormulaError("Invalid formula")
+
 def _cell_value_to_json(value: Any) -> Dict[str, Any]:
     if isinstance(value, dict) and "type" in value:
         return value
     if value is None:
         return {"type": "empty"}
-    if isinstance(value, bool):
+    if isinstance(value, (bool, np.bool_)):
         return {"type": "bool", "value": value}
-    if isinstance(value, (int, float)):
+    if isinstance(value, (int, float, np.number)):
         return {"type": "number", "value": float(value)}
     return {"type": "string", "value": str(value)}
 
@@ -217,6 +975,9 @@ class Table:
         target[str(index)] = list(values)
 
     def set_formula(self, target_range: str, formula: str, mode: str = "spreadsheet") -> None:
+        if not formula.strip():
+            self.formulas.pop(target_range, None)
+            return
         self.formulas[target_range] = {"formula": formula, "mode": mode}
 
     def insert_rows(self, at: int, count: int) -> None:
@@ -224,6 +985,46 @@ class Table:
 
     def insert_cols(self, at: int, count: int) -> None:
         self.grid_spec.bodyCols += int(count)
+
+    def apply_formulas(self, project: "Project") -> None:
+        for target_range, payload in list(self.formulas.items()):
+            formula = str(payload.get("formula", "")).strip()
+            if not formula:
+                continue
+            mode = payload.get("mode", "spreadsheet")
+            try:
+                region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(target_range))
+            except RangeParserError:
+                continue
+
+            if mode != "spreadsheet":
+                continue
+
+            try:
+                ast = FormulaParser(formula).parse()
+            except FormulaError:
+                for row in range(start_row, end_row + 1):
+                    for col in range(start_col, end_col + 1):
+                        key = address(region, row, col)
+                        self.cell_values[key] = "#ERROR"
+                continue
+
+            for row in range(start_row, end_row + 1):
+                for col in range(start_col, end_col + 1):
+                    context = FormulaContext(
+                        project=project,
+                        table=self,
+                        anchor_row=start_row,
+                        anchor_col=start_col,
+                        target_row=row,
+                        target_col=col,
+                    )
+                    try:
+                        value = _evaluate_formula(ast, context)
+                    except Exception:
+                        value = "#ERROR"
+                    key = address(region, row, col)
+                    self.cell_values[key] = value
 
     def _encode_cell_values(self) -> Dict[str, Any]:
         return {key: _cell_value_to_json(value) for key, value in self.cell_values.items()}
@@ -250,6 +1051,90 @@ class Table:
         }
 
 
+def _parse_col_ref(ref: str) -> Tuple[str, int]:
+    trimmed = ref.strip()
+    if "[" in trimmed and trimmed.endswith("]"):
+        region, inner = trimmed.split("[", 1)
+        region = region.strip()
+        col_label = inner[:-1].strip()
+    else:
+        region = "body"
+        col_label = trimmed
+    if not col_label:
+        raise RangeParserError("Invalid column reference")
+    return region, column_index(col_label)
+
+
+def cell(table: Table, ref: str) -> Any:
+    region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(ref))
+    if start_row != end_row or start_col != end_col:
+        raise RangeParserError("cell() requires a single cell reference")
+    return _cell_value(table, region, start_row, start_col)
+
+
+def col(table: Table, ref: str) -> np.ndarray:
+    region, col_index = _parse_col_ref(ref)
+    if region != "body":
+        raise RangeParserError("col() supports body columns only")
+    values = [_cell_value(table, region, row, col_index) for row in range(table.grid_spec.bodyRows)]
+    return np.array(values, dtype=object)
+
+
+def rng(table: Table, ref: str) -> np.ndarray:
+    region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(ref))
+    values: List[List[Any]] = []
+    for row in range(start_row, end_row + 1):
+        row_values = []
+        for col_index in range(start_col, end_col + 1):
+            row_values.append(_cell_value(table, region, row, col_index))
+        values.append(row_values)
+    return np.array(values, dtype=object)
+
+
+def _coerce_range_values(values: Any, rows: int, cols: int) -> List[List[Any]]:
+    if isinstance(values, np.ndarray):
+        values = values.tolist()
+    if not isinstance(values, list):
+        return [[values for _ in range(cols)] for _ in range(rows)]
+    if values and not isinstance(values[0], list):
+        if rows == 1:
+            return [values]
+        if cols == 1:
+            return [[value] for value in values]
+        raise ValueError("Range values must be 2D")
+    return values
+
+
+def set_cell(table: Table, ref: str, value: Any) -> None:
+    region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(ref))
+    if start_row != end_row or start_col != end_col:
+        raise RangeParserError("set_cell() requires a single cell reference")
+    key = address(region, start_row, start_col)
+    table.set_cells({key: value})
+
+
+def set_col(table: Table, ref: str, values: Any) -> None:
+    region, col_index = _parse_col_ref(ref)
+    if region != "body":
+        raise RangeParserError("set_col() supports body columns only")
+    if isinstance(values, np.ndarray):
+        values = values.tolist()
+    if not isinstance(values, list):
+        values = [values] * table.grid_spec.bodyRows
+    for row, value in enumerate(values):
+        key = address(region, row, col_index)
+        table.cell_values[key] = value
+
+
+def set_range(table: Table, ref: str, values: Any, dtype: Optional[str] = None) -> None:
+    normalized = _normalize_ref(ref)
+    region, start_row, start_col, end_row, end_col = parse_range(normalized)
+    rows = end_row - start_row + 1
+    cols = end_col - start_col + 1
+    values_2d = _coerce_range_values(values, rows, cols)
+    table.set_range(normalized, values_2d, dtype=dtype)
+
+
 @dataclass
 class Sheet:
     id: str
@@ -270,16 +1155,35 @@ class Project:
         return sheet
 
     def add_table(self, sheet_id: str, table_id: str, name: str,
-                  rect: Any, rows: int, cols: int, labels: Optional[Dict[str, Any]] = None) -> Table:
+                  rect: Optional[Any] = None, rows: int = 10, cols: int = 6,
+                  labels: Optional[Dict[str, Any]] = None,
+                  x: Optional[float] = None, y: Optional[float] = None) -> Table:
         sheet = self._find_sheet(sheet_id)
         if sheet is None:
             raise KeyError(f"Unknown sheet_id: {sheet_id}")
-        rect_value = Rect.from_value(rect)
         bands = LabelBands.from_labels(labels)
         grid_spec = GridSpec(bodyRows=int(rows), bodyCols=int(cols), labelBands=bands)
+        rect_value = Rect.from_value(rect) if rect is not None else self._default_rect(
+            rows=int(rows), cols=int(cols), bands=bands, x=x, y=y
+        )
         table = Table(id=table_id, name=name, rect=rect_value, grid_spec=grid_spec)
         sheet.tables.append(table)
         return table
+
+    def _default_rect(self, rows: int, cols: int, bands: LabelBands,
+                      x: Optional[float], y: Optional[float]) -> Rect:
+        total_cols = bands.leftCols + cols + bands.rightCols
+        total_rows = bands.topRows + rows + bands.bottomRows
+        width = total_cols * _DEFAULT_CELL_WIDTH
+        height = total_rows * _DEFAULT_CELL_HEIGHT
+        if x is None or y is None:
+            count = sum(len(sheet.tables) for sheet in self.sheets)
+            offset = count * _DEFAULT_TABLE_OFFSET
+            if x is None:
+                x = _DEFAULT_TABLE_ORIGIN + offset
+            if y is None:
+                y = _DEFAULT_TABLE_ORIGIN + offset
+        return Rect(float(x), float(y), float(width), float(height))
 
     def table(self, table_id: str) -> Table:
         for sheet in self.sheets:
@@ -287,6 +1191,11 @@ class Project:
                 if table.id == table_id:
                     return table
         raise KeyError(f"Unknown table_id: {table_id}")
+
+    def apply_formulas(self) -> None:
+        for sheet in self.sheets:
+            for table in sheet.tables:
+                table.apply_formulas(self)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"sheets": [sheet.to_dict() for sheet in self.sheets]}
@@ -304,8 +1213,29 @@ __all__ = [
     "Rect",
     "GridSpec",
     "LabelBands",
+    "FormulaError",
     "RangeParserError",
     "address",
+    "formula_mode",
+    "formula_context",
+    "label_context",
+    "formula",
+    "cell",
+    "col",
+    "rng",
+    "set_cell",
+    "set_col",
+    "set_range",
+    "cs_sum",
+    "cs_avg",
+    "cs_min",
+    "cs_max",
+    "cs_count",
+    "cs_counta",
+    "cs_if",
+    "cs_and",
+    "cs_or",
+    "cs_not",
     "parse_range",
     "column_label",
     "column_index",

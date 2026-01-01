@@ -91,7 +91,9 @@ struct AddTableCommand: Command {
     }
 
     func serializeToPython() -> String {
-        "proj.add_table(\(PythonLiteralEncoder.encodeString(sheetId)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), name=\(PythonLiteralEncoder.encodeString(name)), rect=\(PythonLiteralEncoder.encodeRect(rect)), rows=\(rows), cols=\(cols), labels=\(PythonLiteralEncoder.encodeLabels(labels)))"
+        let x = PythonLiteralEncoder.encodeNumber(rect.x)
+        let y = PythonLiteralEncoder.encodeNumber(rect.y)
+        return "proj.add_table(\(PythonLiteralEncoder.encodeString(sheetId)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), name=\(PythonLiteralEncoder.encodeString(name)), x=\(x), y=\(y), rows=\(rows), cols=\(cols), labels=\(PythonLiteralEncoder.encodeLabels(labels)))"
     }
 }
 
@@ -234,7 +236,54 @@ struct SetCellsCommand: Command {
     }
 
     func serializeToPython() -> String {
-        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_cells(\(PythonLiteralEncoder.encodeDict(cellMap)))"
+        var bodyAssignments: [(key: String, label: String, value: String)] = []
+        var labelAssignments: [GridRegion: [(key: String, label: String, value: String)]] = [:]
+        var otherCells: [String: CellValue] = [:]
+
+        for (key, value) in cellMap {
+            guard let parsed = try? RangeParser.parse(key),
+                  parsed.start == parsed.end else {
+                otherCells[key] = value
+                continue
+            }
+            let label = RangeParser.cellLabel(row: parsed.start.row, col: parsed.start.col).lowercased()
+            if parsed.region == .body {
+                bodyAssignments.append((key: key, label: label, value: PythonLiteralEncoder.encode(value)))
+                continue
+            }
+            labelAssignments[parsed.region, default: []].append(
+                (key: key, label: label, value: PythonLiteralEncoder.encode(value))
+            )
+        }
+
+        var lines: [String] = []
+        if !bodyAssignments.isEmpty || !labelAssignments.isEmpty {
+            lines.append("t = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))")
+        }
+        if !bodyAssignments.isEmpty {
+            lines.append("with formula_context(t):")
+            let sorted = bodyAssignments.sorted { $0.key < $1.key }
+            for item in sorted {
+                lines.append("    \(item.label) = \(item.value)")
+            }
+        }
+
+        if !labelAssignments.isEmpty {
+            let sortedRegions = labelAssignments.keys.sorted { $0.rawValue < $1.rawValue }
+            for region in sortedRegions {
+                lines.append("with label_context(t, \(PythonLiteralEncoder.encodeString(region.rawValue))):")
+                let sorted = (labelAssignments[region] ?? []).sorted { $0.key < $1.key }
+                for item in sorted {
+                    lines.append("    \(item.label) = \(item.value)")
+                }
+            }
+        }
+
+        if !otherCells.isEmpty {
+            lines.append("proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_cells(\(PythonLiteralEncoder.encodeDict(otherCells)))")
+        }
+
+        return lines.joined(separator: "\n")
     }
 }
 
@@ -348,12 +397,101 @@ struct SetFormulaCommand: Command {
 
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
-            table.formulas[targetRange] = FormulaSpec(formula: formula, mode: mode)
+            let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                table.formulas.removeValue(forKey: targetRange)
+                return
+            }
+            table.formulas[targetRange] = FormulaSpec(formula: trimmed, mode: mode)
+            if let range = try? RangeParser.parse(targetRange) {
+                let rowStart = min(range.start.row, range.end.row)
+                let rowEnd = max(range.start.row, range.end.row)
+                let colStart = min(range.start.col, range.end.col)
+                let colEnd = max(range.start.col, range.end.col)
+                for row in rowStart...rowEnd {
+                    for col in colStart...colEnd {
+                        let key = RangeParser.address(region: range.region, row: row, col: col)
+                        table.cellValues.removeValue(forKey: key)
+                    }
+                }
+            } else {
+                table.cellValues.removeValue(forKey: targetRange)
+            }
         }
     }
 
     func serializeToPython() -> String {
-        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_formula(\(PythonLiteralEncoder.encodeString(targetRange)), \(PythonLiteralEncoder.encodeString(formula)), mode=\(PythonLiteralEncoder.encodeString(mode.rawValue)))"
+        let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            let empty = PythonLiteralEncoder.encodeString("")
+            return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_formula(\(PythonLiteralEncoder.encodeString(targetRange)), \(empty), mode=\(PythonLiteralEncoder.encodeString(mode.rawValue)))"
+        }
+
+        guard mode == .spreadsheet,
+              let parsed = try? RangeParser.parse(targetRange),
+              parsed.region == .body,
+              parsed.start == parsed.end else {
+            return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_formula(\(PythonLiteralEncoder.encodeString(targetRange)), \(PythonLiteralEncoder.encodeString(formula)), mode=\(PythonLiteralEncoder.encodeString(mode.rawValue)))"
+        }
+
+        let cellLabel = RangeParser.cellLabel(row: parsed.start.row, col: parsed.start.col).lowercased()
+        let formulaBody = trimmed.hasPrefix("=") ? String(trimmed.dropFirst()) : trimmed
+        let useInline = FormulaPythonSerializer.isSimpleExpression(formulaBody)
+        let assignment: String
+        if useInline {
+            assignment = "\(cellLabel) = \(FormulaPythonSerializer.normalizeExpression(formulaBody))"
+        } else {
+            let pythonic = FormulaPythonSerializer.pythonicAggregates(formulaBody)
+            assignment = "\(cellLabel) = formula(\(PythonLiteralEncoder.encodeString(pythonic)))"
+        }
+        let tableLine = "t = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))"
+        return [
+            tableLine,
+            "with formula_context(t):",
+            "    \(assignment)"
+        ].joined(separator: "\n")
+    }
+}
+
+private enum FormulaPythonSerializer {
+    static func isSimpleExpression(_ formula: String) -> Bool {
+        let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return false
+        }
+        if trimmed.contains(":") || trimmed.contains("::") || trimmed.contains("$") || trimmed.contains(",") {
+            return false
+        }
+        if trimmed.contains("^") {
+            return false
+        }
+        let functionPattern = #"[A-Za-z_][A-Za-z0-9_]*\s*\("#
+        if trimmed.range(of: functionPattern, options: .regularExpression) != nil {
+            return false
+        }
+        let allowedPattern = #"^[A-Za-z0-9\.\+\-\*/\s]+$"#
+        return trimmed.range(of: allowedPattern, options: .regularExpression) != nil
+    }
+
+    static func normalizeExpression(_ formula: String) -> String {
+        formula.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    static func pythonicAggregates(_ formula: String) -> String {
+        var result = formula
+        let replacements: [(pattern: String, replacement: String)] = [
+            ("(?i)(?<!\\.)SUM\\s*\\(", "np.sum("),
+            ("(?i)(?<!\\.)AVERAGE\\s*\\(", "np.mean("),
+            ("(?i)(?<!\\.)MIN\\s*\\(", "np.min("),
+            ("(?i)(?<!\\.)MAX\\s*\\(", "np.max(")
+        ]
+        for (pattern, replacement) in replacements {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let range = NSRange(result.startIndex..<result.endIndex, in: result)
+                result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: replacement)
+            }
+        }
+        return result
     }
 }
 
