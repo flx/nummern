@@ -5,6 +5,7 @@ This plan is sequenced so every step ships a testable increment. Each step lists
 Testing conventions assumed:
 - Swift: XCTest in the app test target.
 - Python: pytest for the bundled `canvassheets_api` module.
+- After each step, run `python -m pytest -k "formula_sugar or export_numpy"` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`.
 
 ---
 

@@ -749,6 +749,7 @@ A document must be considered correct when:
 ## 11. Build and tooling
 - Generate the Xcode project via XcodeGen (`project.yml`) for reproducibility.
 - Enable generated asset symbol extensions for asset catalogs to align with Xcode recommended settings.
+- After changes, run the Python API tests (`python -m pytest -k "formula_sugar or export_numpy"`) and the macOS test suite (`xcodebuild test -scheme Nummern -destination 'platform=macOS'`).
 
 ## Appendix A: Proposed minimal Python API surface
 
