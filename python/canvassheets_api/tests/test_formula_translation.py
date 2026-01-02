@@ -61,7 +61,7 @@ def test_cross_table_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[B1]", "=table_1::A1*2")
+    table_2.set_formula("body[B1]", "=table_1.A1*2")
     project.apply_formulas()
     assert table_2.cell_values["body[B1]"] == 10
 
@@ -112,7 +112,7 @@ def test_table_prefixed_column_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[B1]", "=SUM(table_1::A)")
+    table_2.set_formula("body[B1]", "=SUM(table_1.A)")
     project.apply_formulas()
     assert table_2.cell_values["body[B1]"] == 15
 
@@ -134,6 +134,6 @@ def test_table_prefixed_row_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[A1]", "=SUM(table_1::2)")
+    table_2.set_formula("body[A1]", "=SUM(table_1.2)")
     project.apply_formulas()
     assert table_2.cell_values["body[A1]"] == 6

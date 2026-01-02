@@ -88,9 +88,9 @@ def test_cross_table_formula_order():
         "with table_context(t2):\n"
         "    b3 = 1\n"
         "    a1 = 2\n"
-        "    c3 = formula('B3+A1+table_1::B3')\n"
+        "    c3 = formula('B3+A1+table_1.B3')\n"
         "with table_context(t1):\n"
-        "    b4 = formula('table_2::C3+table_2::B3+A1')\n",
+        "    b4 = formula('table_2.C3+table_2.B3+A1')\n",
         globals_dict,
         globals_dict,
     )

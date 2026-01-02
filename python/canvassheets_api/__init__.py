@@ -316,7 +316,7 @@ class Token:
 
 _CELL_TOKEN_RE = re.compile(r"\$?[A-Za-z]+\$?\d+")
 _NUMBER_TOKEN_RE = re.compile(r"(?:\d+\.\d*|\d+|\.\d+)")
-_IDENT_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_\.]*")
+_IDENT_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_\.\$]*")
 _CELL_REF_RE = re.compile(r"(\$?)([A-Za-z]+)(\$?)(\d+)")
 
 
@@ -510,6 +510,14 @@ class FormulaParser:
                 return self._parse_reference(table_id)
             if self._peek(1).type == "(":
                 return self._parse_function_call()
+            if "." in token.value:
+                dotted = self._advance().value
+                table_id, ref = dotted.split(".", 1)
+                if not table_id or not ref:
+                    raise FormulaError("Invalid table reference")
+                if self._peek().type == "[":
+                    return self._parse_table_region_reference(table_id, ref)
+                return self._parse_table_dot_reference(table_id, ref)
             if self._peek(1).type == "[":
                 return self._parse_reference()
             if upper == "TRUE" or upper == "FALSE":
@@ -567,11 +575,45 @@ class FormulaParser:
             return RangeRefNode(table_id=table_id, region="body", start=start, end=end)
         raise FormulaError("Invalid reference syntax")
 
+    def _parse_table_region_reference(self, table_id: str, region: str) -> Any:
+        if not self._match("["):
+            raise FormulaError("Expected '[' in range reference")
+        start = self._parse_cell_token()
+        end = start
+        if self._match(":"):
+            end = self._parse_cell_token()
+        if not self._match("]"):
+            raise FormulaError("Expected ']' in range reference")
+        if start == end:
+            return CellRefNode(table_id=table_id, region=region, cell=start)
+        return RangeRefNode(table_id=table_id, region=region, start=start, end=end)
+
+    def _parse_table_dot_reference(self, table_id: str, ref: str) -> Any:
+        if _CELL_REF_RE.fullmatch(ref):
+            start = self._parse_cell_string(ref)
+            end = start
+            if self._match(":"):
+                end = self._parse_cell_token()
+            if start == end:
+                return CellRefNode(table_id=table_id, region="body", cell=start)
+            return RangeRefNode(table_id=table_id, region="body", start=start, end=end)
+        if ref.isalpha():
+            return ColumnRefNode(table_id=table_id, region="body", col=column_index(ref))
+        if ref.isdigit():
+            row_number = int(ref)
+            if row_number <= 0:
+                raise FormulaError("Invalid row reference")
+            return RowRefNode(table_id=table_id, region="body", row=row_number - 1)
+        raise FormulaError("Invalid reference syntax")
+
     def _parse_cell_token(self) -> CellRef:
         token = self._advance()
         if token.type != "CELL":
             raise FormulaError("Expected cell reference")
-        match = _CELL_REF_RE.fullmatch(token.value)
+        return self._parse_cell_string(token.value)
+
+    def _parse_cell_string(self, value: str) -> CellRef:
+        match = _CELL_REF_RE.fullmatch(value)
         if not match:
             raise FormulaError("Invalid cell reference")
         col_abs = match.group(1) == "$"

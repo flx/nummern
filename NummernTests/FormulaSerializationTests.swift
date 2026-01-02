@@ -18,7 +18,7 @@ final class FormulaSerializationTests: XCTestCase {
         let command = SetFormulaCommand(
             tableId: "table_1",
             targetRange: "body[B2]",
-            formula: "=B1+table_2::B3"
+            formula: "=B1+table_2.B3"
         )
 
         let python = command.serializeToPython()

@@ -344,7 +344,7 @@ struct TableCellOverlay: View {
         if selection.tableId == editingCell.tableId {
             return regionPrefix
         }
-        return "\(selection.tableId)::\(regionPrefix)"
+        return "\(selection.tableId).\(regionPrefix)"
     }
 
     private func formulaReferenceRange(start: CellSelection,
@@ -377,7 +377,7 @@ struct TableCellOverlay: View {
         if start.tableId == editingCell.tableId {
             return rangeLabel
         }
-        return "\(start.tableId)::\(rangeLabel)"
+        return "\(start.tableId).\(rangeLabel)"
     }
 
     private func dragSelectionRect() -> CGRect? {
@@ -550,15 +550,14 @@ struct TableCellOverlay: View {
         var matches: [ParsedMatch] = []
         var consumed: [NSRange] = []
 
-        let regionPattern = #"(?i)([A-Za-z0-9_]+::)?(body|top_labels|bottom_labels|left_labels|right_labels)\[(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?\]"#
+        let regionPattern = #"(?i)(?:([A-Za-z0-9_]+)(?:\.|::))?(body|top_labels|bottom_labels|left_labels|right_labels)\[(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?\]"#
         if let regionRegex = try? NSRegularExpression(pattern: regionPattern) {
             let matchesRaw = regionRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
             for match in matchesRaw {
                 guard match.numberOfRanges >= 4 else {
                     continue
                 }
-                let tableId = captureGroup(match, index: 1, in: text)?
-                    .replacingOccurrences(of: "::", with: "")
+                let tableId = captureGroup(match, index: 1, in: text)
                 let regionRaw = captureGroup(match, index: 2, in: text)
                 let start = captureGroup(match, index: 3, in: text)
                 let end = captureGroup(match, index: 4, in: text) ?? start
@@ -571,7 +570,7 @@ struct TableCellOverlay: View {
             }
         }
 
-        let simplePattern = #"(?i)([A-Za-z0-9_]+::)?(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?"#
+        let simplePattern = #"(?i)(?:([A-Za-z0-9_]+)(?:\.|::))?(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?"#
         if let simpleRegex = try? NSRegularExpression(pattern: simplePattern) {
             let matchesRaw = simpleRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
             for match in matchesRaw {
@@ -581,8 +580,7 @@ struct TableCellOverlay: View {
                 if !hasValidBoundaries(match.range, in: text) {
                     continue
                 }
-                let tableId = captureGroup(match, index: 1, in: text)?
-                    .replacingOccurrences(of: "::", with: "")
+                let tableId = captureGroup(match, index: 1, in: text)
                 let start = captureGroup(match, index: 2, in: text)
                 let end = captureGroup(match, index: 3, in: text) ?? start
                 matches.append(ParsedMatch(range: match.range,
