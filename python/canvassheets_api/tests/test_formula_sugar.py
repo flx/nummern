@@ -68,7 +68,7 @@ def test_label_assignment_sugar():
     assert table.cell_values["top_labels[A1]"] == "Header"
 
 
-def test_cross_table_formula_recompute():
+def test_cross_table_formula_order():
     globals_dict = FormulaLocals({"__builtins__": __builtins__})
     globals_dict["proj"] = Project()
     globals_dict["Rect"] = Rect

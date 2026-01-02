@@ -95,10 +95,17 @@ class FormulaError(ValueError):
 _FORMULA_CELL_RE = re.compile(r"^[A-Za-z]+[0-9]+$")
 _active_formula_table: Optional["Table"] = None
 _active_label_context: Optional[Tuple["Table", str]] = None
+_FORMULA_ORDER_COUNTER = 0
 _DEFAULT_CELL_WIDTH = 80.0
 _DEFAULT_CELL_HEIGHT = 24.0
 _DEFAULT_TABLE_OFFSET = 24.0
 _DEFAULT_TABLE_ORIGIN = 80.0
+
+
+def _next_formula_order() -> int:
+    global _FORMULA_ORDER_COUNTER
+    _FORMULA_ORDER_COUNTER += 1
+    return _FORMULA_ORDER_COUNTER
 
 
 class FormulaExpr:
@@ -990,6 +997,7 @@ class Table:
     cell_values: Dict[str, Any] = field(default_factory=dict)
     range_values: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     formulas: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    formula_order: Dict[str, int] = field(default_factory=dict)
     label_band_values: Dict[str, Dict[str, List[str]]] = field(
         default_factory=lambda: {"top": {}, "bottom": {}, "left": {}, "right": {}}
     )
@@ -1040,8 +1048,10 @@ class Table:
     def set_formula(self, target_range: str, formula: str, mode: str = "spreadsheet") -> None:
         if not formula.strip():
             self.formulas.pop(target_range, None)
+            self.formula_order.pop(target_range, None)
             return
         self.formulas[target_range] = {"formula": formula, "mode": mode}
+        self.formula_order[target_range] = _next_formula_order()
 
     def insert_rows(self, at: int, count: int) -> None:
         self.grid_spec.bodyRows += int(count)
@@ -1049,50 +1059,67 @@ class Table:
     def insert_cols(self, at: int, count: int) -> None:
         self.grid_spec.bodyCols += int(count)
 
-    def apply_formulas(self, project: "Project") -> bool:
-        changed = False
+    def _iter_formulas_by_order(self) -> List[Tuple[int, str, Dict[str, Any]]]:
+        entries: List[Tuple[int, str, Dict[str, Any]]] = []
         for target_range, payload in list(self.formulas.items()):
-            formula = str(payload.get("formula", "")).strip()
-            if not formula:
-                continue
-            mode = payload.get("mode", "spreadsheet")
-            try:
-                region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(target_range))
-            except RangeParserError:
-                continue
+            order = self.formula_order.get(target_range)
+            if order is None:
+                order = _next_formula_order()
+                self.formula_order[target_range] = order
+            entries.append((order, target_range, payload))
+        entries.sort(key=lambda entry: entry[0])
+        return entries
 
-            if mode != "spreadsheet":
-                continue
+    def apply_formula_entry(self, project: "Project", target_range: str, payload: Dict[str, Any]) -> bool:
+        changed = False
+        formula = str(payload.get("formula", "")).strip()
+        if not formula:
+            return changed
+        mode = payload.get("mode", "spreadsheet")
+        try:
+            region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(target_range))
+        except RangeParserError:
+            return changed
 
-            try:
-                ast = FormulaParser(formula).parse()
-            except FormulaError:
-                for row in range(start_row, end_row + 1):
-                    for col in range(start_col, end_col + 1):
-                        key = address(region, row, col)
-                        if self.cell_values.get(key) != "#ERROR":
-                            changed = True
-                        self.cell_values[key] = "#ERROR"
-                continue
+        if mode != "spreadsheet":
+            return changed
 
+        try:
+            ast = FormulaParser(formula).parse()
+        except FormulaError:
             for row in range(start_row, end_row + 1):
                 for col in range(start_col, end_col + 1):
-                    context = FormulaContext(
-                        project=project,
-                        table=self,
-                        anchor_row=start_row,
-                        anchor_col=start_col,
-                        target_row=row,
-                        target_col=col,
-                    )
-                    try:
-                        value = _evaluate_formula(ast, context)
-                    except Exception:
-                        value = "#ERROR"
                     key = address(region, row, col)
-                    if self.cell_values.get(key) != value:
+                    if self.cell_values.get(key) != "#ERROR":
                         changed = True
-                    self.cell_values[key] = value
+                    self.cell_values[key] = "#ERROR"
+            return changed
+
+        for row in range(start_row, end_row + 1):
+            for col in range(start_col, end_col + 1):
+                context = FormulaContext(
+                    project=project,
+                    table=self,
+                    anchor_row=start_row,
+                    anchor_col=start_col,
+                    target_row=row,
+                    target_col=col,
+                )
+                try:
+                    value = _evaluate_formula(ast, context)
+                except Exception:
+                    value = "#ERROR"
+                key = address(region, row, col)
+                if self.cell_values.get(key) != value:
+                    changed = True
+                self.cell_values[key] = value
+        return changed
+
+    def apply_formulas(self, project: "Project") -> bool:
+        changed = False
+        for _, target_range, payload in self._iter_formulas_by_order():
+            if self.apply_formula_entry(project, target_range, payload):
+                changed = True
         return changed
 
     def _encode_cell_values(self) -> Dict[str, Any]:
@@ -1262,15 +1289,18 @@ class Project:
         raise KeyError(f"Unknown table_id: {table_id}")
 
     def apply_formulas(self) -> None:
-        max_passes = 10
-        for _ in range(max_passes):
-            any_changed = False
-            for sheet in self.sheets:
-                for table in sheet.tables:
-                    if table.apply_formulas(self):
-                        any_changed = True
-            if not any_changed:
-                break
+        entries: List[Tuple[int, Table, str, Dict[str, Any]]] = []
+        for sheet in self.sheets:
+            for table in sheet.tables:
+                for target_range, payload in list(table.formulas.items()):
+                    order = table.formula_order.get(target_range)
+                    if order is None:
+                        order = _next_formula_order()
+                        table.formula_order[target_range] = order
+                    entries.append((order, table, target_range, payload))
+        entries.sort(key=lambda entry: entry[0])
+        for _, table, target_range, payload in entries:
+            table.apply_formula_entry(self, target_range, payload)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"sheets": [sheet.to_dict() for sheet in self.sheets]}

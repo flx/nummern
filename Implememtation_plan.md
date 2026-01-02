@@ -214,7 +214,7 @@ Deliverable:
 - Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
-- Evaluate formulas in multiple passes (bounded) to resolve cross-table dependencies until values settle.
+- Evaluate formulas once in global log order (recorded at set time) across tables so dependencies match script order.
 
 Testable increment:
 - Entering a spreadsheet formula produces readable Python expressions in the script, and rerunning the script updates computed values (data blocks appear right after `add_table`).
@@ -222,7 +222,7 @@ Testable increment:
 Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_translation.py`
 - Python: `canvassheets_api/tests/test_formula_sugar.py`
-- Python: `canvassheets_api/tests/test_formula_sugar.py::test_cross_table_formula_recompute`
+- Python: `canvassheets_api/tests/test_formula_sugar.py::test_cross_table_formula_order`
 - Swift: `PythonLogNormalizerTests.testMergesConsecutiveFormulaContextBlocks()`
 - Run: `python -m pytest -k "formula_translation or formula_sugar"`
 
