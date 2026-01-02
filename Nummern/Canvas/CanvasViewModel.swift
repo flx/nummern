@@ -543,8 +543,12 @@ enum PythonLogNormalizer {
            last.tableId == incoming.tableId,
            last.contextLine == incoming.contextLine,
            last.purpose == incoming.purpose {
-            var merged = last
-            merged.assignments.append(contentsOf: incoming.assignments)
+            let mergedAssignments = last.assignments + incoming.assignments
+            let merged = ContextBlock(tableId: last.tableId,
+                                      contextLine: last.contextLine,
+                                      assignments: mergedAssignments,
+                                      purpose: last.purpose,
+                                      type: last.type)
             blocks[blocks.count - 1] = .context(merged)
             return
         }

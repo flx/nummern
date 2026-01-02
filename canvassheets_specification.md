@@ -746,6 +746,10 @@ A document must be considered correct when:
 
 ---
 
+## 11. Build and tooling
+- Generate the Xcode project via XcodeGen (`project.yml`) for reproducibility.
+- Enable generated asset symbol extensions for asset catalogs to align with Xcode recommended settings.
+
 ## Appendix A: Proposed minimal Python API surface
 
 ```python

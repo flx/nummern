@@ -16,6 +16,7 @@ Deliverable:
 - Switch the document to a package-based FileWrapper with `project.json` and `script.py` stubs.
 - Add a minimal placeholder UI and a unit test target.
 - Add XcodeGen project definition for reproducible project generation.
+- Enable generated asset symbol extensions in build settings (Xcode recommended).
 
 Testable increment:
 - The app opens, creates, saves, and reopens a `.nummern` document package with placeholder `project.json` and `script.py`.

@@ -92,7 +92,7 @@ struct TableCellOverlay: View {
             selectionOverlay()
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
-        .onChange(of: editingText) { _ in
+        .onChange(of: editingText) {
             updateHighlightState()
         }
     }
