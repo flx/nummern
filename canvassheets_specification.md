@@ -233,6 +233,7 @@ v1:
 - Each command is deterministic and order-dependent.
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
 - Consecutive `t = proj.table(...)` + `with table_context(...)` / `with label_context(...)` blocks for the same table should be merged for readability.
+- Body data entry is grouped per table and emitted in a dedicated `with table_context(t):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
 
 ### 6.2 Canonical Python API (DSL)
 The script should use a stable internal API shipped with the app (a Python module bundled inside the app). Example module: `canvassheets_api`.

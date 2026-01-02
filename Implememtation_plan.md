@@ -211,9 +211,10 @@ Deliverable:
 - Generate Python formula expressions after data writes during script generation.
 - Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
+- Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
 
 Testable increment:
-- Entering a spreadsheet formula produces readable Python expressions in the script, and rerunning the script updates computed values.
+- Entering a spreadsheet formula produces readable Python expressions in the script, and rerunning the script updates computed values (data blocks appear right after `add_table`).
 
 Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_translation.py`

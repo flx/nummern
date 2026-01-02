@@ -8,6 +8,7 @@ final class CanvasViewModel: ObservableObject {
     @Published private(set) var historyJSON: String
     @Published var selectedTableId: String?
     @Published var selectedCell: CellSelection?
+    @Published var formulaHighlightState: FormulaHighlightState?
 
     private let transactionManager = TransactionManager()
     private var seedCommands: [String] = []
@@ -19,6 +20,7 @@ final class CanvasViewModel: ObservableObject {
         self.historyJSON = ""
         self.selectedTableId = nil
         self.selectedCell = nil
+        self.formulaHighlightState = nil
         self.seedCommands = decodeHistoryCommands(from: historyJSON)
         rebuildLogs()
     }
@@ -29,6 +31,7 @@ final class CanvasViewModel: ObservableObject {
         self.project = project
         selectedTableId = nil
         selectedCell = nil
+        formulaHighlightState = nil
         rebuildLogs()
     }
 
@@ -114,6 +117,11 @@ final class CanvasViewModel: ObservableObject {
     func clearSelection() {
         selectedCell = nil
         selectedTableId = nil
+        formulaHighlightState = nil
+    }
+
+    func setFormulaHighlights(_ state: FormulaHighlightState?) {
+        formulaHighlightState = state
     }
 
     func setCellValue(tableId: String,
@@ -354,69 +362,331 @@ enum PythonLogNormalizer {
         }
 
         let lines = rawLog.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        var output: [String] = []
+        let parsedBlocks = parseBlocks(from: lines)
+        var dataEntriesByTable: [String: [DataEntry]] = [:]
+        var outputBlocks: [Block] = []
+
+        for block in parsedBlocks {
+            switch block {
+            case .line(let line):
+                if let tableId = dataTableId(from: line) {
+                    dataEntriesByTable[tableId, default: []].append(.line(line))
+                    continue
+                }
+                outputBlocks.append(.line(line))
+            case .context(let context):
+                if context.type == .table {
+                    let split = partitionAssignments(context.assignments)
+                    if !split.data.isEmpty {
+                        dataEntriesByTable[context.tableId, default: []].append(contentsOf: split.data.map { .assignment($0) })
+                    }
+                    if !split.formula.isEmpty {
+                        outputBlocks.append(.context(ContextBlock(tableId: context.tableId,
+                                                                  contextLine: context.contextLine,
+                                                                  assignments: split.formula,
+                                                                  purpose: .formula,
+                                                                  type: context.type)))
+                    }
+                    continue
+                }
+                outputBlocks.append(.context(ContextBlock(tableId: context.tableId,
+                                                          contextLine: context.contextLine,
+                                                          assignments: context.assignments,
+                                                          purpose: .label,
+                                                          type: context.type)))
+            }
+        }
+
+        var finalBlocks: [Block] = []
+        var insertedTables = Set<String>()
+        for block in outputBlocks {
+            if case .line(let line) = block, let tableId = addTableId(from: line) {
+                append(block, to: &finalBlocks)
+                if let dataBlock = dataBlock(for: tableId, entries: dataEntriesByTable[tableId]) {
+                    append(dataBlock, to: &finalBlocks)
+                    insertedTables.insert(tableId)
+                }
+                continue
+            }
+            append(block, to: &finalBlocks)
+        }
+
+        for (tableId, entries) in dataEntriesByTable where !insertedTables.contains(tableId) {
+            if let dataBlock = dataBlock(for: tableId, entries: entries) {
+                append(dataBlock, to: &finalBlocks)
+            }
+        }
+
+        var outputLines: [String] = []
+        for block in finalBlocks {
+            switch block {
+            case .line(let line):
+                outputLines.append(line)
+            case .context(let context):
+                outputLines.append("t = proj.table(\(PythonLiteralEncoder.encodeString(context.tableId)))")
+                outputLines.append(context.contextLine)
+                for assignment in context.assignments {
+                    outputLines.append("    \(assignment)")
+                }
+            }
+        }
+
+        return outputLines.joined(separator: "\n")
+    }
+
+    private enum ContextType {
+        case table
+        case label
+    }
+
+    private enum ContextPurpose: Equatable {
+        case data
+        case formula
+        case label
+    }
+
+    private enum DataEntry: Equatable {
+        case assignment(String)
+        case line(String)
+    }
+
+    private struct ContextBlock: Equatable {
+        let tableId: String
+        let contextLine: String
+        let assignments: [String]
+        let purpose: ContextPurpose
+        let type: ContextType
+    }
+
+    private enum Block: Equatable {
+        case line(String)
+        case context(ContextBlock)
+    }
+
+    private static func parseBlocks(from lines: [String]) -> [Block] {
+        var blocks: [Block] = []
         var index = 0
+        var currentTableId: String?
 
         while index < lines.count {
             let line = lines[index]
-            if isTableLine(line),
-               index + 1 < lines.count {
-                let contextLine = lines[index + 1]
-                if isContextLine(contextLine) {
+            if let tableId = tableId(fromTableLine: line) {
+                currentTableId = tableId
+                if index + 1 < lines.count, let context = contextType(from: lines[index + 1]) {
+                    let contextLine = lines[index + 1]
                     var assignments: [String] = []
                     var cursor = index + 2
                     while cursor < lines.count, isIndented(lines[cursor]) {
-                        assignments.append(lines[cursor])
+                        assignments.append(stripIndent(lines[cursor]))
                         cursor += 1
                     }
-                    if assignments.isEmpty {
-                        output.append(line)
-                        output.append(contextLine)
-                        index = cursor
-                        continue
-                    }
-
-                    while cursor + 1 < lines.count {
-                        if lines[cursor] != line || lines[cursor + 1] != contextLine {
-                            break
-                        }
-                        var nextAssignments: [String] = []
-                        var scan = cursor + 2
-                        while scan < lines.count, isIndented(lines[scan]) {
-                            nextAssignments.append(lines[scan])
-                            scan += 1
-                        }
-                        if nextAssignments.isEmpty {
-                            break
-                        }
-                        assignments.append(contentsOf: nextAssignments)
-                        cursor = scan
-                    }
-
-                    output.append(line)
-                    output.append(contextLine)
-                    output.append(contentsOf: assignments)
+                    blocks.append(.context(ContextBlock(tableId: tableId,
+                                                        contextLine: contextLine,
+                                                        assignments: assignments,
+                                                        purpose: .formula,
+                                                        type: context)))
                     index = cursor
                     continue
                 }
             }
 
-            output.append(line)
+            if let context = contextType(from: line), let tableId = currentTableId {
+                var assignments: [String] = []
+                var cursor = index + 1
+                while cursor < lines.count, isIndented(lines[cursor]) {
+                    assignments.append(stripIndent(lines[cursor]))
+                    cursor += 1
+                }
+                blocks.append(.context(ContextBlock(tableId: tableId,
+                                                    contextLine: line,
+                                                    assignments: assignments,
+                                                    purpose: .formula,
+                                                    type: context)))
+                index = cursor
+                continue
+            }
+
+            if let tableId = tableId(fromTableLine: line) {
+                currentTableId = tableId
+            }
+
+            blocks.append(.line(line))
             index += 1
         }
 
-        return output.joined(separator: "\n")
+        return blocks
     }
 
-    private static func isTableLine(_ line: String) -> Bool {
-        line.hasPrefix("t = proj.table(")
+    private static func dataBlock(for tableId: String, entries: [DataEntry]?) -> Block? {
+        guard let entries, !entries.isEmpty else {
+            return nil
+        }
+        var assignments: [String] = []
+        for entry in entries {
+            switch entry {
+            case .assignment(let line):
+                assignments.append(line)
+            case .line(let line):
+                assignments.append(line.trimmingCharacters(in: .whitespaces))
+            }
+        }
+        return .context(ContextBlock(tableId: tableId,
+                                     contextLine: "with table_context(t):",
+                                     assignments: assignments,
+                                     purpose: .data,
+                                     type: .table))
     }
 
-    private static func isContextLine(_ line: String) -> Bool {
-        line.hasPrefix("with formula_context(t):") || line.hasPrefix("with label_context(t,")
+    private static func append(_ block: Block, to blocks: inout [Block]) {
+        if case .context(let incoming) = block,
+           case .context(let last) = blocks.last,
+           last.tableId == incoming.tableId,
+           last.contextLine == incoming.contextLine,
+           last.purpose == incoming.purpose {
+            var merged = last
+            merged.assignments.append(contentsOf: incoming.assignments)
+            blocks[blocks.count - 1] = .context(merged)
+            return
+        }
+        blocks.append(block)
+    }
+
+    private static func contextType(from line: String) -> ContextType? {
+        if line.hasPrefix("with table_context(t):") {
+            return .table
+        }
+        if line.hasPrefix("with label_context(t,") {
+            return .label
+        }
+        return nil
     }
 
     private static func isIndented(_ line: String) -> Bool {
         line.hasPrefix("    ")
+    }
+
+    private static func stripIndent(_ line: String) -> String {
+        if line.hasPrefix("    ") {
+            return String(line.dropFirst(4))
+        }
+        return line
+    }
+
+    private static func partitionAssignments(_ assignments: [String]) -> (data: [String], formula: [String]) {
+        var data: [String] = []
+        var formula: [String] = []
+        for assignment in assignments {
+            guard let rhs = assignment.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).last else {
+                formula.append(assignment)
+                continue
+            }
+            let value = rhs.trimmingCharacters(in: .whitespaces)
+            if isLiteralValue(value) {
+                data.append(assignment)
+            } else {
+                formula.append(assignment)
+            }
+        }
+        return (data, formula)
+    }
+
+    private static func isLiteralValue(_ value: String) -> Bool {
+        if value == "None" || value == "True" || value == "False" {
+            return true
+        }
+        if isQuotedLiteral(value) {
+            return true
+        }
+        return Double(value) != nil
+    }
+
+    private static func isQuotedLiteral(_ value: String) -> Bool {
+        guard value.count >= 2 else {
+            return false
+        }
+        let start = value.first
+        let end = value.last
+        guard start == end, start == "'" || start == "\"" else {
+            return false
+        }
+        return true
+    }
+
+    private static func tableId(fromTableLine line: String) -> String? {
+        guard line.hasPrefix("t = proj.table(") else {
+            return nil
+        }
+        return extractQuotedValue(from: line, prefix: "t = proj.table(")
+    }
+
+    private static func addTableId(from line: String) -> String? {
+        guard line.hasPrefix("proj.add_table(") else {
+            return nil
+        }
+        return extractParameterValue(from: line, name: "table_id")
+    }
+
+    private static func dataTableId(from line: String) -> String? {
+        if let tableId = tableId(from: line, call: ".set_cells(") {
+            return tableId
+        }
+        if let tableId = tableId(from: line, call: ".set_range("),
+           let region = setRangeRegion(from: line),
+           region == "body" {
+            return tableId
+        }
+        return nil
+    }
+
+    private static func tableId(from line: String, call: String) -> String? {
+        guard line.contains(call),
+              let open = line.range(of: "proj.table(") else {
+            return nil
+        }
+        let segment = line[open.upperBound...]
+        return extractQuotedValue(from: String(segment), prefix: "")
+    }
+
+    private static func setRangeRegion(from line: String) -> String? {
+        guard let rangeArg = extractFirstArgument(from: line, call: ".set_range(") else {
+            return nil
+        }
+        let trimmed = rangeArg.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let bracket = trimmed.firstIndex(of: "[") else {
+            return nil
+        }
+        return String(trimmed[..<bracket]).lowercased()
+    }
+
+    private static func extractFirstArgument(from line: String, call: String) -> String? {
+        guard let callRange = line.range(of: call) else {
+            return nil
+        }
+        let afterCall = line[callRange.upperBound...]
+        guard let firstComma = afterCall.firstIndex(of: ",") else {
+            return nil
+        }
+        return String(afterCall[..<firstComma])
+    }
+
+    private static func extractParameterValue(from line: String, name: String) -> String? {
+        guard let range = line.range(of: "\(name)=") else {
+            return nil
+        }
+        let substring = line[range.upperBound...]
+        return extractQuotedValue(from: String(substring), prefix: "")
+    }
+
+    private static func extractQuotedValue(from line: String, prefix: String) -> String? {
+        let trimmed = prefix.isEmpty ? line : String(line.dropFirst(prefix.count))
+        guard let firstQuoteIndex = trimmed.firstIndex(where: { $0 == "'" || $0 == "\"" }) else {
+            return nil
+        }
+        let quote = trimmed[firstQuoteIndex]
+        let afterQuote = trimmed.index(after: firstQuoteIndex)
+        guard let secondQuoteIndex = trimmed[afterQuote...].firstIndex(of: quote) else {
+            return nil
+        }
+        return String(trimmed[afterQuote..<secondQuoteIndex])
     }
 }
