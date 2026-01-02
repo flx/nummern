@@ -172,6 +172,7 @@ Support two formula modes:
 - Spreadsheet formulas are stored as text but compiled into Python expressions in the generated script.
 - Generated script uses helper functions (see §6.2.1) to read ranges/columns and write results back into tables for a readable grid after rerun.
 - Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
+- The Python engine evaluates formulas in multiple passes (bounded) to resolve cross-table dependencies, then settles when no values change.
 - Prefer vectorized evaluation over per-cell loops when a formula targets a range.
 - Generated script groups body edits under `with table_context(t):` blocks; label-band edits use `with label_context(t, "..."):`. Simple formulas are logged as Python expressions (e.g., `b2 = a1 + a2`); complex formulas fall back to `formula("...")`.
 

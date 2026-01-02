@@ -1049,7 +1049,8 @@ class Table:
     def insert_cols(self, at: int, count: int) -> None:
         self.grid_spec.bodyCols += int(count)
 
-    def apply_formulas(self, project: "Project") -> None:
+    def apply_formulas(self, project: "Project") -> bool:
+        changed = False
         for target_range, payload in list(self.formulas.items()):
             formula = str(payload.get("formula", "")).strip()
             if not formula:
@@ -1069,6 +1070,8 @@ class Table:
                 for row in range(start_row, end_row + 1):
                     for col in range(start_col, end_col + 1):
                         key = address(region, row, col)
+                        if self.cell_values.get(key) != "#ERROR":
+                            changed = True
                         self.cell_values[key] = "#ERROR"
                 continue
 
@@ -1087,7 +1090,10 @@ class Table:
                     except Exception:
                         value = "#ERROR"
                     key = address(region, row, col)
+                    if self.cell_values.get(key) != value:
+                        changed = True
                     self.cell_values[key] = value
+        return changed
 
     def _encode_cell_values(self) -> Dict[str, Any]:
         return {key: _cell_value_to_json(value) for key, value in self.cell_values.items()}
@@ -1256,9 +1262,15 @@ class Project:
         raise KeyError(f"Unknown table_id: {table_id}")
 
     def apply_formulas(self) -> None:
-        for sheet in self.sheets:
-            for table in sheet.tables:
-                table.apply_formulas(self)
+        max_passes = 10
+        for _ in range(max_passes):
+            any_changed = False
+            for sheet in self.sheets:
+                for table in sheet.tables:
+                    if table.apply_formulas(self):
+                        any_changed = True
+            if not any_changed:
+                break
 
     def to_dict(self) -> Dict[str, Any]:
         return {"sheets": [sheet.to_dict() for sheet in self.sheets]}
