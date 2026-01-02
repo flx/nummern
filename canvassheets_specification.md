@@ -192,7 +192,7 @@ Support two formula modes:
 - While editing a formula, clicking a cell inserts its reference; dragging across cells inserts a range (`A1:B3`) and shows a selection rectangle during drag.
 - Referenced cells/ranges are highlighted in the grid with color-coded outlines/fills.
 - The formula text colors each reference token to match its grid highlight color.
-- Cross-table references (`table_id.A1`, legacy `table_id::A1`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
+- Cross-table references (`table_id.A1`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
 - The inline editor expands to the right edge of the active region so long formulas remain visible.
 
 ### 5.6 Pivot tables / summaries
@@ -246,7 +246,7 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
 - **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
 - **Formula wrapper**: `formula("A1+B1")` explicitly marks a spreadsheet formula when needed.
-- **Cross-table sugar**: `table_id.A1` is the standard spreadsheet reference; legacy `table_id::A1` remains accepted. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
+- **Cross-table sugar**: `table_id.A1` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
 
 ### 6.2.1 Formula helper API (Python)
 Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:
@@ -603,7 +603,7 @@ For distribution reliability:
 
 ### 14.2 Cross-table references
 Define a clear syntax, e.g.:
-- `table_1.A1` (legacy `table_1::A1`)
+- `table_1.A1`
 - `SheetName/TableName.A1` (optional)
 
 Internally, resolve references to IDs.

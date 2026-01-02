@@ -550,7 +550,7 @@ struct TableCellOverlay: View {
         var matches: [ParsedMatch] = []
         var consumed: [NSRange] = []
 
-        let regionPattern = #"(?i)(?:([A-Za-z0-9_]+)(?:\.|::))?(body|top_labels|bottom_labels|left_labels|right_labels)\[(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?\]"#
+        let regionPattern = #"(?i)(?:([A-Za-z0-9_]+)\.)?(body|top_labels|bottom_labels|left_labels|right_labels)\[(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?\]"#
         if let regionRegex = try? NSRegularExpression(pattern: regionPattern) {
             let matchesRaw = regionRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
             for match in matchesRaw {
@@ -570,7 +570,7 @@ struct TableCellOverlay: View {
             }
         }
 
-        let simplePattern = #"(?i)(?:([A-Za-z0-9_]+)(?:\.|::))?(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?"#
+        let simplePattern = #"(?i)(?:([A-Za-z0-9_]+)\.)?(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?"#
         if let simpleRegex = try? NSRegularExpression(pattern: simplePattern) {
             let matchesRaw = simpleRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
             for match in matchesRaw {

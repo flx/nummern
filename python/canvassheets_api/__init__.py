@@ -329,10 +329,6 @@ def _tokenize_formula(text: str) -> List[Token]:
         if ch.isspace():
             index += 1
             continue
-        if text.startswith("::", index):
-            tokens.append(Token("DCOLON", "::", index))
-            index += 2
-            continue
         if ch in "+-*/^":
             tokens.append(Token("OP", ch, index))
             index += 1
@@ -501,13 +497,6 @@ class FormulaParser:
             upper = token.value.upper()
             if upper in {"COL", "ROW"} and self._peek(1).type == "(":
                 return self._parse_col_row_function()
-            if self._peek(1).type == "DCOLON":
-                table_id = self._advance().value
-                self._advance()
-                if self._peek().type == "NUMBER":
-                    row = self._parse_row_number(self._advance())
-                    return RowRefNode(table_id=table_id, region="body", row=row)
-                return self._parse_reference(table_id)
             if self._peek(1).type == "(":
                 return self._parse_function_call()
             if "." in token.value:
@@ -1047,7 +1036,7 @@ class Table:
     def __getattr__(self, name: str) -> Any:
         if _FORMULA_CELL_RE.match(name):
             cell_ref = name.upper()
-            return FormulaExpr(f"{self.id}::{cell_ref}")
+            return FormulaExpr(f"{self.id}.{cell_ref}")
         raise AttributeError(name)
 
     def set_rect(self, rect: Any) -> None:
