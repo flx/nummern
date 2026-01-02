@@ -429,7 +429,6 @@ struct SetFormulaCommand: Command {
 
         guard mode == .spreadsheet,
               let parsed = try? RangeParser.parse(targetRange),
-              parsed.region == .body,
               parsed.start == parsed.end else {
             return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_formula(\(PythonLiteralEncoder.encodeString(targetRange)), \(PythonLiteralEncoder.encodeString(formula)), mode=\(PythonLiteralEncoder.encodeString(mode.rawValue)))"
         }
@@ -447,11 +446,17 @@ struct SetFormulaCommand: Command {
             let pythonic = FormulaPythonSerializer.pythonicAggregates(formulaBody)
             assignment = "\(cellLabel) = formula(\(PythonLiteralEncoder.encodeString(pythonic)))"
         }
+        let assignmentTarget: String
+        if parsed.region == .body {
+            assignmentTarget = assignment
+        } else {
+            assignmentTarget = "\(parsed.region.rawValue).\(assignment)"
+        }
         let tableLine = "t = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))"
         return [
             tableLine,
             "with table_context(t):",
-            "    \(assignment)"
+            "    \(assignmentTarget)"
         ].joined(separator: "\n")
     }
 }

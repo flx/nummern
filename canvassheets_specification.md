@@ -175,7 +175,7 @@ Support two formula modes:
 - Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
 - The Python engine evaluates formulas once in global log order (recorded when formulas are set), so cross-table dependencies must be ordered explicitly in the script.
 - Prefer vectorized evaluation over per-cell loops when a formula targets a range.
-- Generated script groups body edits under `with table_context(t):` blocks; label-band edits use `with label_context(t, "..."):`. Simple formulas are logged as Python expressions (e.g., `b2 = a1 + a2`); complex formulas fall back to `formula("...")`.
+- Generated script groups body edits under `with table_context(t):` blocks; label-band value edits use `with label_context(t, "..."):` while label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = ...`). Simple formulas are logged as Python expressions (e.g., `b2 = a1 + a2`); complex formulas fall back to `formula("...")`.
 
 #### 5.5.4 Recalculation model (future optimization)
 - Maintain a dependency graph per table and across tables.

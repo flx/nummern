@@ -213,7 +213,7 @@ Deliverable:
 - Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`, plus logical helpers `c_if`, `c_and`, `c_or`, `c_not`) and use them in generated logs for simple aggregate formulas.
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
-- Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.
+- Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = ...`).
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
 - Inline cross-table cell references in formulas using `table_id.A1` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.

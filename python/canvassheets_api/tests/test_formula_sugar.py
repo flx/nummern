@@ -68,6 +68,30 @@ def test_label_assignment_sugar():
     assert table.cell_values["top_labels[A1]"] == "Header"
 
 
+def test_label_formula_sugar():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+    globals_dict["c_sum"] = c_sum
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), "
+        "rows=3, cols=3, labels={'top': 1, 'left': 0, 'bottom': 0, 'right': 0})\n"
+        "t.set_cells({'body[A1]': 1, 'body[A2]': 2})\n"
+        "with table_context(t):\n"
+        "    top_labels.a1 = c_sum('A1:A2')\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table = proj.table("table_1")
+    assert table.cell_values["top_labels[A1]"] == 3
+
+
 def test_cross_table_formula_order():
     globals_dict = FormulaLocals({"__builtins__": __builtins__})
     globals_dict["proj"] = Project()

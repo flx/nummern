@@ -95,6 +95,7 @@ class FormulaError(ValueError):
 _FORMULA_CELL_RE = re.compile(r"^[A-Za-z]+[0-9]+$")
 _active_formula_table: Optional["Table"] = None
 _active_label_context: Optional[Tuple["Table", str]] = None
+_LABEL_REGIONS = {"top_labels", "bottom_labels", "left_labels", "right_labels"}
 _FORMULA_ORDER_COUNTER = 0
 _DEFAULT_CELL_WIDTH = 80.0
 _DEFAULT_CELL_HEIGHT = 24.0
@@ -275,6 +276,30 @@ def label_context(table: "Table", region: str):
         _active_formula_table = previous_formula
 
 
+class LabelRegionProxy:
+    def __init__(self, table: "Table", region: str) -> None:
+        object.__setattr__(self, "_table", table)
+        object.__setattr__(self, "_region", region)
+
+    def __getattr__(self, name: str) -> Any:
+        if _FORMULA_CELL_RE.match(name):
+            cell_ref = name.upper()
+            return FormulaExpr(f"{self._region}[{cell_ref}]")
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_"):
+            return object.__setattr__(self, name, value)
+        if not _FORMULA_CELL_RE.match(name):
+            raise AttributeError(name)
+        cell_ref = name.upper()
+        key = f"{self._region}[{cell_ref}]"
+        if isinstance(value, FormulaExpr):
+            self._table.set_formula(key, f"={value.expr}")
+            return
+        self._table.set_cells({key: value})
+
+
 class FormulaLocals(dict):
     def __missing__(self, key: str) -> Any:
         if _active_formula_table is not None and _FORMULA_CELL_RE.match(key):
@@ -282,6 +307,10 @@ class FormulaLocals(dict):
             value = FormulaCell(cell_ref)
             self[key] = value
             return value
+        if _active_formula_table is not None and key in _LABEL_REGIONS:
+            proxy = LabelRegionProxy(_active_formula_table, key)
+            self[key] = proxy
+            return proxy
         builtins_obj = self.get("__builtins__", __builtins__)
         if isinstance(builtins_obj, dict):
             if key in builtins_obj:
@@ -302,6 +331,9 @@ class FormulaLocals(dict):
         if _active_label_context is not None and _FORMULA_CELL_RE.match(key):
             table, region = _active_label_context
             cell_ref = key.upper()
+            if isinstance(value, FormulaExpr):
+                table.set_formula(f"{region}[{cell_ref}]", f"={value.expr}")
+                return super().__setitem__(key, FormulaCell(cell_ref))
             table.set_cells({f"{region}[{cell_ref}]": value})
             return super().__setitem__(key, FormulaCell(cell_ref))
         return super().__setitem__(key, value)
