@@ -142,9 +142,14 @@ struct TableCanvasItem: View {
                 TableCellOverlay(table: table,
                                  metrics: metrics,
                                  selectedCell: selectedCell,
+                                 activeEdit: viewModel.activeFormulaEdit,
+                                 pendingReferenceInsert: viewModel.pendingReferenceInsert,
                                  highlightState: viewModel.formulaHighlightState,
                                  onSelect: { selection in
                                      viewModel.selectCell(selection)
+                                 },
+                                 onBeginEditing: { selection in
+                                     viewModel.beginFormulaEdit(selection)
                                  },
                                  onCommit: { selection, value in
                                      viewModel.setCellValue(tableId: selection.tableId,
@@ -155,6 +160,15 @@ struct TableCanvasItem: View {
                                  },
                                  onHighlightChange: { state in
                                      viewModel.setFormulaHighlights(state)
+                                 },
+                                 onEndEditing: {
+                                     viewModel.endFormulaEdit()
+                                 },
+                                 onRequestReferenceInsert: { start, end in
+                                     viewModel.requestReferenceInsert(start: start, end: end)
+                                 },
+                                 onConsumeReferenceInsert: { request in
+                                     viewModel.consumeReferenceInsert(request)
                                  })
                     .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
             }

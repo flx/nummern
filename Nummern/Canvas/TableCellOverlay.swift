@@ -65,10 +65,16 @@ struct TableCellOverlay: View {
     let table: TableModel
     let metrics: TableGridMetrics
     let selectedCell: CellSelection?
+    let activeEdit: CellSelection?
+    let pendingReferenceInsert: ReferenceInsertRequest?
     let highlightState: FormulaHighlightState?
     let onSelect: (CellSelection) -> Void
+    let onBeginEditing: (CellSelection) -> Void
     let onCommit: (CellSelection, String) -> Void
     let onHighlightChange: (FormulaHighlightState?) -> Void
+    let onEndEditing: () -> Void
+    let onRequestReferenceInsert: (CellSelection, CellSelection) -> Void
+    let onConsumeReferenceInsert: (ReferenceInsertRequest) -> Void
 
     @State private var editingCell: CellSelection?
     @State private var editingText: String = ""
@@ -94,6 +100,9 @@ struct TableCellOverlay: View {
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
         .onChange(of: editingText) {
             updateHighlightState()
+        }
+        .onChange(of: pendingReferenceInsert) {
+            handlePendingReferenceInsert()
         }
     }
 
@@ -131,6 +140,7 @@ struct TableCellOverlay: View {
             originalEditingText = editingText
         }
         onSelect(selection)
+        onBeginEditing(selection)
         isEditingFocused = true
         updateHighlightState()
     }
@@ -144,6 +154,7 @@ struct TableCellOverlay: View {
         self.editingCell = nil
         isEditingFocused = false
         onHighlightChange(nil)
+        onEndEditing()
         onCommit(committedCell, committedText)
     }
 
@@ -152,6 +163,7 @@ struct TableCellOverlay: View {
         editingCell = nil
         isEditingFocused = false
         onHighlightChange(nil)
+        onEndEditing()
     }
 
     private func displayValue(for selection: CellSelection) -> String {
@@ -234,14 +246,22 @@ struct TableCellOverlay: View {
     private var selectionGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard editingCell != nil else {
+                if editingCell != nil {
+                    if dragStartSelection == nil {
+                        dragStartSelection = selection(at: value.location)
+                    }
+                    if let selection = selection(at: value.location) {
+                        dragCurrentSelection = selection
+                    }
                     return
                 }
-                if dragStartSelection == nil {
-                    dragStartSelection = selection(at: value.location)
-                }
-                if let selection = selection(at: value.location) {
-                    dragCurrentSelection = selection
+                if shouldRouteSelectionToActiveEdit {
+                    if dragStartSelection == nil {
+                        dragStartSelection = selection(at: value.location)
+                    }
+                    if let selection = selection(at: value.location) {
+                        dragCurrentSelection = selection
+                    }
                 }
             }
             .onEnded { value in
@@ -259,6 +279,17 @@ struct TableCellOverlay: View {
                         return
                     }
                     handleReferenceInsertRange(start: start, end: end, editingCell: editingCell)
+                    return
+                }
+                if shouldRouteSelectionToActiveEdit {
+                    let start = dragStartSelection ?? selectionAtEnd
+                    let end = dragCurrentSelection ?? selectionAtEnd
+                    dragStartSelection = nil
+                    dragCurrentSelection = nil
+                    guard let start, let end else {
+                        return
+                    }
+                    onRequestReferenceInsert(start, end)
                     return
                 }
                 guard let selection = selectionAtEnd else {
@@ -376,6 +407,13 @@ struct TableCellOverlay: View {
         return max(frame.width, maxWidth)
     }
 
+    private var shouldRouteSelectionToActiveEdit: Bool {
+        guard let activeEdit else {
+            return false
+        }
+        return activeEdit.tableId != table.id
+    }
+
     private struct ReferenceHighlight: Identifiable {
         let id = UUID()
         let rect: CGRect
@@ -400,6 +438,16 @@ struct TableCellOverlay: View {
                                                 text: editingText,
                                                 references: result.references,
                                                 occurrences: result.occurrences))
+    }
+
+    private func handlePendingReferenceInsert() {
+        guard let request = pendingReferenceInsert,
+              request.targetTableId == table.id,
+              let editingCell else {
+            return
+        }
+        handleReferenceInsertRange(start: request.start, end: request.end, editingCell: editingCell)
+        onConsumeReferenceInsert(request)
     }
 
     private func referenceHighlights(from state: FormulaHighlightState?) -> [ReferenceHighlight] {

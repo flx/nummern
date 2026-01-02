@@ -191,7 +191,7 @@ Support two formula modes:
 - While editing a formula, clicking a cell inserts its reference; dragging across cells inserts a range (`A1:B3`) and shows a selection rectangle during drag.
 - Referenced cells/ranges are highlighted in the grid with color-coded outlines/fills.
 - The formula text colors each reference token to match its grid highlight color.
-- Cross-table references (`table_id::A1`) are supported and highlighted on the referenced table.
+- Cross-table references (`table_id::A1`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
 - The inline editor expands to the right edge of the active region so long formulas remain visible.
 
 ### 5.6 Pivot tables / summaries

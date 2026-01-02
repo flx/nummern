@@ -2,6 +2,12 @@ import AppKit
 import Combine
 import Foundation
 
+struct ReferenceInsertRequest: Equatable {
+    let targetTableId: String
+    let start: CellSelection
+    let end: CellSelection
+}
+
 final class CanvasViewModel: ObservableObject {
     @Published private(set) var project: ProjectModel
     @Published private(set) var pythonLog: String
@@ -9,6 +15,8 @@ final class CanvasViewModel: ObservableObject {
     @Published var selectedTableId: String?
     @Published var selectedCell: CellSelection?
     @Published var formulaHighlightState: FormulaHighlightState?
+    @Published var activeFormulaEdit: CellSelection?
+    @Published var pendingReferenceInsert: ReferenceInsertRequest?
 
     private let transactionManager = TransactionManager()
     private var seedCommands: [String] = []
@@ -21,6 +29,8 @@ final class CanvasViewModel: ObservableObject {
         self.selectedTableId = nil
         self.selectedCell = nil
         self.formulaHighlightState = nil
+        self.activeFormulaEdit = nil
+        self.pendingReferenceInsert = nil
         self.seedCommands = decodeHistoryCommands(from: historyJSON)
         rebuildLogs()
     }
@@ -32,6 +42,8 @@ final class CanvasViewModel: ObservableObject {
         selectedTableId = nil
         selectedCell = nil
         formulaHighlightState = nil
+        activeFormulaEdit = nil
+        pendingReferenceInsert = nil
         rebuildLogs()
     }
 
@@ -122,6 +134,30 @@ final class CanvasViewModel: ObservableObject {
 
     func setFormulaHighlights(_ state: FormulaHighlightState?) {
         formulaHighlightState = state
+    }
+
+    func beginFormulaEdit(_ selection: CellSelection) {
+        activeFormulaEdit = selection
+    }
+
+    func endFormulaEdit() {
+        activeFormulaEdit = nil
+        pendingReferenceInsert = nil
+    }
+
+    func requestReferenceInsert(start: CellSelection, end: CellSelection) {
+        guard let activeFormulaEdit else {
+            return
+        }
+        pendingReferenceInsert = ReferenceInsertRequest(targetTableId: activeFormulaEdit.tableId,
+                                                        start: start,
+                                                        end: end)
+    }
+
+    func consumeReferenceInsert(_ request: ReferenceInsertRequest) {
+        if pendingReferenceInsert == request {
+            pendingReferenceInsert = nil
+        }
     }
 
     func setCellValue(tableId: String,
