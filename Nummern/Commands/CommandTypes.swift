@@ -261,7 +261,7 @@ struct SetCellsCommand: Command {
             lines.append("t = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))")
         }
         if !bodyAssignments.isEmpty {
-            lines.append("with formula_context(t):")
+            lines.append("with table_context(t):")
             let sorted = bodyAssignments.sorted { $0.key < $1.key }
             for item in sorted {
                 lines.append("    \(item.label) = \(item.value)")
@@ -436,9 +436,12 @@ struct SetFormulaCommand: Command {
 
         let cellLabel = RangeParser.cellLabel(row: parsed.start.row, col: parsed.start.col).lowercased()
         let formulaBody = trimmed.hasPrefix("=") ? String(trimmed.dropFirst()) : trimmed
+        let helperExpression = FormulaPythonSerializer.aggregateHelperExpression(formulaBody)
         let useInline = FormulaPythonSerializer.isSimpleExpression(formulaBody)
         let assignment: String
-        if useInline {
+        if let helperExpression {
+            assignment = "\(cellLabel) = \(helperExpression)"
+        } else if useInline {
             assignment = "\(cellLabel) = \(FormulaPythonSerializer.normalizeExpression(formulaBody))"
         } else {
             let pythonic = FormulaPythonSerializer.pythonicAggregates(formulaBody)
@@ -447,7 +450,7 @@ struct SetFormulaCommand: Command {
         let tableLine = "t = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))"
         return [
             tableLine,
-            "with formula_context(t):",
+            "with table_context(t):",
             "    \(assignment)"
         ].joined(separator: "\n")
     }
@@ -492,6 +495,110 @@ private enum FormulaPythonSerializer {
             }
         }
         return result
+    }
+
+    static func aggregateHelperExpression(_ formula: String) -> String? {
+        let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let (name, args) = parseFunctionCall(trimmed), !args.isEmpty else {
+            return nil
+        }
+        guard let helper = helperName(for: name) else {
+            return nil
+        }
+        var encodedArgs: [String] = []
+        for arg in args {
+            let normalized = arg.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard isAggregateArgument(normalized) else {
+                return nil
+            }
+            encodedArgs.append(PythonLiteralEncoder.encodeString(normalized))
+        }
+        guard !encodedArgs.isEmpty else {
+            return nil
+        }
+        return "\(helper)(\(encodedArgs.joined(separator: ", ")))"
+    }
+
+    private static func parseFunctionCall(_ formula: String) -> (name: String, args: [String])? {
+        guard let openIndex = formula.firstIndex(of: "("),
+              formula.hasSuffix(")") else {
+            return nil
+        }
+        let name = String(formula[..<openIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            return nil
+        }
+        let innerStart = formula.index(after: openIndex)
+        let innerEnd = formula.index(before: formula.endIndex)
+        let inner = String(formula[innerStart..<innerEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !inner.isEmpty else {
+            return nil
+        }
+        var args: [String] = []
+        var current = ""
+        var depth = 0
+        for ch in inner {
+            if ch == "(" {
+                depth += 1
+                current.append(ch)
+                continue
+            }
+            if ch == ")" {
+                depth -= 1
+                guard depth >= 0 else {
+                    return nil
+                }
+                current.append(ch)
+                continue
+            }
+            if ch == "," && depth == 0 {
+                args.append(current)
+                current = ""
+                continue
+            }
+            current.append(ch)
+        }
+        if depth != 0 {
+            return nil
+        }
+        if !current.isEmpty {
+            args.append(current)
+        }
+        return (name, args)
+    }
+
+    private static func helperName(for function: String) -> String? {
+        switch function.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "SUM":
+            return "c_sum"
+        case "AVERAGE":
+            return "c_avg"
+        case "MIN":
+            return "c_min"
+        case "MAX":
+            return "c_max"
+        case "COUNT":
+            return "c_count"
+        case "COUNTA":
+            return "c_counta"
+        default:
+            return nil
+        }
+    }
+
+    private static func isAggregateArgument(_ arg: String) -> Bool {
+        let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return false
+        }
+        if trimmed.range(of: #"^[+-]?\d+(\.\d+)?$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if trimmed.contains(where: { "+-*/^".contains($0) }) {
+            return false
+        }
+        let pattern = #"^[A-Za-z0-9_\$\[\]:\.\(\)]+$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
     }
 }
 

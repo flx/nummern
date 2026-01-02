@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -34,7 +34,9 @@
 		86E965BEDCB0FD026920A7DA /* TransactionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92C7767C155DC4ECE3B70378 /* TransactionManagerTests.swift */; };
 		8DC6F51903CA527B6D9E7642 /* ProjectModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B56862FEFAFB6F8392487F /* ProjectModel.swift */; };
 		8F29DDF933107F09D1A05D48 /* ModelID.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BCD5355B35385CFC67DF43 /* ModelID.swift */; };
+		8FD721392AC59A3B11570C92 /* FormulaSerializationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C455267E8B49A07DBCA6C2 /* FormulaSerializationTests.swift */; };
 		94C4CC6CD5CE95F8575C72AD /* ProjectFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B82F4A255B7DAB418255A4 /* ProjectFile.swift */; };
+		9B6BB63EF5028E5A1E7E8856 /* PythonLogNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD4CA192DBB5DE398AE9397 /* PythonLogNormalizerTests.swift */; };
 		9E6E5B0CCC53DC42BA0B23DC /* TableCellOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B7269A8B202FB503AE4F0A /* TableCellOverlay.swift */; };
 		A34D99D8600E93D43FC83220 /* TableGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */; };
 		A7D3F3AD20BBB2B88BFAB9EF /* ColumnDataType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F09F00E3BB064A164E1DD75 /* ColumnDataType.swift */; };
@@ -46,9 +48,11 @@
 		B4E72779647944C948964B1C /* ProjectModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */; };
 		C30C534A48A306701490610B /* CommandSerializationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */; };
 		C7CA1C4EC164B823B41C73F4 /* GridSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A449A0D60042794DDBB4C2F /* GridSpec.swift */; };
+		CB123334DA217976C8A8A95D /* FormulaHighlightState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B67A8CCC2F60DADC903B3FE1 /* FormulaHighlightState.swift */; };
 		CC53D32CD24C0388FE32FDD9 /* SheetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DC8BFE6A5B0A659DD026F58 /* SheetModel.swift */; };
 		CE65C31521B34C61110917ED /* PythonLiteralEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */; };
 		E4624504F8A13197D4926BE4 /* TableModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F63BF5DB9B3A405D04E20CC5 /* TableModel.swift */; };
+		E7A1DCA9B2038178B037135F /* FormulaTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E85FA15457FAF2B56AFE9C8 /* FormulaTextEditor.swift */; };
 		ED14A3EA839D73CCD8AD873D /* CanvasObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C293E8112BB1FDDD5D6393B /* CanvasObject.swift */; };
 		F201453C36AC12AA7503454A /* GridLayoutCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE983BB66412136FAAB2E74 /* GridLayoutCalculator.swift */; };
 		F2721778DFDD0D7E4A8AA776 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF4DFC8BA610B026B324FE89 /* Assets.xcassets */; };
@@ -73,12 +77,14 @@
 		0D4585FB1906D3CE198A72F2 /* TypeInferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeInferenceTests.swift; sourceTree = "<group>"; };
 		0F57A3C1E265586650B02102 /* CanvasViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasViewModelTests.swift; sourceTree = "<group>"; };
 		1676FCC88696E991DCC95B4F /* TransactionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionManager.swift; sourceTree = "<group>"; };
+		1E85FA15457FAF2B56AFE9C8 /* FormulaTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaTextEditor.swift; sourceTree = "<group>"; };
 		22E96DE31E8300F89C1ED797 /* RangeValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeValue.swift; sourceTree = "<group>"; };
 		247437215C5CC2969FB24818 /* LabelBandData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabelBandData.swift; sourceTree = "<group>"; };
 		262FADB3F6F55F753C35CCA0 /* CommandTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandTypes.swift; sourceTree = "<group>"; };
 		35231066F4D104796642FF38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		38B6698C8AADC65E9DF27769 /* CellEditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellEditTests.swift; sourceTree = "<group>"; };
 		3DC8BFE6A5B0A659DD026F58 /* SheetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetModel.swift; sourceTree = "<group>"; };
+		3FD4CA192DBB5DE398AE9397 /* PythonLogNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonLogNormalizerTests.swift; sourceTree = "<group>"; };
 		41B82F4A255B7DAB418255A4 /* ProjectFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectFile.swift; sourceTree = "<group>"; };
 		4B2DC09D40BD60BA2849E1EE /* CellSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellSelection.swift; sourceTree = "<group>"; };
 		4B684243D5DD572E453B014C /* RangeParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeParserTests.swift; sourceTree = "<group>"; };
@@ -100,9 +106,11 @@
 		AB11C76093EA975F53887235 /* CanvasGridSizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasGridSizing.swift; sourceTree = "<group>"; };
 		AC1CA7E95215CC9145250290 /* PythonEngineClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonEngineClient.swift; sourceTree = "<group>"; };
 		B2E923F4F4C1A8BB56932C00 /* CellValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellValue.swift; sourceTree = "<group>"; };
+		B67A8CCC2F60DADC903B3FE1 /* FormulaHighlightState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaHighlightState.swift; sourceTree = "<group>"; };
 		B8B56862FEFAFB6F8392487F /* ProjectModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModel.swift; sourceTree = "<group>"; };
 		B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectModelTests.swift; sourceTree = "<group>"; };
 		BD28D465DC70C7617BFEC62F /* PythonLiteralEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonLiteralEncoder.swift; sourceTree = "<group>"; };
+		C7C455267E8B49A07DBCA6C2 /* FormulaSerializationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaSerializationTests.swift; sourceTree = "<group>"; };
 		CC012784901AF5375E37CF5C /* ClipboardParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardParser.swift; sourceTree = "<group>"; };
 		CDE0AAB5B269E0057CC9EC67 /* RangeParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeParser.swift; sourceTree = "<group>"; };
 		D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableModelTests.swift; sourceTree = "<group>"; };
@@ -171,6 +179,8 @@
 				D9F53315EB6A192D34ACF893 /* CanvasView.swift */,
 				5E96D26742C86692E8604981 /* CanvasViewModel.swift */,
 				4B2DC09D40BD60BA2849E1EE /* CellSelection.swift */,
+				B67A8CCC2F60DADC903B3FE1 /* FormulaHighlightState.swift */,
+				1E85FA15457FAF2B56AFE9C8 /* FormulaTextEditor.swift */,
 				57B7269A8B202FB503AE4F0A /* TableCellOverlay.swift */,
 				A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */,
 			);
@@ -193,11 +203,13 @@
 				38B6698C8AADC65E9DF27769 /* CellEditTests.swift */,
 				6300FAA3CFD8B34F9AF41F8F /* CommandApplyTests.swift */,
 				FD2B155F6774B3FF74B71260 /* CommandSerializationTests.swift */,
+				C7C455267E8B49A07DBCA6C2 /* FormulaSerializationTests.swift */,
 				83AED9256F065BF56EFB8B06 /* GridIndexingTests.swift */,
 				4BA462D362C2BA540F077224 /* LabelBandTests.swift */,
 				B97715C7F3E4B6DBFB3C0D36 /* ProjectModelTests.swift */,
 				5EAA79420ED777620903983F /* ProjectPersistenceTests.swift */,
 				7239D9E02F0325132C215688 /* PythonBridgeTests.swift */,
+				3FD4CA192DBB5DE398AE9397 /* PythonLogNormalizerTests.swift */,
 				4B684243D5DD572E453B014C /* RangeParserTests.swift */,
 				D46AEC1D12CF44EF8FD542D0 /* TableModelTests.swift */,
 				FC2AA4346C212D960F7A074A /* TableNamingTests.swift */,
@@ -287,7 +299,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 1430;
 			};
 			buildConfigurationList = DC24FFE1819AB1F443C47CE3 /* Build configuration list for PBXProject "Nummern" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -299,6 +311,7 @@
 			);
 			mainGroup = 5F1D48734800B726668BA0D4;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -328,11 +341,13 @@
 				61CCEEA79A9B65BF3FDD26AF /* CellEditTests.swift in Sources */,
 				7373D82DBD234A48B895BD47 /* CommandApplyTests.swift in Sources */,
 				C30C534A48A306701490610B /* CommandSerializationTests.swift in Sources */,
+				8FD721392AC59A3B11570C92 /* FormulaSerializationTests.swift in Sources */,
 				2862798CD87A8DF77BFF9626 /* GridIndexingTests.swift in Sources */,
 				7E4F63FABD3A3B823F8F6B6D /* LabelBandTests.swift in Sources */,
 				B4E72779647944C948964B1C /* ProjectModelTests.swift in Sources */,
 				2DCBF4E938848506A9521557 /* ProjectPersistenceTests.swift in Sources */,
 				007DC920B00E7EA9C35A78D0 /* PythonBridgeTests.swift in Sources */,
+				9B6BB63EF5028E5A1E7E8856 /* PythonLogNormalizerTests.swift in Sources */,
 				143032EC3C2116A0EE408084 /* RangeParserTests.swift in Sources */,
 				35E461CD85342AC6994593F2 /* TableModelTests.swift in Sources */,
 				4BBE9833E24005E38FBF8558 /* TableNamingTests.swift in Sources */,
@@ -357,7 +372,9 @@
 				A923BD2EDDA6AE387C1E4840 /* CommandHistory.swift in Sources */,
 				AA3E5A4FCF43048050C6A528 /* CommandTypes.swift in Sources */,
 				4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */,
+				CB123334DA217976C8A8A95D /* FormulaHighlightState.swift in Sources */,
 				5AED8B6972872050C89B19D1 /* FormulaSpec.swift in Sources */,
+				E7A1DCA9B2038178B037135F /* FormulaTextEditor.swift in Sources */,
 				F201453C36AC12AA7503454A /* GridLayoutCalculator.swift in Sources */,
 				C7CA1C4EC164B823B41C73F4 /* GridSpec.swift in Sources */,
 				0B4405965E928B07131C0F13 /* LabelBandData.swift in Sources */,

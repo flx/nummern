@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Binding var document: NummernDocument
@@ -6,6 +8,7 @@ struct ContentView: View {
     @State private var selectedSheetId: String?
     @State private var pythonRunError: String?
     @State private var isRunningScript = false
+    @State private var isExporting = false
     @State private var autoRunWorkItem: DispatchWorkItem?
     @State private var pendingAutoRun = false
     @State private var didAppear = false
@@ -122,6 +125,13 @@ struct ContentView: View {
                     Label("Run Script", systemImage: "play.circle")
                 }
                 .disabled(isRunningScript)
+
+                Button {
+                    exportNumpyScript()
+                } label: {
+                    Label("Export NumPy", systemImage: "square.and.arrow.up")
+                }
+                .disabled(isRunningScript || isExporting)
             }
         }
         .onChange(of: viewModel.project) { _, newValue in
@@ -189,6 +199,39 @@ struct ContentView: View {
                     pythonRunError = error.localizedDescription
                     isRunningScript = false
                     handlePendingAutoRun()
+                }
+            }
+        }
+    }
+
+    private func exportNumpyScript() {
+        guard !isExporting else {
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType.plainText]
+        panel.nameFieldStringValue = "export_numpy.py"
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else {
+                return
+            }
+            isExporting = true
+            let script = document.script
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let engine = try PythonEngineClient()
+                    let exportScript = try engine.exportNumpyScript(script: script)
+                    try exportScript.write(to: url, atomically: true, encoding: .utf8)
+                    DispatchQueue.main.async {
+                        isExporting = false
+                        print("Exported NumPy script to \(url.path)")
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        pythonRunError = error.localizedDescription
+                        isExporting = false
+                    }
                 }
             }
         }

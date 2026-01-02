@@ -206,7 +206,7 @@ Status:
 Deliverable:
 - Define spreadsheet formula grammar and reference syntax (default region is `body`, cross-table references use `table_id`).
 - Implement translation to Python helper expressions (`cell`, `col`, `rng`, `set_cell`, `set_col`, `set_range`, `cs_*`).
-- Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`) and use them in generated logs for simple aggregate formulas.
+- Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`, plus logical helpers `c_if`, `c_and`, `c_or`, `c_not`) and use them in generated logs for simple aggregate formulas.
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
 - Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.

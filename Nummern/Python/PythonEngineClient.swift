@@ -4,6 +4,7 @@ enum PythonEngineError: LocalizedError {
     case modulePathNotFound
     case pythonFailed(exitCode: Int32, stderr: String)
     case invalidOutput(stdout: String, stderr: String)
+    case invalidExportOutput(stdout: String, stderr: String)
     case unableToLaunch(Error)
     case pythonTimedOut(timeout: TimeInterval)
 
@@ -15,6 +16,8 @@ enum PythonEngineError: LocalizedError {
             return "Python failed with exit code \(exitCode): \(stderr)"
         case .invalidOutput:
             return "Python output did not contain a valid project JSON payload."
+        case .invalidExportOutput:
+            return "Python output did not contain a valid export script."
         case .unableToLaunch(let error):
             return "Failed to launch Python process: \(error.localizedDescription)"
         case .pythonTimedOut(let timeout):
@@ -109,6 +112,82 @@ final class PythonEngineClient {
 
         let project = try Self.decodeProject(from: stdout, stderr: stderr)
         return RunResult(project: project, stdout: stdout, stderr: stderr)
+    }
+
+    func exportNumpyScript(script: String, includeFormulas: Bool = false) throws -> String {
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("num_script_\(UUID().uuidString).py")
+        try script.write(to: tempURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        let process = Process()
+        process.executableURL = pythonExecutableURL
+        var args = pythonArgumentsPrefix + ["--export-numpy"]
+        if includeFormulas {
+            args.append("--include-formulas")
+        }
+        args.append(tempURL.path)
+        process.arguments = args
+
+        var environment = sanitizedEnvironment()
+        let modulePath = moduleURL.path
+        if let existing = environment["PYTHONPATH"], !existing.isEmpty {
+            environment["PYTHONPATH"] = "\(modulePath):\(existing)"
+        } else {
+            environment["PYTHONPATH"] = modulePath
+        }
+        if let venvURL {
+            environment["VIRTUAL_ENV"] = venvURL.path
+            if let existingPath = environment["PATH"], !existingPath.isEmpty {
+                environment["PATH"] = "\(venvURL.appendingPathComponent("bin").path):\(existingPath)"
+            }
+        }
+        process.environment = environment
+
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        stdinPipe.fileHandleForWriting.closeFile()
+
+        let timeout: TimeInterval = 10
+        let exitSignal = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            exitSignal.signal()
+        }
+
+        do {
+            try process.run()
+        } catch {
+            process.terminationHandler = nil
+            throw PythonEngineError.unableToLaunch(error)
+        }
+
+        if exitSignal.wait(timeout: .now() + timeout) == .timedOut {
+            process.terminate()
+            process.terminationHandler = nil
+            throw PythonEngineError.pythonTimedOut(timeout: timeout)
+        }
+        process.terminationHandler = nil
+
+        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+
+        if process.terminationStatus != 0 {
+            throw PythonEngineError.pythonFailed(exitCode: process.terminationStatus, stderr: stderr)
+        }
+
+        let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw PythonEngineError.invalidExportOutput(stdout: stdout, stderr: stderr)
+        }
+        return stdout
     }
 
     private static func resolveModuleURL(_ provided: URL?) throws -> URL {

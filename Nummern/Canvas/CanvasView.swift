@@ -142,6 +142,7 @@ struct TableCanvasItem: View {
                 TableCellOverlay(table: table,
                                  metrics: metrics,
                                  selectedCell: selectedCell,
+                                 highlightState: viewModel.formulaHighlightState,
                                  onSelect: { selection in
                                      viewModel.selectCell(selection)
                                  },
@@ -151,6 +152,9 @@ struct TableCanvasItem: View {
                                                             row: selection.row,
                                                             col: selection.col,
                                                             rawValue: value)
+                                 },
+                                 onHighlightChange: { state in
+                                     viewModel.setFormulaHighlights(state)
                                  })
                     .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
             }

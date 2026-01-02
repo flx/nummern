@@ -258,6 +258,7 @@ Generated formulas should use a small helper surface in `canvassheets_api` to ke
 - `formula("A1+B1")` -> create a spreadsheet formula expression for use inside `table_context`
 - `c_range("A1:B3")` -> create a formula reference expression
 - `c_sum("A1:B3")`, `c_avg(...)`, `c_min(...)`, `c_max(...)`, `c_count(...)`, `c_counta(...)` -> formula helpers for common aggregates
+- `c_if(...)`, `c_and(...)`, `c_or(...)`, `c_not(...)` -> logical helpers for common spreadsheet conditionals
 
 Notes:
 - Bare addresses default to `body[...]`.

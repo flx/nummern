@@ -4,6 +4,7 @@ import math
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
@@ -165,6 +166,68 @@ def _formula_literal(value: Any) -> str:
     raise FormulaError("Unsupported literal in formula expression")
 
 
+def _formula_arg(value: Any) -> str:
+    if isinstance(value, FormulaExpr):
+        return value.expr
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            raise FormulaError("Formula reference cannot be empty")
+        return trimmed
+    return _formula_literal(value)
+
+
+def _formula_call(name: str, *args: Any) -> FormulaExpr:
+    if not args:
+        raise FormulaError(f"{name} requires at least one argument")
+    parts = ", ".join(_formula_arg(arg) for arg in args)
+    return FormulaExpr(f"{name}({parts})")
+
+
+def c_range(ref: str) -> FormulaExpr:
+    return FormulaExpr(_formula_arg(ref))
+
+
+def c_sum(*args: Any) -> FormulaExpr:
+    return _formula_call("SUM", *args)
+
+
+def c_avg(*args: Any) -> FormulaExpr:
+    return _formula_call("AVERAGE", *args)
+
+
+def c_min(*args: Any) -> FormulaExpr:
+    return _formula_call("MIN", *args)
+
+
+def c_max(*args: Any) -> FormulaExpr:
+    return _formula_call("MAX", *args)
+
+
+def c_count(*args: Any) -> FormulaExpr:
+    return _formula_call("COUNT", *args)
+
+
+def c_counta(*args: Any) -> FormulaExpr:
+    return _formula_call("COUNTA", *args)
+
+
+def c_if(condition: Any, true_val: Any, false_val: Any) -> FormulaExpr:
+    return _formula_call("IF", condition, true_val, false_val)
+
+
+def c_and(*args: Any) -> FormulaExpr:
+    return _formula_call("AND", *args)
+
+
+def c_or(*args: Any) -> FormulaExpr:
+    return _formula_call("OR", *args)
+
+
+def c_not(value: Any) -> FormulaExpr:
+    return _formula_call("NOT", value)
+
+
 def formula_mode(table: Optional["Table"]) -> None:
     global _active_formula_table
     _active_formula_table = table
@@ -182,7 +245,7 @@ def formula(text: str) -> FormulaExpr:
 
 
 @contextmanager
-def formula_context(table: "Table"):
+def table_context(table: "Table"):
     previous = _active_formula_table
     formula_mode(table)
     try:
@@ -1207,6 +1270,129 @@ class Project:
         return None
 
 
+def export_numpy_script(project: Project,
+                        include_labels: bool = True,
+                        include_formulas: bool = False) -> str:
+    lines: List[str] = ["import numpy as np", "", "def build_tables():", "    tables = {}"]
+    for sheet in project.sheets:
+        for table in sheet.tables:
+            body_rows = table.grid_spec.bodyRows
+            body_cols = table.grid_spec.bodyCols
+            body_values = _collect_region_values(table, "body", body_rows, body_cols)
+            body_values, body_dtype = _coerce_numpy_values(body_values)
+            body_var = _safe_identifier(f"{table.id}_body")
+            lines.extend(_emit_np_array(body_var, body_values, body_dtype))
+
+            entry_parts = [f"'body': {body_var}"]
+            if include_labels:
+                labels = _collect_label_bands(table)
+                if labels:
+                    labels_var = _safe_identifier(f"{table.id}_labels")
+                    lines.extend(_emit_literal_assignment(labels_var, labels))
+                    entry_parts.append(f"'labels': {labels_var}")
+
+            if include_formulas and table.formulas:
+                formulas_var = _safe_identifier(f"{table.id}_formulas")
+                lines.extend(_emit_literal_assignment(formulas_var, table.formulas))
+                entry_parts.append(f"'formulas': {formulas_var}")
+
+            entry_literal = "{%s}" % ", ".join(entry_parts)
+            lines.append(f"    tables[{_encode_py_string(table.id)}] = {entry_literal}")
+            lines.append("")
+
+    lines.append("    return tables")
+    lines.append("")
+    lines.append("tables = build_tables()")
+    return "\n".join(lines)
+
+
+def _safe_identifier(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_]", "_", name)
+    if not cleaned:
+        return "table"
+    if cleaned[0].isdigit():
+        return f"t_{cleaned}"
+    return cleaned
+
+
+def _encode_py_string(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
+def _collect_region_values(table: Table, region: str, rows: int, cols: int) -> List[List[Any]]:
+    values: List[List[Any]] = []
+    for row in range(rows):
+        row_values: List[Any] = []
+        for col in range(cols):
+            key = address(region, row, col)
+            row_values.append(_normalize_export_value(table.cell_values.get(key)))
+        values.append(row_values)
+    return values
+
+
+def _normalize_export_value(value: Any) -> Any:
+    value = _unwrap_value(value)
+    np_generic = getattr(np, "generic", None)
+    if np_generic is not None and isinstance(value, np_generic):
+        return value.item()
+    return value
+
+
+def _coerce_numpy_values(values: List[List[Any]]) -> Tuple[List[List[Any]], str]:
+    flat: List[Any] = []
+    for row in values:
+        flat.extend(row)
+
+    def is_number(item: Any) -> bool:
+        return isinstance(item, (int, float, np.number)) and not isinstance(item, bool)
+
+    if all((item is None) or is_number(item) for item in flat):
+        coerced: List[List[Any]] = []
+        for row in values:
+            coerced.append([None if item is None else float(item) for item in row])
+        return coerced, "float"
+    return values, "object"
+
+
+def _collect_label_bands(table: Table) -> Dict[str, List[List[Any]]]:
+    labels: Dict[str, List[List[Any]]] = {}
+    bands = table.grid_spec.labelBands
+    if bands.topRows > 0:
+        labels["top"] = _collect_region_values(table, "top_labels", bands.topRows, table.grid_spec.bodyCols)
+    if bands.bottomRows > 0:
+        labels["bottom"] = _collect_region_values(table, "bottom_labels", bands.bottomRows, table.grid_spec.bodyCols)
+    if bands.leftCols > 0:
+        labels["left"] = _collect_region_values(table, "left_labels", table.grid_spec.bodyRows, bands.leftCols)
+    if bands.rightCols > 0:
+        labels["right"] = _collect_region_values(table, "right_labels", table.grid_spec.bodyRows, bands.rightCols)
+    return labels
+
+
+def _emit_np_array(var_name: str, values: List[List[Any]], dtype: str) -> List[str]:
+    literal = pformat(values, width=88)
+    if "\n" not in literal:
+        return [f"    {var_name} = np.array({literal}, dtype={dtype})"]
+    lines = [f"    {var_name} = np.array("]
+    for line in literal.splitlines():
+        lines.append(f"        {line}")
+    lines.append(f"    , dtype={dtype})")
+    return lines
+
+
+def _emit_literal_assignment(var_name: str, value: Any) -> List[str]:
+    literal = pformat(value, width=88)
+    lines: List[str] = []
+    parts = literal.splitlines()
+    if len(parts) == 1:
+        lines.append(f"    {var_name} = {parts[0]}")
+        return lines
+    lines.append(f"    {var_name} = {parts[0]}")
+    for line in parts[1:]:
+        lines.append(f"    {line}")
+    return lines
+
+
 __all__ = [
     "Project",
     "Table",
@@ -1216,10 +1402,22 @@ __all__ = [
     "FormulaError",
     "RangeParserError",
     "address",
+    "export_numpy_script",
     "formula_mode",
-    "formula_context",
+    "table_context",
     "label_context",
     "formula",
+    "c_range",
+    "c_sum",
+    "c_avg",
+    "c_min",
+    "c_max",
+    "c_count",
+    "c_counta",
+    "c_if",
+    "c_and",
+    "c_or",
+    "c_not",
     "cell",
     "col",
     "rng",
