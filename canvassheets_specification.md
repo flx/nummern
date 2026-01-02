@@ -159,6 +159,7 @@ Support two formula modes:
 - Cell references can point to:
   - Same table ranges
   - Other tables (via `table_id` only in MVP)
+- Formulas can target label-band cells (top/left/bottom/right) for summary rows or columns.
 - Relative/absolute references:
   - `A1`, `$A$1`, `A$1`, `$A1`
 

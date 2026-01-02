@@ -171,7 +171,7 @@ final class CanvasViewModel: ObservableObject {
             return
         }
 
-        if region == .body, trimmed.hasPrefix("=") {
+        if trimmed.hasPrefix("=") {
             let formulaText = trimmed == "=" ? "" : trimmed
             let existingFormula = table.formulas[key]?.formula ?? ""
             if existingFormula == formulaText {
@@ -184,8 +184,7 @@ final class CanvasViewModel: ObservableObject {
             return
         }
 
-        if region == .body,
-           let existingFormula = table.formulas[key],
+        if let existingFormula = table.formulas[key],
            !existingFormula.formula.isEmpty {
             apply(SetFormulaCommand(tableId: tableId,
                                     targetRange: key,

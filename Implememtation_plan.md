@@ -141,6 +141,7 @@ Status:
 
 Deliverable:
 - Enable direct cell editing for body and label bands.
+- Allow formulas to target label-band cells (top/left/bottom/right) for summaries.
 - Implement copy/paste parsing and `SetRange` command aggregation.
 - Implement label band size adjustments (top/left/bottom/right).
 - Implement column typing inference metadata in the model (numeric vs string) for body columns.

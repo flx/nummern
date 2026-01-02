@@ -171,8 +171,7 @@ struct TableCellOverlay: View {
         if let value = table.cellValues[key], value != .empty {
             return value.displayString
         }
-        if selection.region == .body,
-           let formula = table.formulas[key]?.formula,
+        if let formula = table.formulas[key]?.formula,
            !formula.isEmpty {
             return formula
         }
@@ -181,8 +180,7 @@ struct TableCellOverlay: View {
 
     private func editingValue(for selection: CellSelection) -> String {
         let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
-        if selection.region == .body,
-           let formula = table.formulas[key]?.formula,
+        if let formula = table.formulas[key]?.formula,
            !formula.isEmpty {
             return formula
         }
@@ -300,10 +298,6 @@ struct TableCellOverlay: View {
     }
 
     private func handleReferenceInsert(from selection: CellSelection, editingCell: CellSelection) {
-        guard editingCell.region == .body else {
-            onSelect(selection)
-            return
-        }
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("=") else {
             onSelect(selection)
@@ -318,10 +312,6 @@ struct TableCellOverlay: View {
     private func handleReferenceInsertRange(start: CellSelection,
                                             end: CellSelection,
                                             editingCell: CellSelection) {
-        guard editingCell.region == .body else {
-            onSelect(end)
-            return
-        }
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("=") else {
             onSelect(end)

@@ -56,4 +56,27 @@ final class CanvasViewModelTests: XCTestCase {
 
         XCTAssertNil(viewModel.selectedCell)
     }
+
+    func testLabelCellFormulaIsStoredAsFormula() {
+        let labels = LabelBands(topRows: 0, bottomRows: 1, leftCols: 0, rightCols: 0)
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 5,
+                               cols: 4,
+                               labelBands: labels)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        viewModel.setCellValue(tableId: "table_1",
+                               region: .bottomLabels,
+                               row: 0,
+                               col: 0,
+                               rawValue: "=SUM(A1:A2)")
+
+        let updatedTable = viewModel.project.sheets[0].tables[0]
+        let key = RangeParser.address(region: .bottomLabels, row: 0, col: 0)
+        XCTAssertEqual(updatedTable.formulas[key]?.formula, "=SUM(A1:A2)")
+        XCTAssertNil(updatedTable.cellValues[key])
+    }
 }
