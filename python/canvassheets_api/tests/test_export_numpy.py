@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import numpy as np
 
 from canvassheets_api import Project, Rect, export_numpy_script
@@ -34,7 +32,7 @@ def test_export_numpy_script_builds_tables():
 
     tables = globals_dict["tables"]
     body = tables["table_1"]["body"]
-    expected = np.array([[1.0, 2.0], [math.nan, 4.0]], dtype=float)
+    expected = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)
     assert np.allclose(body, expected, equal_nan=True)
     assert tables["table_1"]["labels"]["top"][0][0] == "Header"
     assert tables["table_1"]["labels"]["left"][0][0] == "Row1"

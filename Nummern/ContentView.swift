@@ -221,7 +221,7 @@ struct ContentView: View {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let engine = try PythonEngineClient()
-                    let exportScript = try engine.exportNumpyScript(script: script)
+                    let exportScript = try engine.exportNumpyScript(script: script, includeFormulas: true)
                     try exportScript.write(to: url, atomically: true, encoding: .utf8)
                     DispatchQueue.main.async {
                         isExporting = false

@@ -1352,6 +1352,8 @@ class Project:
 def export_numpy_script(project: Project,
                         include_labels: bool = True,
                         include_formulas: bool = False) -> str:
+    if include_formulas:
+        return _export_numpy_script_with_formulas(project, include_labels)
     lines: List[str] = ["import numpy as np", "", "def build_tables():", "    tables = {}"]
     for sheet in project.sheets:
         for table in sheet.tables:
@@ -1383,6 +1385,247 @@ def export_numpy_script(project: Project,
     lines.append("")
     lines.append("tables = build_tables()")
     return "\n".join(lines)
+
+
+def _export_numpy_script_with_formulas(project: Project, include_labels: bool) -> str:
+    lines: List[str] = [
+        "import numpy as np",
+        "from canvassheets_api import Project, address",
+        "",
+        "def build_project():",
+        "    proj = Project()",
+    ]
+
+    for sheet in project.sheets:
+        lines.append(f"    proj.add_sheet({_encode_py_string(sheet.name)}, sheet_id={_encode_py_string(sheet.id)})")
+        for table in sheet.tables:
+            labels = table.grid_spec.labelBands
+            label_literal = (
+                f"dict(top={labels.topRows}, left={labels.leftCols}, "
+                f"bottom={labels.bottomRows}, right={labels.rightCols})"
+            )
+            x = _format_number(table.rect.x)
+            y = _format_number(table.rect.y)
+            lines.append(
+                "    t = proj.add_table("
+                f"{_encode_py_string(sheet.id)}, table_id={_encode_py_string(table.id)}, "
+                f"name={_encode_py_string(table.name)}, x={x}, y={y}, "
+                f"rows={table.grid_spec.bodyRows}, cols={table.grid_spec.bodyCols}, labels={label_literal})"
+            )
+            formula_targets = _collect_formula_targets(table)
+            cell_values = _collect_cell_values(table, include_labels, formula_targets)
+            if cell_values:
+                lines.extend(_emit_set_cells(cell_values, "    "))
+
+    formula_entries = _collect_formula_entries(project)
+    if formula_entries:
+        lines.append("")
+        current_table_id: Optional[str] = None
+        for table_id, target_range, payload in formula_entries:
+            if current_table_id != table_id:
+                lines.append(f"    t = proj.table({_encode_py_string(table_id)})")
+                current_table_id = table_id
+            assignment = _format_formula_assignment(target_range, payload)
+            lines.append(f"    {assignment}")
+
+    lines.append("    return proj")
+    lines.append("")
+    lines.extend(_emit_export_helpers(include_labels, include_formulas=True))
+    lines.append("def build_tables():")
+    lines.append("    proj = build_project()")
+    lines.append("    proj.apply_formulas()")
+    lines.append("    tables = {}")
+    lines.append("    for sheet in proj.sheets:")
+    lines.append("        for table in sheet.tables:")
+    lines.append("            body_rows = table.grid_spec.bodyRows")
+    lines.append("            body_cols = table.grid_spec.bodyCols")
+    lines.append("            body_values = _collect_region_values(table, 'body', body_rows, body_cols)")
+    lines.append("            body_values, body_dtype = _coerce_numpy_values(body_values)")
+    lines.append("            entry = {'body': np.array(body_values, dtype=body_dtype)}")
+    if include_labels:
+        lines.append("            labels = _collect_label_bands(table)")
+        lines.append("            if labels:")
+        lines.append("                entry['labels'] = labels")
+    lines.append("            entry['formulas'] = dict(table.formulas)")
+    lines.append("            tables[table.id] = entry")
+    lines.append("    return tables")
+    lines.append("")
+    lines.append("tables = build_tables()")
+    return "\n".join(lines)
+
+
+def _format_number(value: float) -> str:
+    if value == int(value):
+        return str(int(value))
+    return repr(value)
+
+
+def _format_python_literal(value: Any) -> str:
+    value = _unwrap_value(value)
+    if value is None:
+        return "None"
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if isinstance(value, (int, float, np.number)):
+        return repr(value)
+    if isinstance(value, str):
+        return _encode_py_string(value)
+    return pformat(value, width=88)
+
+
+def _collect_cell_values(table: Table, include_labels: bool, formula_targets: set[str]) -> Dict[str, Any]:
+    cells: Dict[str, Any] = {}
+    for key, value in table.cell_values.items():
+        if key in formula_targets:
+            continue
+        if not include_labels and not key.startswith("body["):
+            continue
+        cells[key] = value
+    return cells
+
+
+def _emit_set_cells(cells: Dict[str, Any], indent: str) -> List[str]:
+    lines = [f"{indent}t.set_cells({{"]
+    for key in sorted(cells.keys()):
+        value_literal = _format_python_literal(cells[key])
+        lines.append(f"{indent}    {_encode_py_string(key)}: {value_literal},")
+    lines.append(f"{indent}}})")
+    return lines
+
+
+def _collect_body_assignments(table: Table, formula_targets: set[str]) -> List[str]:
+    assignments: List[str] = []
+    rows = table.grid_spec.bodyRows
+    cols = table.grid_spec.bodyCols
+    for row in range(rows):
+        for col in range(cols):
+            key = address("body", row, col)
+            if key in formula_targets:
+                continue
+            if key not in table.cell_values:
+                continue
+            cell_label_str = f"{column_label(col).lower()}{row + 1}"
+            assignments.append(f"{cell_label_str} = {_format_python_literal(table.cell_values[key])}")
+    return assignments
+
+
+def _collect_label_assignments(table: Table) -> Dict[str, List[str]]:
+    assignments: Dict[str, List[str]] = {}
+    bands = table.grid_spec.labelBands
+    regions: List[Tuple[str, int, int]] = []
+    if bands.topRows > 0:
+        regions.append(("top_labels", bands.topRows, table.grid_spec.bodyCols))
+    if bands.bottomRows > 0:
+        regions.append(("bottom_labels", bands.bottomRows, table.grid_spec.bodyCols))
+    if bands.leftCols > 0:
+        regions.append(("left_labels", table.grid_spec.bodyRows, bands.leftCols))
+    if bands.rightCols > 0:
+        regions.append(("right_labels", table.grid_spec.bodyRows, bands.rightCols))
+    for region_name, rows, cols in regions:
+        region_assignments: List[str] = []
+        for row in range(rows):
+            for col in range(cols):
+                key = address(region_name, row, col)
+                if key not in table.cell_values:
+                    continue
+                cell_label_str = f"{column_label(col).lower()}{row + 1}"
+                region_assignments.append(f"{cell_label_str} = {_format_python_literal(table.cell_values[key])}")
+        if region_assignments:
+            assignments[region_name] = region_assignments
+    return assignments
+
+
+def _collect_formula_targets(table: Table) -> set[str]:
+    targets: set[str] = set()
+    for target_range in table.formulas.keys():
+        try:
+            region, start_row, start_col, end_row, end_col = parse_range(_normalize_ref(target_range))
+        except RangeParserError:
+            continue
+        for row in range(start_row, end_row + 1):
+            for col in range(start_col, end_col + 1):
+                targets.add(address(region, row, col))
+    return targets
+
+
+def _collect_formula_entries(project: Project) -> List[Tuple[str, str, Dict[str, Any]]]:
+    entries: List[Tuple[Tuple[bool, int, str, str], str, str, Dict[str, Any]]] = []
+    for sheet in project.sheets:
+        for table in sheet.tables:
+            for target_range, payload in table.formulas.items():
+                order = table.formula_order.get(target_range)
+                key = (order is None, order or 0, table.id, target_range)
+                entries.append((key, table.id, target_range, payload))
+    entries.sort(key=lambda entry: entry[0])
+    return [(table_id, target_range, payload) for _, table_id, target_range, payload in entries]
+
+
+def _format_formula_assignment(target_range: str, payload: Dict[str, Any]) -> str:
+    formula_text = str(payload.get("formula", ""))
+    mode = payload.get("mode", "spreadsheet")
+    return (
+        f"t.set_formula({_encode_py_string(target_range)}, "
+        f"{_encode_py_string(formula_text)}, mode={_encode_py_string(str(mode))})"
+    )
+
+
+def _emit_export_helpers(include_labels: bool, include_formulas: bool) -> List[str]:
+    lines: List[str] = [
+        "def _normalize_export_value(value):",
+        "    if isinstance(value, dict) and 'type' in value:",
+        "        value_type = value.get('type')",
+        "        if value_type == 'number':",
+        "            return float(value.get('value', 0))",
+        "        if value_type == 'string':",
+        "            return str(value.get('value', ''))",
+        "        if value_type == 'bool':",
+        "            return bool(value.get('value', False))",
+        "        return None",
+        "    np_generic = getattr(np, 'generic', None)",
+        "    if np_generic is not None and isinstance(value, np_generic):",
+        "        return value.item()",
+        "    return value",
+        "",
+        "def _collect_region_values(table, region, rows, cols):",
+        "    values = []",
+        "    for row in range(rows):",
+        "        row_values = []",
+        "        for col in range(cols):",
+        "            key = address(region, row, col)",
+        "            row_values.append(_normalize_export_value(table.cell_values.get(key)))",
+        "        values.append(row_values)",
+        "    return values",
+        "",
+        "def _coerce_numpy_values(values):",
+        "    flat = []",
+        "    for row in values:",
+        "        flat.extend(row)",
+        "",
+        "    def is_number(item):",
+        "        return isinstance(item, (int, float, np.number)) and not isinstance(item, bool)",
+        "",
+        "    if all((item is None) or is_number(item) for item in flat):",
+        "        coerced = []",
+        "        for row in values:",
+        "            coerced.append([None if item is None else float(item) for item in row])",
+        "        return coerced, 'float'",
+        "    return values, 'object'",
+        "",
+        "def _collect_label_bands(table):",
+        "    labels = {}",
+        "    bands = table.grid_spec.labelBands",
+        "    if bands.topRows > 0:",
+        "        labels['top'] = _collect_region_values(table, 'top_labels', bands.topRows, table.grid_spec.bodyCols)",
+        "    if bands.bottomRows > 0:",
+        "        labels['bottom'] = _collect_region_values(table, 'bottom_labels', bands.bottomRows, table.grid_spec.bodyCols)",
+        "    if bands.leftCols > 0:",
+        "        labels['left'] = _collect_region_values(table, 'left_labels', table.grid_spec.bodyRows, bands.leftCols)",
+        "    if bands.rightCols > 0:",
+        "        labels['right'] = _collect_region_values(table, 'right_labels', table.grid_spec.bodyRows, bands.rightCols)",
+        "    return labels",
+        "",
+    ]
+    return lines
 
 
 def _safe_identifier(name: str) -> str:

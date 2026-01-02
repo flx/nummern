@@ -332,11 +332,12 @@ To enable user refactoring while keeping generated output reliable, the script s
 **Optional enhancement:** Store the command log internally as JSON and generate Python from it, but still ship the Python text. This improves safety (you can regenerate) while satisfying the “inspectable script” requirement.
 
 ### 6.5 Portable export (NumPy)
-Provide a Python export target that produces a standalone, `numpy`-only script:
+Provide a Python export target that produces a portable script with two modes:
 - `export_numpy_script(project, include_labels=True, include_formulas=False)` returns a Python script string.
-- The script defines `tables = {table_id: {"body": np.array(...), "labels": {...}, "formulas": {...}}}`.
+- When `include_formulas=False`, the script is NumPy-only and defines `tables = {table_id: {"body": np.array(...), "labels": {...}}}`.
+- When `include_formulas=True`, the script rebuilds the project with `canvassheets_api` (add tables, `set_cells`, then `set_formula`), applies formulas in log order, and then emits `tables` with computed NumPy arrays plus a `formulas` entry.
 - Body arrays use `dtype=float` when all values are numeric; otherwise `dtype=object` with `None` for empty cells.
-- This export is intended for reuse in external Python code without requiring the full app runtime.
+- The formula-aware export is intended for reuse in Python while keeping computations editable.
 
 ---
 

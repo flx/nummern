@@ -259,13 +259,14 @@ Status:
 ## Step 10a: Portable NumPy export (completed)
 
 Deliverable:
-- Add `export_numpy_script(project, include_labels=True, include_formulas=False)` in Python to emit a standalone `numpy` script.
-- Export `tables` as a dictionary of NumPy arrays plus optional labels/formulas.
+- Add `export_numpy_script(project, include_labels=True, include_formulas=False)` in Python to emit a portable export script.
+- When `include_formulas=False`, export a standalone NumPy-only script with `tables` arrays (and optional labels).
+- When `include_formulas=True`, rebuild the project via `canvassheets_api` (add tables, `set_cells`, then `set_formula`), apply formulas, and emit `tables` arrays plus a `formulas` entry.
 - Prefer numeric `dtype=float` when all values are numeric; otherwise fall back to `dtype=object`.
 - Add a UI action that writes the export script to a user-chosen `.py` file.
 
 Testable increment:
-- Exported script runs in a clean Python environment with only NumPy and yields correct arrays.
+- Exported script yields correct arrays; formula-aware export recomputes values from the stored formulas.
 
 Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_export_numpy.py`
