@@ -142,9 +142,10 @@ Deliverable:
 - Implement copy/paste parsing and `SetRange` command aggregation.
 - Implement label band size adjustments (top/left/bottom/right).
 - Implement column typing inference metadata in the model (numeric vs string) for body columns.
+- Improve formula editing UX: click/drag to insert cell/range references, drag selection rectangle, color-coded reference highlights (grid + formula text), cross-table highlights, and a widened inline editor for long formulas.
 
 Testable increment:
-- Users can edit cells, paste ranges, and edit label bands with logged Python commands.
+- Users can edit cells, paste ranges, and edit label bands with logged Python commands; formula editing shows references and highlights while composing.
 
 Unit tests to add/run:
 - `CellEditTests.testSetRangePopulatesCellValues()`
@@ -162,6 +163,8 @@ Status:
 Deliverable:
 - Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
   - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
+- Add `table_context`, `label_context`, and `formula()` helpers for readable script logging.
+- Allow `add_table` to accept `x`/`y` with grid-derived width/height (rect remains supported).
 - Add a Swift `PythonEngineClient` that runs the script in a Python process and returns a reconstructed `ProjectModel`.
 - Ensure the engine can execute the script end-to-end and return a project (formula translation/execution lands in Step 9).
 - Add a repo-level virtualenv (`.venv`) workflow with pinned `requirements.txt`, and prefer that venv when launching Python.
@@ -203,14 +206,19 @@ Status:
 Deliverable:
 - Define spreadsheet formula grammar and reference syntax (default region is `body`, cross-table references use `table_id`).
 - Implement translation to Python helper expressions (`cell`, `col`, `rng`, `set_cell`, `set_col`, `set_range`, `cs_*`).
+- Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`) and use them in generated logs for simple aggregate formulas.
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
+- Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.
+- Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 
 Testable increment:
 - Entering a spreadsheet formula produces readable Python expressions in the script, and rerunning the script updates computed values.
 
 Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_translation.py`
+- Python: `canvassheets_api/tests/test_formula_sugar.py`
+- Swift: `PythonLogNormalizerTests.testMergesConsecutiveFormulaContextBlocks()`
 - Run: `python -m pytest -k formula_translation`
 
 Status:
@@ -225,6 +233,7 @@ Deliverable:
 - Add Run Selection/Run All/Reset Runtime controls.
 - On Run All: restart Python engine, run full script, update model and grid display.
 - Implement error mapping to line numbers and console display.
+- MVP update: event log is no longer a separate UI panel; Python log output is sent to the developer console.
 
 Testable increment:
 - Editing user code and running the script updates the document; errors surface in the panel.
@@ -233,6 +242,29 @@ Unit tests to add/run:
 - `ScriptSectionTests.testRoundTripPreservesUserRegion()`
 - `RunAllTests.testRebuildMatchesModelState()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ScriptSectionTests`
+
+Status:
+- [ ] In progress (script editor + Run Script + auto-run + error alert done; Run Selection/Reset Runtime + error mapping pending)
+
+---
+
+## Step 10a: Portable NumPy export (completed)
+
+Deliverable:
+- Add `export_numpy_script(project, include_labels=True, include_formulas=False)` in Python to emit a standalone `numpy` script.
+- Export `tables` as a dictionary of NumPy arrays plus optional labels/formulas.
+- Prefer numeric `dtype=float` when all values are numeric; otherwise fall back to `dtype=object`.
+- Add a UI action that writes the export script to a user-chosen `.py` file.
+
+Testable increment:
+- Exported script runs in a clean Python environment with only NumPy and yields correct arrays.
+
+Unit tests to add/run:
+- Python: `canvassheets_api/tests/test_export_numpy.py`
+- Run: `python -m pytest -k export_numpy`
+
+Status:
+- [x] Completed
 
 ---
 

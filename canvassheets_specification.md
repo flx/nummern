@@ -113,7 +113,7 @@ At any time, the document can be rebuilt by starting from an empty project and r
 Tables are independent objects with:
 - Unique, stable `table_id` (short, human-readable identifier like `table_1`).
 - Display label: use `table_id` in MVP (no custom table names yet).
-- Geometry: `x`, `y`, `width`, `height` in canvas coordinates.
+- Geometry: `x`, `y`, `width`, `height` in canvas coordinates (width/height derive from grid footprint; creation uses `x`/`y` plus grid size).
 - Grid structure:
   - Body rows/cols.
   - Label bands: `top_label_rows`, `bottom_label_rows`, `left_label_cols`, `right_label_cols`.
@@ -122,7 +122,7 @@ Tables are independent objects with:
   - table header band styles can be distinct.
 
 **Interactions:**
-- Create table by clicking “Add Table” then dragging a rectangle, or default size.
+- Create table by clicking “Add Table”; default size is computed from the grid (body + label bands). Drag-resize to adjust.
 - Move table by dragging its frame.
 - Resize table with handles; size always snaps to the grid footprint.
 - Add/remove body rows/cols.
@@ -135,6 +135,7 @@ Tables are independent objects with:
 - Table size is determined by grid size (body + label bands) and always snaps to cell boundaries.
 - Changing label band counts expands/contracts the table size.
 - Drag-resize adds/removes body rows/cols as the bounds cross cell thresholds and snaps on release.
+- Scripted creation uses `x`/`y` plus grid size (width/height derived from rows/cols and label bands).
 
 ### 5.4 Cell and range addressing
 The app must support:
@@ -172,6 +173,7 @@ Support two formula modes:
 - Generated script uses helper functions (see §6.2.1) to read ranges/columns and write results back into tables for a readable grid after rerun.
 - Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
 - Prefer vectorized evaluation over per-cell loops when a formula targets a range.
+- Generated script groups body edits under `with table_context(t):` blocks; label-band edits use `with label_context(t, "..."):`. Simple formulas are logged as Python expressions (e.g., `b2 = a1 + a2`); complex formulas fall back to `formula("...")`.
 
 #### 5.5.4 Recalculation model (future optimization)
 - Maintain a dependency graph per table and across tables.
@@ -184,6 +186,13 @@ Support two formula modes:
 - Drag-fill expands cell formulas with relative reference shifts.
 - Later: simplify repeated cell formulas into column/range formulas when safe.
 - Non-vectorizable formulas (e.g., `A2 = A1 + B2`) remain row-wise.
+
+#### 5.5.6 Formula editing UX (MVP)
+- While editing a formula, clicking a cell inserts its reference; dragging across cells inserts a range (`A1:B3`) and shows a selection rectangle during drag.
+- Referenced cells/ranges are highlighted in the grid with color-coded outlines/fills.
+- The formula text colors each reference token to match its grid highlight color.
+- Cross-table references (`table_id::A1`) are supported and highlighted on the referenced table.
+- The inline editor expands to the right edge of the active region so long formulas remain visible.
 
 ### 5.6 Pivot tables / summaries
 MVP can ship without full pivots, but v1 should include at least:
@@ -200,6 +209,7 @@ MVP:
 - Import CSV/TSV into a new table.
 - Export table to CSV.
 - Copy/paste from/to system clipboard.
+- Export a standalone NumPy script of the current project.
 
 v1:
 - Import Excel (basic: values only; formulas optional).
@@ -222,6 +232,7 @@ v1:
   - Example: typing “123” logs one `set_cells(...)` at commit, not three.
 - Each command is deterministic and order-dependent.
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
+- Consecutive `t = proj.table(...)` + `with table_context(...)` / `with label_context(...)` blocks for the same table should be merged for readability.
 
 ### 6.2 Canonical Python API (DSL)
 The script should use a stable internal API shipped with the app (a Python module bundled inside the app). Example module: `canvassheets_api`.
@@ -231,6 +242,8 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Readable**: Users can understand and edit the script.
 - **Composable**: Users can create functions, loops, and reuse logic.
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
+- **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
+- **Formula wrapper**: `formula("A1+B1")` explicitly marks a spreadsheet formula when needed.
 
 ### 6.2.1 Formula helper API (Python)
 Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:
@@ -241,6 +254,9 @@ Generated formulas should use a small helper surface in `canvassheets_api` to ke
 - `set_col(table, "A", values)` -> write a column vector
 - `set_range(table, "A1:B10", values)` -> write a 2D range
 - `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, etc. -> spreadsheet-like helpers implemented over NumPy
+- `formula("A1+B1")` -> create a spreadsheet formula expression for use inside `table_context`
+- `c_range("A1:B3")` -> create a formula reference expression
+- `c_sum("A1:B3")`, `c_avg(...)`, `c_min(...)`, `c_max(...)`, `c_count(...)`, `c_counta(...)` -> formula helpers for common aggregates
 
 Notes:
 - Bare addresses default to `body[...]`.
@@ -251,17 +267,22 @@ Notes:
 ```python
 # ---- User code (editable) ---------------------------------------------
 import numpy as np
-from canvassheets_api import Project, Rect, cell, rng, set_col, set_range, cs_sum
+from canvassheets_api import Project, Rect, cell, rng, set_col, set_range, c_sum, table_context, label_context
 
 def make_revenue_table(proj, sheet_id, x, y):
     t = proj.add_table(sheet_id, table_id="table_1",
-                       name="table_1", rect=Rect(x, y, 520, 260),
+                       name="table_1", x=x, y=y,
                        rows=20, cols=6,
                        labels=dict(top=1, left=1, bottom=0, right=0))
-    t.set_top_labels(0, ["", "Q1", "Q2", "Q3", "Q4", "Total"])
-    t.set_left_labels(0, [f"Week {i+1}" for i in range(20)])
+    with label_context(t, "top_labels"):
+        b1 = "Q1"
+        c1 = "Q2"
+        d1 = "Q3"
+        e1 = "Q4"
+        f1 = "Total"
     set_range(t, "body[B1:E20]", 0.0, dtype="float64")
-    set_col(t, "F", cs_sum(rng(t, "B1:E20"), axis=1))
+    with table_context(t):
+        f1 = c_sum("B1:E1")
     return t
 
 # ---- Auto-generated log (append-only) --------------------------------
@@ -271,14 +292,15 @@ sheet1 = proj.add_sheet("Tab1", sheet_id="sheet_1")
 make_revenue_table(proj, "sheet_1", x=120, y=120)
 
 proj.add_table("sheet_1", table_id="table_2", name="table_2",
-               rect=Rect(700, 120, 360, 220),
+               x=700, y=120,
                rows=12, cols=4,
                labels=dict(top=1, left=1, bottom=0, right=0))
 
-proj.table("table_2").set_cells({
-    "body[B1]": 0.08,   # tax rate
-    "left_labels[A1]": "Tax rate",
-})
+t2 = proj.table("table_2")
+with label_context(t2, "left_labels"):
+    a1 = "Tax rate"
+with table_context(t2):
+    b1 = 0.08
 
 t1 = proj.table("table_1")
 inputs = proj.table("table_2")
@@ -304,6 +326,13 @@ To enable user refactoring while keeping generated output reliable, the script s
 - The canonical execution entrypoint used for rebuild.
 
 **Optional enhancement:** Store the command log internally as JSON and generate Python from it, but still ship the Python text. This improves safety (you can regenerate) while satisfying the “inspectable script” requirement.
+
+### 6.5 Portable export (NumPy)
+Provide a Python export target that produces a standalone, `numpy`-only script:
+- `export_numpy_script(project, include_labels=True, include_formulas=False)` returns a Python script string.
+- The script defines `tables = {table_id: {"body": np.array(...), "labels": {...}, "formulas": {...}}}`.
+- Body arrays use `dtype=float` when all values are numeric; otherwise `dtype=object` with `None` for empty cells.
+- This export is intended for reuse in external Python code without requiring the full app runtime.
 
 ---
 
@@ -349,7 +378,7 @@ All changes are represented as commands with:
 
 Examples:
 - `AddSheet(name, sheet_id)`
-- `AddTable(sheet_id, table_id, rect, rows, cols, labels, name?)` (name defaults to `table_id`)
+- `AddTable(sheet_id, table_id, x, y, rows, cols, labels, name?)` (width/height derived from grid; name defaults to `table_id`)
 - `MoveTable(table_id, rect)`
 - `ResizeTable(table_id, rect)`
 - `SetCells(table_id, cell_map)`
@@ -446,6 +475,7 @@ To make open fast for large files:
   - Add Table
   - Add Sheet
   - Import
+  - Export NumPy
   - Run / Run All
   - Toggle Code Panel
   - Undo/Redo
@@ -457,7 +487,7 @@ To make open fast for large files:
   - Formula help
 - Bottom or side “Code” panel:
   - Script viewer/editor with syntax highlighting and line numbers
-  - Console output / traceback panel
+  - Console output / traceback panel (MVP: event log is emitted to the developer console rather than a dedicated panel)
 
 ### 11.2 Table interaction details
 - Selecting a table shows:
@@ -587,12 +617,12 @@ UI action:
 - Add table on sheet “Tab1” at x=100,y=100
 
 Command:
-- `AddTable(sheet_id="sheet_1", table_id="table_1", rect=(100,100,520,260), rows=10, cols=6, labels=...)`
+- `AddTable(sheet_id="sheet_1", table_id="table_1", x=100, y=100, rows=10, cols=6, labels=...)` (width/height derived from grid)
 
 Python:
 ```python
 proj.add_table("sheet_1", table_id="table_1",
-               name="table_1", rect=Rect(100, 100, 520, 260),
+               name="table_1", x=100, y=100,
                rows=10, cols=6, labels=dict(top=1,left=1,bottom=0,right=0))
 ```
 
@@ -607,12 +637,13 @@ proj.table("table_1").set_range("body[A1:D10]", values_2d, dtype="float64")
 
 ### 15.3 Set a formula
 UI action:
-- User types `=SUM(B1:E1)` into column F
+- User types `=SUM(B1:E1)` into cell F1
 
 Python:
 ```python
 t = proj.table("table_1")
-set_col(t, "F", cs_sum(rng(t, "B1:E20"), axis=1))
+with table_context(t):
+    f1 = formula("SUM(B1:E1)")
 ```
 
 ### 15.4 Move/resize table
@@ -718,7 +749,9 @@ A document must be considered correct when:
 ```python
 class Project:
     def add_sheet(self, name: str, sheet_id: str): ...
-    def add_table(self, sheet_id: str, table_id: str, name: str, rect, rows: int, cols: int, labels: dict): ...
+    def add_table(self, sheet_id: str, table_id: str, name: str,
+                  rect=None, rows: int = 10, cols: int = 6, labels: dict = None,
+                  x: float = None, y: float = None): ...
     def table(self, table_id: str) -> "Table": ...
 
 class Table:
@@ -742,6 +775,21 @@ def cs_avg(*args, **kwargs): ...
 def cs_min(*args, **kwargs): ...
 def cs_max(*args, **kwargs): ...
 def cs_if(condition, true_val, false_val): ...
+def formula(text: str): ...
+def table_context(table: Table): ...
+def label_context(table: Table, region: str): ...
+def export_numpy_script(project: Project, include_labels: bool = True, include_formulas: bool = False) -> str: ...
+def c_range(ref: str): ...
+def c_sum(*args): ...
+def c_avg(*args): ...
+def c_min(*args): ...
+def c_max(*args): ...
+def c_count(*args): ...
+def c_counta(*args): ...
+def c_if(condition, true_val, false_val): ...
+def c_and(*args): ...
+def c_or(*args): ...
+def c_not(value): ...
 ```
 
 ---
