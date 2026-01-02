@@ -246,6 +246,7 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
 - **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
 - **Formula wrapper**: `formula("A1+B1")` explicitly marks a spreadsheet formula when needed.
+- **Cross-table sugar**: `table_id.A1` inside `table_context` maps to the spreadsheet reference `table_id::A1`; the log inserts `table_id = proj.table("table_id")` after each `add_table` to enable this.
 
 ### 6.2.1 Formula helper API (Python)
 Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:

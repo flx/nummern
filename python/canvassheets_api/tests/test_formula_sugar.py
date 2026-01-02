@@ -101,3 +101,28 @@ def test_cross_table_formula_order():
     table_2 = proj.table("table_2")
     assert table_2.cell_values["body[C3]"] == 9
     assert table_1.cell_values["body[B4]"] == 11
+
+
+def test_cross_table_attribute_sugar():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t1 = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=2, cols=2)\n"
+        "t2 = proj.add_table('sheet_1', table_id='table_2', name='table_2', rect=Rect(0,0,10,10), rows=2, cols=2)\n"
+        "table_2 = proj.table('table_2')\n"
+        "with table_context(t2):\n"
+        "    b1 = 7\n"
+        "with table_context(t1):\n"
+        "    a1 = table_2.b1\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table_1 = proj.table("table_1")
+    assert table_1.cell_values["body[A1]"] == 7

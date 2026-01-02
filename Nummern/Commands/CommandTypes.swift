@@ -457,12 +457,14 @@ struct SetFormulaCommand: Command {
 }
 
 private enum FormulaPythonSerializer {
+    private static let crossTableCellPattern = #"([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z]+[0-9]+)"#
+
     static func isSimpleExpression(_ formula: String) -> Bool {
         let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return false
         }
-        if trimmed.contains(":") || trimmed.contains("::") || trimmed.contains("$") || trimmed.contains(",") {
+        if trimmed.contains("$") || trimmed.contains(",") {
             return false
         }
         if trimmed.contains("^") {
@@ -472,12 +474,26 @@ private enum FormulaPythonSerializer {
         if trimmed.range(of: functionPattern, options: .regularExpression) != nil {
             return false
         }
-        let allowedPattern = #"^[A-Za-z0-9\.\+\-\*/\s]+$"#
-        return trimmed.range(of: allowedPattern, options: .regularExpression) != nil
+        let lower = trimmed.lowercased()
+        let stripped = lower.replacingOccurrences(of: crossTableCellPattern,
+                                                  with: "x",
+                                                  options: .regularExpression)
+        if stripped.contains("::") {
+            return false
+        }
+        let colonStripped = stripped.replacingOccurrences(of: "::", with: "")
+        if colonStripped.contains(":") {
+            return false
+        }
+        let allowedPattern = #"^[a-z0-9_\.\+\-\*/\s]+$"#
+        return colonStripped.range(of: allowedPattern, options: .regularExpression) != nil
     }
 
     static func normalizeExpression(_ formula: String) -> String {
-        formula.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let lower = formula.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lower.replacingOccurrences(of: crossTableCellPattern,
+                                          with: "$1.$2",
+                                          options: .regularExpression)
     }
 
     static func pythonicAggregates(_ formula: String) -> String {

@@ -214,6 +214,7 @@ Deliverable:
 - Log body edits in `table_context` blocks and label-band edits in `label_context` blocks.
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
+- Inline cross-table cell references in formulas using `table_id.A1` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.
 - Evaluate formulas once in global log order (recorded at set time) across tables so dependencies match script order.
 
 Testable increment:

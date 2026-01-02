@@ -435,9 +435,14 @@ enum PythonLogNormalizer {
 
         var finalBlocks: [Block] = []
         var insertedTables = Set<String>()
+        var insertedAliases = Set<String>()
         for block in outputBlocks {
             if case .line(let line) = block, let tableId = addTableId(from: line) {
                 append(block, to: &finalBlocks)
+                if !insertedAliases.contains(tableId) {
+                    append(.line(tableAliasLine(for: tableId)), to: &finalBlocks)
+                    insertedAliases.insert(tableId)
+                }
                 if let dataBlock = dataBlock(for: tableId, entries: dataEntriesByTable[tableId]) {
                     append(dataBlock, to: &finalBlocks)
                     insertedTables.insert(tableId)
@@ -571,6 +576,10 @@ enum PythonLogNormalizer {
                                      assignments: assignments,
                                      purpose: .data,
                                      type: .table))
+    }
+
+    private static func tableAliasLine(for tableId: String) -> String {
+        "\(tableId) = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))"
     }
 
     private static func append(_ block: Block, to blocks: inout [Block]) {

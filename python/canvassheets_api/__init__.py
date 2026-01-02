@@ -1002,6 +1002,12 @@ class Table:
         default_factory=lambda: {"top": {}, "bottom": {}, "left": {}, "right": {}}
     )
 
+    def __getattr__(self, name: str) -> Any:
+        if _FORMULA_CELL_RE.match(name):
+            cell_ref = name.upper()
+            return FormulaExpr(f"{self.id}::{cell_ref}")
+        raise AttributeError(name)
+
     def set_rect(self, rect: Any) -> None:
         self.rect = Rect.from_value(rect)
 
