@@ -98,10 +98,10 @@ struct TableCellOverlay: View {
             selectionOverlay()
         }
         .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
-        .onChange(of: editingText) {
+        .onChange(of: editingText) { _, _ in
             updateHighlightState()
         }
-        .onChange(of: pendingReferenceInsert) {
+        .onChange(of: pendingReferenceInsert) { _, _ in
             handlePendingReferenceInsert()
         }
     }

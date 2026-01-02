@@ -558,6 +558,7 @@ Avoid copying full arrays between Python and Swift repeatedly:
 ### 13.1 Modules
 1) **App/UI layer (SwiftUI)**
 - Window, toolbar, sheet tabs, inspector, code panel.
+- Use current SwiftUI APIs (macOS 14+ `onChange` signature) to avoid deprecated usage.
 
 2) **Document layer**
 - `NSDocument`/SwiftUI document integration

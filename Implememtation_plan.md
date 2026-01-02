@@ -145,6 +145,7 @@ Deliverable:
 - Implement label band size adjustments (top/left/bottom/right).
 - Implement column typing inference metadata in the model (numeric vs string) for body columns.
 - Improve formula editing UX: click/drag to insert cell/range references (including cross-table click insertion), drag selection rectangle, color-coded reference highlights (grid + formula text), cross-table highlights, and a widened inline editor for long formulas.
+- Keep SwiftUI API usage current (e.g., macOS 14+ `onChange` signatures).
 
 Testable increment:
 - Users can edit cells, paste ranges, and edit label bands with logged Python commands; formula editing shows references and highlights while composing.
