@@ -145,7 +145,7 @@ Deliverable:
 - Implement copy/paste parsing and `SetRange` command aggregation.
 - Implement label band size adjustments (top/left/bottom/right).
 - Implement column typing inference metadata in the model (numeric vs string) for body columns.
-- Improve formula editing UX: click/drag to insert cell/range references (including cross-table click insertion), drag selection rectangle, color-coded reference highlights (grid + formula text), cross-table highlights, and a widened inline editor for long formulas.
+- Improve formula editing UX: click/drag to insert cell/range references (including cross-table click insertion), drag selection rectangle, color-coded reference highlights (grid + formula text), cross-table highlights, widened inline editor for long formulas, and Enter/Escape commit/cancel behavior (clicking other cells inserts references instead of committing).
 - Keep SwiftUI API usage current (e.g., macOS 14+ `onChange` signatures).
 
 Testable increment:
@@ -213,7 +213,7 @@ Deliverable:
 - Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`, plus logical helpers `c_if`, `c_and`, `c_or`, `c_not`) and use them in generated logs for simple aggregate formulas.
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
-- Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = ...`).
+- Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = c_sum('a1:a10')`).
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
 - Inline cross-table cell references in formulas using `table_id.A1` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.

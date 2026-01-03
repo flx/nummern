@@ -135,6 +135,7 @@ Tables are independent objects with:
 - Table size is determined by grid size (body + label bands) and always snaps to cell boundaries.
 - Changing label band counts expands/contracts the table size.
 - Drag-resize adds/removes body rows/cols as the bounds cross cell thresholds and snaps on release.
+- Resizing keeps the top-left corner fixed; the bottom-right handle controls growth/shrink.
 - Scripted creation uses `x`/`y` plus grid size (width/height derived from rows/cols and label bands).
 
 ### 5.4 Cell and range addressing
@@ -195,6 +196,7 @@ Support two formula modes:
 - The formula text colors each reference token to match its grid highlight color.
 - Cross-table references (`table_id.A1`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
 - The inline editor expands to the right edge of the active region so long formulas remain visible.
+- Editing commits on Enter/Return and cancels on Escape; clicking other cells while editing inserts references instead of committing.
 
 ### 5.6 Pivot tables / summaries
 MVP can ship without full pivots, but v1 should include at least:
@@ -246,6 +248,7 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Composable**: Users can create functions, loops, and reuse logic.
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
 - **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
+- **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a1 = c_sum('A1:A10')`).
 - **Formula wrapper**: `formula("A1+B1")` explicitly marks a spreadsheet formula when needed.
 - **Cross-table sugar**: `table_id.A1` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
 
@@ -266,6 +269,7 @@ Generated formulas should use a small helper surface in `canvassheets_api` to ke
 Notes:
 - Bare addresses default to `body[...]`.
 - Label bands require explicit region prefixes (e.g., `top_labels[A1]`).
+- Label-band formulas use the `table_context` region proxies (`top_labels.a1 = ...`); `label_context` remains the path for literal label values.
 
 ### 6.3 Example generated script (illustrative)
 
@@ -522,6 +526,7 @@ To make open fast for large files:
 - Formula bar similar to Excel.
 - Autocomplete for function names.
 - Click-to-reference: clicking cells inserts references into formula.
+- Commit with Enter/Return and cancel with Escape; clicking other cells while editing inserts references rather than committing.
 
 ---
 
