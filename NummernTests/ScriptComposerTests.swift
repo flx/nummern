@@ -33,4 +33,67 @@ proj = Project()
         XCTAssertTrue(composed.contains("from canvassheets_api import"))
         XCTAssertTrue(composed.contains("proj.add_sheet('Sheet 1'"))
     }
+
+    func testExtractGeneratedLogStripsHeader() {
+        let script = """
+# ---- User code (editable) ---------------------------------------------
+print('user')
+# ---- Auto-generated log (append-only) --------------------------------
+from canvassheets_api import formula, table_context
+proj = Project()
+
+proj.add_sheet('Sheet 1', sheet_id='sheet_1')
+# ---- End of script ----------------------------------------------------
+"""
+
+        let log = ScriptComposer.extractGeneratedLog(from: script)
+        XCTAssertEqual(log, "proj.add_sheet('Sheet 1', sheet_id='sheet_1')")
+    }
+
+    func testHistoryJSONFromScriptUsesLogLines() throws {
+        let script = """
+# ---- User code (editable) ---------------------------------------------
+# ---- Auto-generated log (append-only) --------------------------------
+from canvassheets_api import formula, table_context
+proj = Project()
+
+proj.add_sheet('Sheet 1', sheet_id='sheet_1')
+proj.add_table('sheet_1', table_id='table_1', name='table_1', x=0, y=0, rows=1, cols=1, labels=dict(top=0, left=0, bottom=0, right=0))
+# ---- End of script ----------------------------------------------------
+"""
+
+        guard let json = ScriptComposer.historyJSON(from: script),
+              let data = json.data(using: .utf8) else {
+            XCTFail("Expected history JSON")
+            return
+        }
+        let history = try JSONDecoder().decode(CommandHistory.self, from: data)
+        XCTAssertEqual(history.commands.count, 2)
+        XCTAssertTrue(history.commands.first?.contains("proj.add_sheet") ?? false)
+        XCTAssertTrue(history.commands.last?.contains("proj.add_table") ?? false)
+    }
+
+    func testExtractGeneratedLogDropsTableAliases() {
+        let script = """
+# ---- User code (editable) ---------------------------------------------
+# ---- Auto-generated log (append-only) --------------------------------
+from canvassheets_api import formula, table_context
+proj = Project()
+
+proj.add_table('sheet_1', table_id='table_1', name='table_1', x=0, y=0, rows=1, cols=1, labels=dict(top=0, left=0, bottom=0, right=0))
+table_1 = proj.table('table_1')
+t = proj.table('table_1')
+with table_context(t):
+    a0 = 1
+# ---- End of script ----------------------------------------------------
+"""
+
+        let log = ScriptComposer.extractGeneratedLog(from: script)
+        XCTAssertEqual(log, """
+proj.add_table('sheet_1', table_id='table_1', name='table_1', x=0, y=0, rows=1, cols=1, labels=dict(top=0, left=0, bottom=0, right=0))
+t = proj.table('table_1')
+with table_context(t):
+    a0 = 1
+""")
+    }
 }

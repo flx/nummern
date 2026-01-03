@@ -334,6 +334,8 @@ To enable user refactoring while keeping generated output reliable, the script s
 - The user may edit it, but the app warns on syntax errors and offers “Repair” by regenerating from internal history.
 - Generated output is ordered: data writes first, then formula application, then the entrypoint.
 - Marker lines tolerate trailing whitespace; if markers are missing or edited, preserve the entire existing script as the user region and append fresh markers + generated log instead of resetting.
+- On “Run Script”, parse the generated region and store its command lines as the new history so future edits append to the script the user just ran.
+- When rebuilding history from the generated region, drop table alias lines (`table_id = proj.table(...)`) to avoid duplicate aliases on subsequent log normalization.
 
 3) **Entrypoint region**
 - The canonical execution entrypoint used for rebuild.

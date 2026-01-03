@@ -46,6 +46,84 @@ struct ScriptComposer {
         return logLines
     }
 
+    static func extractGeneratedLog(from script: String) -> String? {
+        let lines = script.components(separatedBy: .newlines)
+        guard let logIndex = markerIndex(logMarker, in: lines),
+              let endIndex = markerIndex(endMarker, in: lines),
+              logIndex < endIndex else {
+            return nil
+        }
+
+        var logLines = Array(lines[(logIndex + 1)..<endIndex])
+        while let first = logLines.first,
+              first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            logLines.removeFirst()
+        }
+        while let last = logLines.last,
+              last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            logLines.removeLast()
+        }
+
+        if let first = logLines.first,
+           first.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("from canvassheets_api import") {
+            logLines.removeFirst()
+        }
+        if let first = logLines.first,
+           first.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("proj = Project()") {
+            logLines.removeFirst()
+        }
+        if let first = logLines.first,
+           first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            logLines.removeFirst()
+        }
+
+        logLines = logLines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                return false
+            }
+            return !isTableAliasLine(trimmed)
+        }
+
+        let trimmed = logLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "" : trimmed
+    }
+
+    static func historyJSON(from script: String) -> String? {
+        guard let log = extractGeneratedLog(from: script) else {
+            return nil
+        }
+        let commands = log.isEmpty ? [] : log.components(separatedBy: .newlines)
+        let history = CommandHistory(commands: commands)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(history) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func isTableAliasLine(_ line: String) -> Bool {
+        guard line.contains("= proj.table(") else {
+            return false
+        }
+        let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2 else {
+            return false
+        }
+        let lhs = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard lhs != "t", !lhs.isEmpty else {
+            return false
+        }
+        let rhs = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rhs.hasPrefix("proj.table(") else {
+            return false
+        }
+        return lhs.unicodeScalars.allSatisfy { scalar in
+            CharacterSet.alphanumerics.contains(scalar) || scalar == "_"
+        }
+    }
+
     private static func markerIndex(_ marker: String, in lines: [String]) -> Int? {
         lines.firstIndex { line in
             line.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(marker)

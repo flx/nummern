@@ -276,6 +276,8 @@ Deliverable:
 - On Run All: restart Python engine, run full script, update model and grid display.
 - Implement error mapping to line numbers and console display.
 - MVP update: event log is no longer a separate UI panel; Python log output is sent to the developer console.
+- When running a script, parse the generated log section and store it as command history so subsequent edits append to the script that was just run.
+- Strip table alias lines (`table_id = proj.table(...)`) when rebuilding history from the generated region to prevent duplicate aliases.
 
 Testable increment:
 - Editing user code and running the script updates the document; errors surface in the panel.

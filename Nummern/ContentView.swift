@@ -184,13 +184,14 @@ struct ContentView: View {
         }
         isRunningScript = true
         let script = document.script
-        let historyJSON = document.historyJSON
+        let historyJSON = ScriptComposer.historyJSON(from: script) ?? document.historyJSON
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let engine = try PythonEngineClient()
                 let result = try engine.runProject(script: script)
                 DispatchQueue.main.async {
                     viewModel.load(project: result.project, historyJSON: historyJSON)
+                    document.historyJSON = historyJSON
                     isRunningScript = false
                     handlePendingAutoRun()
                 }
