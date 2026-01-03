@@ -333,6 +333,7 @@ To enable user refactoring while keeping generated output reliable, the script s
 - The app writes commands here.
 - The user may edit it, but the app warns on syntax errors and offers “Repair” by regenerating from internal history.
 - Generated output is ordered: data writes first, then formula application, then the entrypoint.
+- Marker lines tolerate trailing whitespace; if markers are missing or edited, preserve the entire existing script as the user region and append fresh markers + generated log instead of resetting.
 
 3) **Entrypoint region**
 - The canonical execution entrypoint used for rebuild.
@@ -399,6 +400,7 @@ Examples:
 - `InsertRows(table_id, at, count)`
 - `SetLabelBand(table_id, band, index, values)`
 - `CreateSummaryTable(source_table_id, spec, output_table_id)`
+- Python literal encoding must escape control characters (e.g., `\n`, `\r`, `\t`, ASCII control bytes) to keep generated scripts valid.
 
 ### 8.2 Transaction grouping
 Commands are grouped into transactions:

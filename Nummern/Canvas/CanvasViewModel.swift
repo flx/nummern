@@ -700,10 +700,11 @@ enum PythonLogNormalizer {
             return nil
         }
         let trimmed = rangeArg.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let bracket = trimmed.firstIndex(of: "[") else {
+        let unquoted = extractQuotedValue(from: trimmed, prefix: "") ?? trimmed
+        guard let bracket = unquoted.firstIndex(of: "[") else {
             return nil
         }
-        return String(trimmed[..<bracket]).lowercased()
+        return String(unquoted[..<bracket]).lowercased()
     }
 
     private static func extractFirstArgument(from line: String, call: String) -> String? {

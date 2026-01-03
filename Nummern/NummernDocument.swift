@@ -11,10 +11,10 @@ struct ScriptComposer {
         let logLines = buildLogLines(from: trimmedLog)
         let lines = existing.components(separatedBy: .newlines)
 
-        guard let logIndex = lines.firstIndex(of: logMarker),
-              let endIndex = lines.firstIndex(of: endMarker),
+        guard let logIndex = markerIndex(logMarker, in: lines),
+              let endIndex = markerIndex(endMarker, in: lines),
               logIndex < endIndex else {
-            return defaultScript(with: trimmedLog)
+            return composePreservingUser(existing: existing, logLines: logLines)
         }
 
         let prefix = lines[0...logIndex]
@@ -44,6 +44,32 @@ struct ScriptComposer {
             logLines.append(contentsOf: trimmedLog.components(separatedBy: .newlines))
         }
         return logLines
+    }
+
+    private static func markerIndex(_ marker: String, in lines: [String]) -> Int? {
+        lines.firstIndex { line in
+            line.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(marker)
+        }
+    }
+
+    private static func containsMarker(_ marker: String, in lines: [String]) -> Bool {
+        markerIndex(marker, in: lines) != nil
+    }
+
+    private static func composePreservingUser(existing: String, logLines: [String]) -> String {
+        let existingLines = existing.components(separatedBy: .newlines)
+        var lines: [String] = []
+        if !containsMarker(userMarker, in: existingLines) {
+            lines.append(userMarker)
+        }
+        lines.append(contentsOf: existingLines)
+        if let last = lines.last, !last.isEmpty {
+            lines.append("")
+        }
+        lines.append(logMarker)
+        lines.append(contentsOf: logLines)
+        lines.append(endMarker)
+        return lines.joined(separator: "\n")
     }
 }
 

@@ -990,7 +990,7 @@ def _cell_value_to_json(value: Any) -> Dict[str, Any]:
     if value is None:
         return {"type": "empty"}
     if isinstance(value, (bool, np.bool_)):
-        return {"type": "bool", "value": value}
+        return {"type": "bool", "value": bool(value)}
     if isinstance(value, (int, float, np.number)):
         return {"type": "number", "value": float(value)}
     return {"type": "string", "value": str(value)}
@@ -1107,6 +1107,7 @@ class Table:
             self.grid_spec.bodyRows = int(rows)
         if cols is not None:
             self.grid_spec.bodyCols = int(cols)
+        self._sync_rect_size()
 
     def set_labels(self, top: Optional[int] = None, left: Optional[int] = None,
                    bottom: Optional[int] = None, right: Optional[int] = None) -> None:
@@ -1118,6 +1119,7 @@ class Table:
             self.grid_spec.labelBands.bottomRows = int(bottom)
         if right is not None:
             self.grid_spec.labelBands.rightCols = int(right)
+        self._sync_rect_size()
 
     def set_cells(self, mapping: Dict[str, Any]) -> None:
         for key, value in mapping.items():
@@ -1152,9 +1154,18 @@ class Table:
 
     def insert_rows(self, at: int, count: int) -> None:
         self.grid_spec.bodyRows += int(count)
+        self._sync_rect_size()
 
     def insert_cols(self, at: int, count: int) -> None:
         self.grid_spec.bodyCols += int(count)
+        self._sync_rect_size()
+
+    def _sync_rect_size(self) -> None:
+        bands = self.grid_spec.labelBands
+        total_cols = bands.leftCols + self.grid_spec.bodyCols + bands.rightCols
+        total_rows = bands.topRows + self.grid_spec.bodyRows + bands.bottomRows
+        self.rect.width = float(total_cols) * _DEFAULT_CELL_WIDTH
+        self.rect.height = float(total_rows) * _DEFAULT_CELL_HEIGHT
 
     def _iter_formulas_by_order(self) -> List[Tuple[int, str, Dict[str, Any]]]:
         entries: List[Tuple[int, str, Dict[str, Any]]] = []
@@ -1346,6 +1357,16 @@ class Project:
         sheet = Sheet(id=sheet_id, name=name)
         self.sheets.append(sheet)
         return sheet
+
+    def rename_sheet(self, sheet_id: str, name: Optional[str] = None,
+                     new_name: Optional[str] = None) -> None:
+        updated = name if name is not None else new_name
+        if updated is None:
+            raise ValueError("rename_sheet requires a name")
+        sheet = self._find_sheet(sheet_id)
+        if sheet is None:
+            raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        sheet.name = updated
 
     def add_table(self, sheet_id: str, table_id: str, name: str,
                   rect: Optional[Any] = None, rows: int = 10, cols: int = 6,

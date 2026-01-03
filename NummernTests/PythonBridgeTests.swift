@@ -44,4 +44,28 @@ final class PythonBridgeTests: XCTestCase {
         XCTAssertEqual(table.cellValues["body[A0]"], .number(1))
         XCTAssertEqual(table.cellValues["body[B0]"], .string("Hi"))
     }
+
+    func testRunScriptHandlesLargeOutput() throws {
+        if ProcessInfo.processInfo.environment["RUN_PYTHON_BRIDGE_TESTS"] != "1" {
+            throw XCTSkip("Set RUN_PYTHON_BRIDGE_TESTS=1 to run Python bridge integration tests.")
+        }
+        let script = """
+        from canvassheets_api import Project
+
+        print("x" * 1200000)
+
+        proj = Project()
+        proj.add_sheet("Sheet 1", sheet_id="sheet_1")
+        """
+
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let repoURL = testFileURL.deletingLastPathComponent().deletingLastPathComponent()
+        let moduleURL = repoURL.appendingPathComponent("python")
+
+        let engine = try PythonEngineClient(moduleURL: moduleURL)
+        let result = try engine.runProject(script: script)
+
+        XCTAssertEqual(result.project.sheets.count, 1)
+        XCTAssertEqual(result.project.sheets.first?.id, "sheet_1")
+    }
 }

@@ -276,6 +276,11 @@ struct TableCellOverlay: View {
                         isEditingFocused = true
                         return
                     }
+                    if Self.shouldCommitOnSelectionChange(editingText: editingText) {
+                        commitEdit()
+                        beginEditing(end)
+                        return
+                    }
                     handleReferenceInsertRange(start: start, end: end, editingCell: editingCell)
                     return
                 }
@@ -295,6 +300,11 @@ struct TableCellOverlay: View {
                 }
                 beginEditing(selection)
             }
+    }
+
+    static func shouldCommitOnSelectionChange(editingText: String) -> Bool {
+        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.hasPrefix("=")
     }
 
     private func handleReferenceInsert(from selection: CellSelection, editingCell: CellSelection) {

@@ -239,7 +239,36 @@ Status:
 
 ---
 
-## Step 10: Rebuild-from-script + code panel
+## Step 10: Bugs from ChatGPT Pro review (critical/high/medium)
+
+Deliverable:
+- Python: add `Project.rename_sheet(sheet_id, new_name)` (or stop emitting it in Swift).
+- Python: fix JSON export for `numpy.bool_` in `_cell_value_to_json`.
+- Swift: preserve user code when script markers are missing/edited (tolerate whitespace/prefixes).
+- Swift: escape `\n`, `\r`, `\t`, and control chars in `PythonLiteralEncoder.encodeString`.
+- Swift: drain Python stdout/stderr while the process runs to avoid pipe deadlocks (cap output).
+- Swift: normalize `set_range('body[...]')` by stripping quotes in `PythonLogNormalizer`.
+- Python: keep `Table.rect` consistent after `set_labels/insert_rows/insert_cols`.
+- Swift: commit non-formula edits on selection change (formula edits still insert references).
+
+Testable increment:
+- Script round-trips are resilient (no user-code loss, no Python hang, no rename errors), JSON export handles numpy booleans, and range hoisting works for quoted `set_range` calls.
+
+Unit tests to add/run:
+- Python: `test_project_rename_sheet()` (add_sheet then rename then assert `to_dict()`).
+- Python: `test_json_export_handles_numpy_bool()` (json.dumps on `proj.to_dict()` after assigning `np.bool_`).
+- Python: `test_rect_updates_after_resize_and_labels()` (labels/rows/cols adjust rect size).
+- Swift: `ScriptComposerTests` (preserve user region, tolerate whitespace, preserve full script if markers missing).
+- Swift: `PythonLiteralEncoderTests` (encode strings with newlines/tabs/control chars).
+- Swift: `PythonLogNormalizerTests` (quoted `set_range('body[...]')` is hoisted).
+- Swift/UI: selection-commit test for non-formula edits (UI or unit-level if possible).
+
+Status:
+- [x] Completed
+
+---
+
+## Step 11: Rebuild-from-script + code panel
 
 Deliverable:
 - Implement code panel with user/generated/entrypoint sections.
@@ -261,7 +290,7 @@ Status:
 
 ---
 
-## Step 10a: Portable NumPy export (completed)
+## Step 11a: Portable NumPy export (completed)
 
 Deliverable:
 - Add `export_numpy_script(project, include_labels=True, include_formulas=False)` in Python to emit a portable export script.
@@ -282,7 +311,7 @@ Status:
 
 ---
 
-## Step 11: Undo/redo and transaction coherence
+## Step 12: Undo/redo and transaction coherence
 
 Deliverable:
 - Integrate `UndoManager` with command transactions.
@@ -299,7 +328,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 12: CSV import/export (Swift + Python)
+## Step 13: CSV import/export (Swift + Python)
 
 Deliverable:
 - Implement CSV import into a new table with dtype inference.
@@ -316,7 +345,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 13: Summary tables (v1 feature)
+## Step 14: Summary tables (v1 feature)
 
 Deliverable:
 - Implement `CreateSummaryTable` command and UI flow.
@@ -332,7 +361,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 14: Snapshot caching (optional but recommended)
+## Step 15: Snapshot caching (optional but recommended)
 
 Deliverable:
 - Save/load snapshots for faster open (`snapshots/latest.snapshot`).
@@ -347,7 +376,7 @@ Unit tests to add/run:
 
 ---
 
-## Step 15: Polishing, performance, and accessibility
+## Step 16: Polishing, performance, and accessibility
 
 Deliverable:
 - Virtualized grid performance improvements (range-based rendering and diff updates).
@@ -366,9 +395,9 @@ Unit tests to add/run:
 
 ## Definition of Done Checkpoints
 
-- MVP complete after Step 12.
-- v1 core feature complete after Step 13.
-- Optional performance snapshot complete after Step 14.
+- MVP complete after Step 13.
+- v1 core feature complete after Step 14.
+- Optional performance snapshot complete after Step 15.
 
 ---
 

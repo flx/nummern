@@ -33,6 +33,37 @@ final class PythonEngineClient {
         let stderr: String
     }
 
+    private static let maxCapturedOutputBytes = 2_000_000
+
+    private final class OutputCollector {
+        private let lock = NSLock()
+        private var data = Data()
+        private let maxBytes: Int
+
+        init(maxBytes: Int) {
+            self.maxBytes = maxBytes
+        }
+
+        func append(_ chunk: Data) {
+            guard !chunk.isEmpty else {
+                return
+            }
+            lock.lock()
+            defer { lock.unlock() }
+            let remaining = maxBytes - data.count
+            if remaining <= 0 {
+                return
+            }
+            data.append(chunk.prefix(remaining))
+        }
+
+        func stringValue() -> String {
+            lock.lock()
+            defer { lock.unlock() }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+    }
+
     private let moduleURL: URL
     private let pythonExecutableURL: URL
     private let pythonArgumentsPrefix: [String]
@@ -54,64 +85,13 @@ final class PythonEngineClient {
             try? FileManager.default.removeItem(at: tempURL)
         }
 
-        let process = Process()
-        process.executableURL = pythonExecutableURL
-        process.arguments = pythonArgumentsPrefix + [tempURL.path]
-
-        var environment = sanitizedEnvironment()
-        let modulePath = moduleURL.path
-        if let existing = environment["PYTHONPATH"], !existing.isEmpty {
-            environment["PYTHONPATH"] = "\(modulePath):\(existing)"
-        } else {
-            environment["PYTHONPATH"] = modulePath
-        }
-        if let venvURL {
-            environment["VIRTUAL_ENV"] = venvURL.path
-            if let existingPath = environment["PATH"], !existingPath.isEmpty {
-                environment["PATH"] = "\(venvURL.appendingPathComponent("bin").path):\(existingPath)"
-            }
-        }
-        process.environment = environment
-
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        stdinPipe.fileHandleForWriting.closeFile()
-
         let timeout: TimeInterval = 10
-        let exitSignal = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSignal.signal()
+        let result = try runProcess(arguments: pythonArgumentsPrefix + [tempURL.path], timeout: timeout)
+        if result.status != 0 {
+            throw PythonEngineError.pythonFailed(exitCode: result.status, stderr: result.stderr)
         }
-
-        do {
-            try process.run()
-        } catch {
-            process.terminationHandler = nil
-            throw PythonEngineError.unableToLaunch(error)
-        }
-
-        if exitSignal.wait(timeout: .now() + timeout) == .timedOut {
-            process.terminate()
-            process.terminationHandler = nil
-            throw PythonEngineError.pythonTimedOut(timeout: timeout)
-        }
-        process.terminationHandler = nil
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-        if process.terminationStatus != 0 {
-            throw PythonEngineError.pythonFailed(exitCode: process.terminationStatus, stderr: stderr)
-        }
-
-        let project = try Self.decodeProject(from: stdout, stderr: stderr)
-        return RunResult(project: project, stdout: stdout, stderr: stderr)
+        let project = try Self.decodeProject(from: result.stdout, stderr: result.stderr)
+        return RunResult(project: project, stdout: result.stdout, stderr: result.stderr)
     }
 
     func exportNumpyScript(script: String, includeFormulas: Bool = false) throws -> String {
@@ -122,72 +102,22 @@ final class PythonEngineClient {
             try? FileManager.default.removeItem(at: tempURL)
         }
 
-        let process = Process()
-        process.executableURL = pythonExecutableURL
         var args = pythonArgumentsPrefix + ["--export-numpy"]
         if includeFormulas {
             args.append("--include-formulas")
         }
         args.append(tempURL.path)
-        process.arguments = args
-
-        var environment = sanitizedEnvironment()
-        let modulePath = moduleURL.path
-        if let existing = environment["PYTHONPATH"], !existing.isEmpty {
-            environment["PYTHONPATH"] = "\(modulePath):\(existing)"
-        } else {
-            environment["PYTHONPATH"] = modulePath
-        }
-        if let venvURL {
-            environment["VIRTUAL_ENV"] = venvURL.path
-            if let existingPath = environment["PATH"], !existingPath.isEmpty {
-                environment["PATH"] = "\(venvURL.appendingPathComponent("bin").path):\(existingPath)"
-            }
-        }
-        process.environment = environment
-
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        stdinPipe.fileHandleForWriting.closeFile()
-
         let timeout: TimeInterval = 10
-        let exitSignal = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exitSignal.signal()
+        let result = try runProcess(arguments: args, timeout: timeout)
+        if result.status != 0 {
+            throw PythonEngineError.pythonFailed(exitCode: result.status, stderr: result.stderr)
         }
 
-        do {
-            try process.run()
-        } catch {
-            process.terminationHandler = nil
-            throw PythonEngineError.unableToLaunch(error)
-        }
-
-        if exitSignal.wait(timeout: .now() + timeout) == .timedOut {
-            process.terminate()
-            process.terminationHandler = nil
-            throw PythonEngineError.pythonTimedOut(timeout: timeout)
-        }
-        process.terminationHandler = nil
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-        if process.terminationStatus != 0 {
-            throw PythonEngineError.pythonFailed(exitCode: process.terminationStatus, stderr: stderr)
-        }
-
-        let trimmed = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            throw PythonEngineError.invalidExportOutput(stdout: stdout, stderr: stderr)
+            throw PythonEngineError.invalidExportOutput(stdout: result.stdout, stderr: result.stderr)
         }
-        return stdout
+        return result.stdout
     }
 
     private static func resolveModuleURL(_ provided: URL?) throws -> URL {
@@ -341,6 +271,82 @@ final class PythonEngineClient {
             }
         }
         return environment
+    }
+
+    private func buildEnvironment() -> [String: String] {
+        var environment = sanitizedEnvironment()
+        let modulePath = moduleURL.path
+        if let existing = environment["PYTHONPATH"], !existing.isEmpty {
+            environment["PYTHONPATH"] = "\(modulePath):\(existing)"
+        } else {
+            environment["PYTHONPATH"] = modulePath
+        }
+        if let venvURL {
+            environment["VIRTUAL_ENV"] = venvURL.path
+            if let existingPath = environment["PATH"], !existingPath.isEmpty {
+                environment["PATH"] = "\(venvURL.appendingPathComponent("bin").path):\(existingPath)"
+            }
+        }
+        return environment
+    }
+
+    private func runProcess(arguments: [String],
+                            timeout: TimeInterval) throws -> (stdout: String, stderr: String, status: Int32) {
+        let process = Process()
+        process.executableURL = pythonExecutableURL
+        process.arguments = arguments
+        process.environment = buildEnvironment()
+
+        let stdinPipe = Pipe()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        stdinPipe.fileHandleForWriting.closeFile()
+
+        let stdoutCollector = OutputCollector(maxBytes: Self.maxCapturedOutputBytes)
+        let stderrCollector = OutputCollector(maxBytes: Self.maxCapturedOutputBytes)
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            stdoutCollector.append(data)
+        }
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            stderrCollector.append(data)
+        }
+
+        do {
+            try process.run()
+        } catch {
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            throw PythonEngineError.unableToLaunch(error)
+        }
+
+        if !waitForExit(process, timeout: timeout) {
+            process.terminate()
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe.fileHandleForReading.readabilityHandler = nil
+            throw PythonEngineError.pythonTimedOut(timeout: timeout)
+        }
+
+        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
+        stdoutCollector.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+        stderrCollector.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
+
+        return (stdoutCollector.stringValue(),
+                stderrCollector.stringValue(),
+                process.terminationStatus)
     }
 
     private func waitForExit(_ process: Process, timeout: TimeInterval) -> Bool {

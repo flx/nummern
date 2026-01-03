@@ -15,9 +15,26 @@ struct PythonLiteralEncoder {
     }
 
     static func encodeString(_ string: String) -> String {
-        let escaped = string
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
+        var escaped = ""
+        escaped.reserveCapacity(string.count)
+        for scalar in string.unicodeScalars {
+            switch scalar.value {
+            case 0x5C:
+                escaped.append("\\\\")
+            case 0x27:
+                escaped.append("\\'")
+            case 0x0A:
+                escaped.append("\\n")
+            case 0x0D:
+                escaped.append("\\r")
+            case 0x09:
+                escaped.append("\\t")
+            case 0x00...0x1F, 0x7F:
+                escaped.append(String(format: "\\x%02X", Int(scalar.value)))
+            default:
+                escaped.append(Character(scalar))
+            }
+        }
         return "'\(escaped)'"
     }
 
