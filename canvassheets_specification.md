@@ -272,6 +272,7 @@ Notes:
 - Bare addresses default to `body[...]`.
 - Label bands require explicit region prefixes (e.g., `top_labels[A0]`).
 - Label-band formulas use the `table_context` region proxies (`top_labels.a0 = ...`); `label_context` remains the path for literal label values.
+- Unit tests should cover each helper (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_if`, `c_and`, `c_or`, `c_not`).
 
 ### 6.3 Example generated script (illustrative)
 

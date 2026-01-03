@@ -229,6 +229,8 @@ Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_translation.py`
 - Python: `canvassheets_api/tests/test_formula_sugar.py`
 - Python: `canvassheets_api/tests/test_formula_sugar.py::test_cross_table_formula_order`
+- Python: `canvassheets_api/tests/test_formula_sugar.py::test_formula_helper_aggregates`
+- Python: `canvassheets_api/tests/test_formula_sugar.py::test_formula_helper_logical`
 - Swift: `PythonLogNormalizerTests.testMergesConsecutiveFormulaContextBlocks()`
 - Run: `python -m pytest -k "formula_translation or formula_sugar"`
 

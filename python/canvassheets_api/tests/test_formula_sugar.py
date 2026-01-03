@@ -1,6 +1,24 @@
 from __future__ import annotations
 
-from canvassheets_api import FormulaLocals, Project, Rect, formula, table_context, label_context, c_sum
+from canvassheets_api import (
+    FormulaLocals,
+    Project,
+    Rect,
+    formula,
+    table_context,
+    label_context,
+    c_range,
+    c_sum,
+    c_avg,
+    c_min,
+    c_max,
+    c_count,
+    c_counta,
+    c_if,
+    c_and,
+    c_or,
+    c_not,
+)
 
 
 def test_formula_assignment_sugar():
@@ -47,6 +65,78 @@ def test_range_sum_sugar():
     proj.apply_formulas()
     table = proj.table("table_1")
     assert table.cell_values["body[C0]"] == 6
+
+
+def test_formula_helper_aggregates():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+    globals_dict["c_range"] = c_range
+    globals_dict["c_sum"] = c_sum
+    globals_dict["c_avg"] = c_avg
+    globals_dict["c_min"] = c_min
+    globals_dict["c_max"] = c_max
+    globals_dict["c_count"] = c_count
+    globals_dict["c_counta"] = c_counta
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=4, cols=4)\n"
+        "t.set_cells({'body[A0]': 1, 'body[A1]': 2, 'body[A2]': 3, 'body[B0]': 'text', "
+        "'body[B1]': '', 'body[B2]': None})\n"
+        "with table_context(t):\n"
+        "    c0 = c_avg('A0:A2')\n"
+        "    c1 = c_min('A0:A2')\n"
+        "    c2 = c_max('A0:A2')\n"
+        "    c3 = c_sum(c_range('A0:A2'))\n"
+        "    c4 = c_count('A0:B2')\n"
+        "    c5 = c_counta('A0:B2')\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table = proj.table("table_1")
+    assert table.cell_values["body[C0]"] == 2.0
+    assert table.cell_values["body[C1]"] == 1
+    assert table.cell_values["body[C2]"] == 3
+    assert table.cell_values["body[C3]"] == 6
+    assert table.cell_values["body[C4]"] == 3
+    assert table.cell_values["body[C5]"] == 4
+
+
+def test_formula_helper_logical():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+    globals_dict["c_if"] = c_if
+    globals_dict["c_and"] = c_and
+    globals_dict["c_or"] = c_or
+    globals_dict["c_not"] = c_not
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=3, cols=3)\n"
+        "t.set_cells({'body[A0]': 1, 'body[A1]': 0})\n"
+        "with table_context(t):\n"
+        "    b0 = c_and(a0, a1)\n"
+        "    b1 = c_or(a0, a1)\n"
+        "    b2 = c_not(a1)\n"
+        "    b3 = c_if(c_and(a0, a1), 10, 20)\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table = proj.table("table_1")
+    assert table.cell_values["body[B0]"] is False
+    assert table.cell_values["body[B1]"] is True
+    assert table.cell_values["body[B2]"] is True
+    assert table.cell_values["body[B3]"] == 20
 
 
 def test_table_indexing_sugar():
