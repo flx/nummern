@@ -104,9 +104,6 @@ struct ScriptComposer {
     }
 
     private static func isTableAliasLine(_ line: String) -> Bool {
-        guard line.contains("= proj.table(") else {
-            return false
-        }
         let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
         guard parts.count == 2 else {
             return false

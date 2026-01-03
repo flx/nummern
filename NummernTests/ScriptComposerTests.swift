@@ -82,6 +82,7 @@ proj = Project()
 
 proj.add_table('sheet_1', table_id='table_1', name='table_1', x=0, y=0, rows=1, cols=1, labels=dict(top=0, left=0, bottom=0, right=0))
 table_1 = proj.table('table_1')
+table_1=proj.table('table_1')
 t = proj.table('table_1')
 with table_context(t):
     a0 = 1
