@@ -124,6 +124,38 @@ struct SetTableRectCommand: Command {
     }
 }
 
+struct SetTablePositionCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let tableId: String
+    let x: Double
+    let y: Double
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         tableId: String,
+         x: Double,
+         y: Double) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.tableId = tableId
+        self.x = x
+        self.y = y
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateTable(id: tableId) { table in
+            table.rect = Rect(x: x, y: y, width: table.rect.width, height: table.rect.height)
+        }
+    }
+
+    func serializeToPython() -> String {
+        let encodedX = PythonLiteralEncoder.encodeNumber(x)
+        let encodedY = PythonLiteralEncoder.encodeNumber(y)
+        return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_position(x=\(encodedX), y=\(encodedY))"
+    }
+}
+
 struct ResizeTableCommand: Command {
     let commandId: String
     let timestamp: Date

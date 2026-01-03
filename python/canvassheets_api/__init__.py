@@ -1102,6 +1102,9 @@ class Table:
     def set_rect(self, rect: Any) -> None:
         self.rect = Rect.from_value(rect)
 
+    def set_position(self, x: float, y: float) -> None:
+        self.rect = Rect(float(x), float(y), self.rect.width, self.rect.height)
+
     def resize(self, rows: Optional[int] = None, cols: Optional[int] = None) -> None:
         if rows is not None:
             self.grid_spec.bodyRows = int(rows)

@@ -81,7 +81,7 @@ final class CanvasViewModel: ObservableObject {
     }
 
     func moveTable(tableId: String, to rect: Rect) {
-        apply(SetTableRectCommand(tableId: tableId, rect: rect))
+        apply(SetTablePositionCommand(tableId: tableId, x: rect.x, y: rect.y))
     }
 
     func updateTableRect(tableId: String, rect: Rect) {

@@ -60,3 +60,23 @@ def test_rect_updates_after_resize_and_labels():
 
     table.insert_cols(at=0, count=1)
     assert table.rect.width == 6 * _DEFAULT_CELL_WIDTH
+
+
+def test_set_position_updates_origin():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=1,
+        cols=1,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=10,
+        y=20,
+    )
+
+    table.set_position(42, 84)
+
+    assert table.rect.x == 42
+    assert table.rect.y == 84

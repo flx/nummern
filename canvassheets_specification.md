@@ -667,12 +667,12 @@ with table_context(t):
 ```
 
 ### 15.4 Move/resize table
-Position changes log `set_rect` (using the current grid-derived size). Size changes log `resize` (the table snaps to the grid footprint).
+Position changes log `set_position` (x/y only). Size changes log `resize` (the table snaps to the grid footprint).
 
 Python:
 ```python
 # Move (position only)
-proj.table("table_1").set_rect(Rect(220, 120, 600, 280))
+proj.table("table_1").set_position(x=220, y=120)
 
 # Resize (size derived from grid)
 proj.table("table_1").resize(rows=12, cols=8)
@@ -787,6 +787,7 @@ class Project:
 
 class Table:
     def set_rect(self, rect): ...
+    def set_position(self, x: float, y: float): ...
     def resize(self, rows: int = None, cols: int = None): ...
     def set_labels(self, top=None, left=None, bottom=None, right=None): ...
     def set_cells(self, mapping: dict): ...

@@ -55,7 +55,7 @@ Status:
 
 Deliverable:
 - Implement `Command` protocol with `apply(model)`, `invert()`, and `serializeToPython()`.
-- Add concrete commands: `AddSheet`, `RenameSheet`, `AddTable`, `SetTableRect`, `ResizeTable`, `SetCells`, `SetRange`, `SetLabelBand`, `SetFormula`, `InsertRows`, `InsertCols`.
+- Add concrete commands: `AddSheet`, `RenameSheet`, `AddTable`, `SetTableRect`, `SetTablePosition`, `ResizeTable`, `SetCells`, `SetRange`, `SetLabelBand`, `SetFormula`, `InsertRows`, `InsertCols`.
 - Implement a `TransactionManager` that groups commands and produces a Python log string.
 
 Testable increment:
@@ -101,7 +101,7 @@ Deliverable:
 - Wire Add Sheet/Add Table actions to commands and event log.
 - Canvas auto-sizes to the visible window or to fit all tables, whichever is larger.
 - Table sizing snaps to grid footprint; resize adds/removes body rows/cols and snaps on release.
-- Resize/label changes update rect size without logging `set_rect`; position changes keep `set_rect` logging.
+- Resize/label changes update rect size without logging `set_rect`; position changes log `set_position`.
 - Inspector includes body row/column controls alongside label bands.
 
 Testable increment:
@@ -167,7 +167,7 @@ Status:
 
 Deliverable:
 - Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
-  - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
+  - `add_sheet`, `add_table`, `set_rect`, `set_position`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
 - Add `table_context`, `label_context`, and `formula()` helpers for readable script logging.
 - Support array-style `t[row, col]` indexing (0-based rows) for body cell reads/writes in Python scripts.
 - Canonicalize row numbering to 0-based across Swift and Python (`A0` is the first row; `t[0, 0]` maps to `A0`).

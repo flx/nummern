@@ -12,7 +12,8 @@ final class CanvasViewModelTests: XCTestCase {
         let updated = viewModel.project.sheets[0].tables[0].rect
         XCTAssertEqual(updated.x, 50)
         XCTAssertEqual(updated.y, 60)
-        XCTAssertTrue(viewModel.pythonLog.contains("set_rect"))
+        XCTAssertTrue(viewModel.pythonLog.contains("set_position"))
+        XCTAssertFalse(viewModel.pythonLog.contains("set_rect"))
     }
 
     func testResizeTableUpdatesRect() {
