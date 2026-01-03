@@ -327,8 +327,13 @@ final class CanvasViewModel: ObservableObject {
         guard table.rect.width != targetWidth || table.rect.height != targetHeight else {
             return
         }
-        let rect = Rect(x: table.rect.x, y: table.rect.y, width: targetWidth, height: targetHeight)
-        apply(SetTableRectCommand(tableId: tableId, rect: rect))
+        let x = table.rect.x
+        let y = table.rect.y
+        var updated = project
+        updated.updateTable(id: tableId) { table in
+            table.rect = Rect(x: x, y: y, width: targetWidth, height: targetHeight)
+        }
+        project = updated
     }
 
     private func table(withId id: String) -> TableModel? {

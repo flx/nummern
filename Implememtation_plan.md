@@ -101,6 +101,7 @@ Deliverable:
 - Wire Add Sheet/Add Table actions to commands and event log.
 - Canvas auto-sizes to the visible window or to fit all tables, whichever is larger.
 - Table sizing snaps to grid footprint; resize adds/removes body rows/cols and snaps on release.
+- Resize/label changes update rect size without logging `set_rect`; position changes keep `set_rect` logging.
 - Inspector includes body row/column controls alongside label bands.
 
 Testable increment:

@@ -35,6 +35,8 @@ final class CanvasViewModelTests: XCTestCase {
                                        labelBands: labels)
         XCTAssertEqual(updatedTable.rect.width, Double(metrics.totalWidth))
         XCTAssertEqual(updatedTable.rect.height, Double(metrics.totalHeight))
+        XCTAssertTrue(viewModel.pythonLog.contains("resize("))
+        XCTAssertFalse(viewModel.pythonLog.contains("set_rect"))
     }
 
     func testReducingLabelBandsClearsInvalidSelection() {
