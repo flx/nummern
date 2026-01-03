@@ -6,8 +6,8 @@ final class TransactionManagerTests: XCTestCase {
         let manager = TransactionManager()
         manager.begin(kind: .cellEdit)
 
-        manager.record(SetCellsCommand(tableId: "table_1", cellMap: ["body[A1]": .number(1)]))
-        manager.record(SetCellsCommand(tableId: "table_1", cellMap: ["body[B1]": .number(2)]))
+        manager.record(SetCellsCommand(tableId: "table_1", cellMap: ["body[A0]": .number(1)]))
+        manager.record(SetCellsCommand(tableId: "table_1", cellMap: ["body[B0]": .number(2)]))
 
         let transaction = manager.commit()
 

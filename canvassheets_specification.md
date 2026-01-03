@@ -140,17 +140,18 @@ Tables are independent objects with:
 
 ### 5.4 Cell and range addressing
 The app must support:
-- A1-style addressing (e.g., `A1`, `B2:D20`).
+- A0-style addressing (0-based rows), e.g., `A0`, `B0:D19`.
 - Addressing that includes label bands: treat labels as distinct address spaces (preferred, clearer).
-- Use distinct regions to avoid ambiguity: `body[A1]`, `top_labels[A1]`, `left_labels[A1]`, etc.
-- Bare `A1` references default to `body[A1]`.
-- Provide convenience helpers for common patterns (e.g., “column label” = top label row 1).
+- Use distinct regions to avoid ambiguity: `body[A0]`, `top_labels[A0]`, `left_labels[A0]`, etc.
+- Bare `A0` references default to `body[A0]`.
+- Row indices are 0-based throughout the UI and scripting (first row is `0`).
+- Provide convenience helpers for common patterns (e.g., “column label” = top label row 0).
 
 ### 5.5 Formulas
 Support two formula modes:
 
 #### 5.5.1 Spreadsheet formulas (default)
-- User enters `=SUM(B2:B10)` style formulas.
+- User enters `=SUM(B0:B9)` style formulas.
 - Support a core function library (MVP):
   - Arithmetic: `+ - * / ^`
   - Aggregates: `SUM, AVERAGE, MIN, MAX, COUNT, COUNTA`
@@ -162,7 +163,7 @@ Support two formula modes:
   - Other tables (via `table_id` only in MVP)
 - Formulas can target label-band cells (top/left/bottom/right) for summary rows or columns.
 - Relative/absolute references:
-  - `A1`, `$A$1`, `A$1`, `$A1`
+- `A0`, `$A$0`, `A$0`, `$A0`
 
 #### 5.5.2 Python formulas (advanced)
 - User can opt-in per cell/range to use Python expression syntax, e.g.:
@@ -176,7 +177,7 @@ Support two formula modes:
 - Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
 - The Python engine evaluates formulas once in global log order (recorded when formulas are set), so cross-table dependencies must be ordered explicitly in the script.
 - Prefer vectorized evaluation over per-cell loops when a formula targets a range.
-- Generated script groups body edits under `with table_context(t):` blocks; label-band value edits use `with label_context(t, "..."):` while label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = ...`). Simple formulas are logged as Python expressions (e.g., `b2 = a1 + a2`); complex formulas fall back to `formula("...")`.
+- Generated script groups body edits under `with table_context(t):` blocks; label-band value edits use `with label_context(t, "..."):` while label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = ...`). Simple formulas are logged as Python expressions (e.g., `b0 = a0 + a1`); complex formulas fall back to `formula("...")`.
 
 #### 5.5.4 Recalculation model (future optimization)
 - Maintain a dependency graph per table and across tables.
@@ -188,13 +189,13 @@ Support two formula modes:
 #### 5.5.5 Formula expansion + simplification (planned)
 - Drag-fill expands cell formulas with relative reference shifts.
 - Later: simplify repeated cell formulas into column/range formulas when safe.
-- Non-vectorizable formulas (e.g., `A2 = A1 + B2`) remain row-wise.
+- Non-vectorizable formulas (e.g., `A1 = A0 + B1`) remain row-wise.
 
 #### 5.5.6 Formula editing UX (MVP)
-- While editing a formula, clicking a cell inserts its reference; dragging across cells inserts a range (`A1:B3`) and shows a selection rectangle during drag.
+- While editing a formula, clicking a cell inserts its reference; dragging across cells inserts a range (`A0:B2`) and shows a selection rectangle during drag.
 - Referenced cells/ranges are highlighted in the grid with color-coded outlines/fills.
 - The formula text colors each reference token to match its grid highlight color.
-- Cross-table references (`table_id.A1`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
+- Cross-table references (`table_id.A0`) are supported and highlighted on the referenced table; clicking cells in another table inserts the prefixed reference while keeping the original edit active.
 - The inline editor expands to the right edge of the active region so long formulas remain visible.
 - Editing commits on Enter/Return and cancels on Escape; clicking other cells while editing inserts references instead of committing.
 
@@ -248,28 +249,29 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Composable**: Users can create functions, loops, and reuse logic.
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
 - **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
-- **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a1 = c_sum('A1:A10')`).
-- **Formula wrapper**: `formula("A1+B1")` explicitly marks a spreadsheet formula when needed.
-- **Cross-table sugar**: `table_id.A1` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
+- **Array-style indexing**: `t[row, col]` reads/writes body cells (0-based). Inside `table_context`, reads return formula references; assignments set values or formulas.
+- **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a0 = c_sum('A0:A9')`).
+- **Formula wrapper**: `formula("A0+B0")` explicitly marks a spreadsheet formula when needed.
+- **Cross-table sugar**: `table_id.A0` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
 
 ### 6.2.1 Formula helper API (Python)
 Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:
-- `cell(table, "A1")` -> scalar (default region is `body`)
+- `cell(table, "A0")` -> scalar (default region is `body`)
 - `col(table, "A")` -> 1D NumPy array (body column)
-- `rng(table, "A1:B10")` -> 2D NumPy array
-- `set_cell(table, "A1", value)` -> write scalar into the table
+- `rng(table, "A0:B9")` -> 2D NumPy array
+- `set_cell(table, "A0", value)` -> write scalar into the table
 - `set_col(table, "A", values)` -> write a column vector
-- `set_range(table, "A1:B10", values)` -> write a 2D range
+- `set_range(table, "A0:B9", values)` -> write a 2D range
 - `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, etc. -> spreadsheet-like helpers implemented over NumPy
-- `formula("A1+B1")` -> create a spreadsheet formula expression for use inside `table_context`
-- `c_range("A1:B3")` -> create a formula reference expression
-- `c_sum("A1:B3")`, `c_avg(...)`, `c_min(...)`, `c_max(...)`, `c_count(...)`, `c_counta(...)` -> formula helpers for common aggregates
+- `formula("A0+B0")` -> create a spreadsheet formula expression for use inside `table_context`
+- `c_range("A0:B2")` -> create a formula reference expression
+- `c_sum("A0:B2")`, `c_avg(...)`, `c_min(...)`, `c_max(...)`, `c_count(...)`, `c_counta(...)` -> formula helpers for common aggregates
 - `c_if(...)`, `c_and(...)`, `c_or(...)`, `c_not(...)` -> logical helpers for common spreadsheet conditionals
 
 Notes:
 - Bare addresses default to `body[...]`.
-- Label bands require explicit region prefixes (e.g., `top_labels[A1]`).
-- Label-band formulas use the `table_context` region proxies (`top_labels.a1 = ...`); `label_context` remains the path for literal label values.
+- Label bands require explicit region prefixes (e.g., `top_labels[A0]`).
+- Label-band formulas use the `table_context` region proxies (`top_labels.a0 = ...`); `label_context` remains the path for literal label values.
 
 ### 6.3 Example generated script (illustrative)
 
@@ -284,14 +286,14 @@ def make_revenue_table(proj, sheet_id, x, y):
                        rows=20, cols=6,
                        labels=dict(top=1, left=1, bottom=0, right=0))
     with label_context(t, "top_labels"):
-        b1 = "Q1"
-        c1 = "Q2"
-        d1 = "Q3"
-        e1 = "Q4"
-        f1 = "Total"
-    set_range(t, "body[B1:E20]", 0.0, dtype="float64")
+        b0 = "Q1"
+        c0 = "Q2"
+        d0 = "Q3"
+        e0 = "Q4"
+        f0 = "Total"
+    set_range(t, "body[B0:E19]", 0.0, dtype="float64")
     with table_context(t):
-        f1 = c_sum("B1:E1")
+        f0 = c_sum("B0:E0")
     return t
 
 # ---- Auto-generated log (append-only) --------------------------------
@@ -307,14 +309,14 @@ proj.add_table("sheet_1", table_id="table_2", name="table_2",
 
 t2 = proj.table("table_2")
 with label_context(t2, "left_labels"):
-    a1 = "Tax rate"
+    a0 = "Tax rate"
 with table_context(t2):
-    b1 = 0.08
+    b0 = 0.08
 
 t1 = proj.table("table_1")
 inputs = proj.table("table_2")
-set_range(t1, "body[B1:E20]",
-    rng(t1, "B1:E20") * (1 + cell(inputs, "B1"))  # example cross-table ref
+set_range(t1, "body[B0:E19]",
+    rng(t1, "B0:E19") * (1 + cell(inputs, "B0"))  # example cross-table ref
 )
 
 # ---- End of script ----------------------------------------------------
@@ -610,14 +612,14 @@ For distribution reliability:
 
 ### 14.2 Cross-table references
 Define a clear syntax, e.g.:
-- `table_1.A1`
-- `SheetName/TableName.A1` (optional)
+- `table_1.A0`
+- `SheetName/TableName.A0` (optional)
 
 Internally, resolve references to IDs.
 
 ### 14.3 Vectorization
 Encourage column/range formulas:
-- If a formula is applied to `F1:F20`, compile to a single vector expression rather than 20 scalar ones.
+- If a formula is applied to `F0:F19`, compile to a single vector expression rather than 20 scalar ones.
 - Preserve row-wise evaluation for non-vectorizable formulas (e.g., cumulative references).
 
 ---
@@ -644,18 +646,18 @@ UI action:
 
 Python:
 ```python
-proj.table("table_1").set_range("body[A1:D10]", values_2d, dtype="float64")
+proj.table("table_1").set_range("body[A0:D9]", values_2d, dtype="float64")
 ```
 
 ### 15.3 Set a formula
 UI action:
-- User types `=SUM(B1:E1)` into cell F1
+- User types `=SUM(B0:E0)` into cell F0
 
 Python:
 ```python
 t = proj.table("table_1")
 with table_context(t):
-    f1 = formula("SUM(B1:E1)")
+    f0 = formula("SUM(B0:E0)")
 ```
 
 ### 15.4 Move/resize table

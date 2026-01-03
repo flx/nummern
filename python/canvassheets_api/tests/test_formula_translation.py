@@ -20,37 +20,37 @@ def test_sum_range_formula():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)
     table.set_cells({
-        "body[B1]": 1,
-        "body[B2]": 2,
-        "body[B3]": 3,
+        "body[B0]": 1,
+        "body[B1]": 2,
+        "body[B2]": 3,
     })
-    table.set_formula("body[C1]", "=np.sum(B1:B3)")
+    table.set_formula("body[C0]", "=np.sum(B0:B2)")
     project.apply_formulas()
-    assert table.cell_values["body[C1]"] == 6
+    assert table.cell_values["body[C0]"] == 6
 
 
 def test_range_formula_relative_refs():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)
     table.set_cells({
-        "body[A1]": 1,
-        "body[A2]": 2,
-        "body[A3]": 3,
-        "body[B1]": 10,
-        "body[B2]": 20,
-        "body[B3]": 30,
+        "body[A0]": 1,
+        "body[A1]": 2,
+        "body[A2]": 3,
+        "body[B0]": 10,
+        "body[B1]": 20,
+        "body[B2]": 30,
     })
-    table.set_formula("body[C1:C3]", "=A1+B1")
+    table.set_formula("body[C0:C2]", "=A0+B0")
     project.apply_formulas()
-    assert table.cell_values["body[C1]"] == 11
-    assert table.cell_values["body[C2]"] == 22
-    assert table.cell_values["body[C3]"] == 33
+    assert table.cell_values["body[C0]"] == 11
+    assert table.cell_values["body[C1]"] == 22
+    assert table.cell_values["body[C2]"] == 33
 
 
 def test_cross_table_reference():
     project = Project()
     table_1 = _make_table(project, "table_1", rows=2, cols=2)
-    table_1.set_cells({"body[A1]": 5})
+    table_1.set_cells({"body[A0]": 5})
 
     table_2 = project.add_table(
         "sheet_1",
@@ -61,47 +61,47 @@ def test_cross_table_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[B1]", "=table_1.A1*2")
+    table_2.set_formula("body[B0]", "=table_1.A0*2")
     project.apply_formulas()
-    assert table_2.cell_values["body[B1]"] == 10
+    assert table_2.cell_values["body[B0]"] == 10
 
 
 def test_absolute_reference():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)
     table.set_cells({
-        "body[A1]": 2,
-        "body[B1]": 10,
-        "body[B2]": 20,
-        "body[B3]": 30,
+        "body[A0]": 2,
+        "body[B0]": 10,
+        "body[B1]": 20,
+        "body[B2]": 30,
     })
-    table.set_formula("body[C1:C3]", "=$A$1+B1")
+    table.set_formula("body[C0:C2]", "=$A$0+B0")
     project.apply_formulas()
-    assert table.cell_values["body[C1]"] == 12
-    assert table.cell_values["body[C2]"] == 22
-    assert table.cell_values["body[C3]"] == 32
+    assert table.cell_values["body[C0]"] == 12
+    assert table.cell_values["body[C1]"] == 22
+    assert table.cell_values["body[C2]"] == 32
 
 
 def test_column_reference_function():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)
     table.set_cells({
-        "body[A1]": 1,
-        "body[A2]": 2,
-        "body[A3]": 3,
+        "body[A0]": 1,
+        "body[A1]": 2,
+        "body[A2]": 3,
     })
-    table.set_formula("body[B1]", "=SUM(col(A))")
+    table.set_formula("body[B0]", "=SUM(col(A))")
     project.apply_formulas()
-    assert table.cell_values["body[B1]"] == 6
+    assert table.cell_values["body[B0]"] == 6
 
 
 def test_table_prefixed_column_reference():
     project = Project()
     table_1 = _make_table(project, "table_1", rows=3, cols=2)
     table_1.set_cells({
-        "body[A1]": 4,
-        "body[A2]": 5,
-        "body[A3]": 6,
+        "body[A0]": 4,
+        "body[A1]": 5,
+        "body[A2]": 6,
     })
     table_2 = project.add_table(
         "sheet_1",
@@ -112,18 +112,18 @@ def test_table_prefixed_column_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[B1]", "=SUM(table_1.A)")
+    table_2.set_formula("body[B0]", "=SUM(table_1.A)")
     project.apply_formulas()
-    assert table_2.cell_values["body[B1]"] == 15
+    assert table_2.cell_values["body[B0]"] == 15
 
 
 def test_table_prefixed_row_reference():
     project = Project()
     table_1 = _make_table(project, "table_1", rows=3, cols=3)
     table_1.set_cells({
-        "body[A2]": 1,
-        "body[B2]": 2,
-        "body[C2]": 3,
+        "body[A1]": 1,
+        "body[B1]": 2,
+        "body[C1]": 3,
     })
     table_2 = project.add_table(
         "sheet_1",
@@ -134,6 +134,6 @@ def test_table_prefixed_row_reference():
         cols=2,
         labels=None,
     )
-    table_2.set_formula("body[A1]", "=SUM(table_1.2)")
+    table_2.set_formula("body[A0]", "=SUM(table_1.1)")
     project.apply_formulas()
-    assert table_2.cell_values["body[A1]"] == 6
+    assert table_2.cell_values["body[A0]"] == 6

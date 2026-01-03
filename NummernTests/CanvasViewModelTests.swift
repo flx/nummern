@@ -72,11 +72,11 @@ final class CanvasViewModelTests: XCTestCase {
                                region: .bottomLabels,
                                row: 0,
                                col: 0,
-                               rawValue: "=SUM(A1:A2)")
+                               rawValue: "=SUM(A0:A1)")
 
         let updatedTable = viewModel.project.sheets[0].tables[0]
         let key = RangeParser.address(region: .bottomLabels, row: 0, col: 0)
-        XCTAssertEqual(updatedTable.formulas[key]?.formula, "=SUM(A1:A2)")
+        XCTAssertEqual(updatedTable.formulas[key]?.formula, "=SUM(A0:A1)")
         XCTAssertNil(updatedTable.cellValues[key])
     }
 }

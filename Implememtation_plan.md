@@ -120,7 +120,7 @@ Status:
 
 Deliverable:
 - Implement an AppKit-backed grid view for table bodies with virtualization.
-- Implement address and range parsing for `body[A1]`, `top_labels[A1]`, `left_labels[A1]`, etc.
+- Implement address and range parsing for `body[A0]`, `top_labels[A0]`, `left_labels[A0]`, etc. (0-based rows).
 - Add coordinate mapping between grid indices and address strings.
 
 Testable increment:
@@ -168,6 +168,8 @@ Deliverable:
 - Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
   - `add_sheet`, `add_table`, `set_rect`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
 - Add `table_context`, `label_context`, and `formula()` helpers for readable script logging.
+- Support array-style `t[row, col]` indexing (0-based rows) for body cell reads/writes in Python scripts.
+- Canonicalize row numbering to 0-based across Swift and Python (`A0` is the first row; `t[0, 0]` maps to `A0`).
 - Allow `add_table` to accept `x`/`y` with grid-derived width/height (rect remains supported).
 - Add a Swift `PythonEngineClient` that runs the script in a Python process and returns a reconstructed `ProjectModel`.
 - Ensure the engine can execute the script end-to-end and return a project (formula translation/execution lands in Step 9).
@@ -208,16 +210,16 @@ Status:
 ## Step 9: Formula syntax + translation to Python (MVP)
 
 Deliverable:
-- Define spreadsheet formula grammar and reference syntax (default region is `body`, cross-table references use `table_id`).
+- Define spreadsheet formula grammar and reference syntax (default region is `body`, cross-table references use `table_id`, rows are 0-based).
 - Implement translation to Python helper expressions (`cell`, `col`, `rng`, `set_cell`, `set_col`, `set_range`, `cs_*`).
 - Add formula helper DSL functions in Python (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_range`, plus logical helpers `c_if`, `c_and`, `c_or`, `c_not`) and use them in generated logs for simple aggregate formulas.
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
-- Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a1 = c_sum('a1:a10')`).
+- Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = c_sum('a0:a9')`).
 - Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
-- Inline cross-table cell references in formulas using `table_id.A1` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.
-- Accept dot-prefixed cross-table references (`table_id.A1`, `table_id.top_labels[A1]`) in spreadsheet formulas and highlight/insert them in the editor.
+- Inline cross-table cell references in formulas using `table_id.A0` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.
+- Accept dot-prefixed cross-table references (`table_id.A0`, `table_id.top_labels[A0]`) in spreadsheet formulas and highlight/insert them in the editor.
 - Evaluate formulas once in global log order (recorded at set time) across tables so dependencies match script order.
 
 Testable increment:

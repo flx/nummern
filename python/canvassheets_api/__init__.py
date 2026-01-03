@@ -54,18 +54,29 @@ def parse_cell(cell: str) -> Tuple[int, int]:
     if not numbers.isdigit():
         raise RangeParserError("Invalid cell reference")
     row_number = int(numbers)
-    if row_number <= 0:
+    if row_number < 0:
         raise RangeParserError("Invalid cell reference")
     col_index = column_index(letters)
-    return row_number - 1, col_index
+    return row_number, col_index
 
 
 def cell_label(row: int, col: int) -> str:
-    return f"{column_label(col)}{row + 1}"
+    return f"{column_label(col)}{row}"
 
 
 def address(region: str, row: int, col: int) -> str:
     return f"{region}[{cell_label(row, col)}]"
+
+
+def _normalize_table_index(key: Any) -> Tuple[int, int]:
+    if not isinstance(key, tuple) or len(key) != 2:
+        raise TypeError("Table index must be a (row, col) tuple")
+    row, col = key
+    if not isinstance(row, int) or not isinstance(col, int):
+        raise TypeError("Table index must be a (row, col) tuple")
+    if row < 0 or col < 0:
+        raise ValueError("Table indices must be non-negative")
+    return row, col
 
 
 def parse_range(range_str: str) -> Tuple[str, int, int, int, int]:
@@ -622,9 +633,9 @@ class FormulaParser:
             return ColumnRefNode(table_id=table_id, region="body", col=column_index(ref))
         if ref.isdigit():
             row_number = int(ref)
-            if row_number <= 0:
+            if row_number < 0:
                 raise FormulaError("Invalid row reference")
-            return RowRefNode(table_id=table_id, region="body", row=row_number - 1)
+            return RowRefNode(table_id=table_id, region="body", row=row_number)
         raise FormulaError("Invalid reference syntax")
 
     def _parse_cell_token(self) -> CellRef:
@@ -641,10 +652,10 @@ class FormulaParser:
         row_abs = match.group(3) == "$"
         col_label = match.group(2)
         row_number = int(match.group(4))
-        if row_number <= 0:
+        if row_number < 0:
             raise FormulaError("Invalid cell reference")
         return CellRef(
-            row=row_number - 1,
+            row=row_number,
             col=column_index(col_label),
             row_abs=row_abs,
             col_abs=col_abs,
@@ -660,9 +671,9 @@ class FormulaParser:
         if not token.value.isdigit():
             raise FormulaError("Row reference must be an integer")
         row_number = int(token.value)
-        if row_number <= 0:
+        if row_number < 0:
             raise FormulaError("Invalid row reference")
-        return row_number - 1
+        return row_number
 
     def _parse_col_row_function(self) -> Any:
         name = self._advance().value.upper()
@@ -1070,6 +1081,23 @@ class Table:
             cell_ref = name.upper()
             return FormulaExpr(f"{self.id}.{cell_ref}")
         raise AttributeError(name)
+
+    def __getitem__(self, key: Any) -> Any:
+        row, col = _normalize_table_index(key)
+        cell_ref = cell_label(row, col)
+        if _active_formula_table is not None:
+            if _active_formula_table is self:
+                return FormulaExpr(cell_ref)
+            return FormulaExpr(f"{self.id}.{cell_ref}")
+        return _unwrap_value(self.cell_values.get(address("body", row, col)))
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        row, col = _normalize_table_index(key)
+        cell_ref = cell_label(row, col)
+        if isinstance(value, FormulaExpr):
+            self.set_formula(f"body[{cell_ref}]", f"={value.expr}")
+            return
+        self.set_cells({f"body[{cell_ref}]": value})
 
     def set_rect(self, rect: Any) -> None:
         self.rect = Rect.from_value(rect)
@@ -1536,7 +1564,7 @@ def _collect_body_assignments(table: Table, formula_targets: set[str]) -> List[s
                 continue
             if key not in table.cell_values:
                 continue
-            cell_label_str = f"{column_label(col).lower()}{row + 1}"
+            cell_label_str = f"{column_label(col).lower()}{row}"
             assignments.append(f"{cell_label_str} = {_format_python_literal(table.cell_values[key])}")
     return assignments
 
@@ -1560,7 +1588,7 @@ def _collect_label_assignments(table: Table) -> Dict[str, List[str]]:
                 key = address(region_name, row, col)
                 if key not in table.cell_values:
                     continue
-                cell_label_str = f"{column_label(col).lower()}{row + 1}"
+                cell_label_str = f"{column_label(col).lower()}{row}"
                 region_assignments.append(f"{cell_label_str} = {_format_python_literal(table.cell_values[key])}")
         if region_assignments:
             assignments[region_name] = region_assignments

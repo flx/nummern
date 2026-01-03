@@ -67,12 +67,12 @@ struct RangeParser {
         let numbers = trimmed.drop { $0.isLetter }
 
         guard !letters.isEmpty, !numbers.isEmpty,
-              let rowNumber = Int(numbers), rowNumber > 0 else {
+              let rowNumber = Int(numbers), rowNumber >= 0 else {
             throw RangeParserError.invalidCellReference
         }
 
         let colIndex = try columnIndex(from: String(letters))
-        return CellAddress(row: rowNumber - 1, col: colIndex)
+        return CellAddress(row: rowNumber, col: colIndex)
     }
 
     static func columnIndex(from label: String) throws -> Int {
@@ -108,7 +108,7 @@ struct RangeParser {
     }
 
     static func cellLabel(row: Int, col: Int) -> String {
-        "\(columnLabel(from: col))\(row + 1)"
+        "\(columnLabel(from: col))\(row)"
     }
 
     static func address(region: GridRegion, row: Int, col: Int) -> String {

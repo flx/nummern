@@ -13,9 +13,9 @@ def test_formula_assignment_sugar():
     exec(
         "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
         "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=3, cols=3)\n"
-        "t.set_cells({'body[A1]': 1, 'body[A2]': 2})\n"
+        "t.set_cells({'body[A0]': 1, 'body[A1]': 2})\n"
         "with table_context(t):\n"
-        "    b1 = a1 + a2\n",
+        "    b0 = a0 + a1\n",
         globals_dict,
         globals_dict,
     )
@@ -23,7 +23,7 @@ def test_formula_assignment_sugar():
     proj = globals_dict["proj"]
     proj.apply_formulas()
     table = proj.table("table_1")
-    assert table.cell_values["body[B1]"] == 3
+    assert table.cell_values["body[B0]"] == 3
 
 
 def test_range_sum_sugar():
@@ -36,9 +36,9 @@ def test_range_sum_sugar():
     exec(
         "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
         "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=3, cols=3)\n"
-        "t.set_cells({'body[A1]': 1, 'body[A2]': 2, 'body[B1]': 3})\n"
+        "t.set_cells({'body[A0]': 1, 'body[A1]': 2, 'body[B0]': 3})\n"
         "with table_context(t):\n"
-        "    c1 = c_sum('A1:B2')\n",
+        "    c0 = c_sum('A0:B1')\n",
         globals_dict,
         globals_dict,
     )
@@ -46,7 +46,29 @@ def test_range_sum_sugar():
     proj = globals_dict["proj"]
     proj.apply_formulas()
     table = proj.table("table_1")
-    assert table.cell_values["body[C1]"] == 6
+    assert table.cell_values["body[C0]"] == 6
+
+
+def test_table_indexing_sugar():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=2, cols=2)\n"
+        "with table_context(t):\n"
+        "    t[0, 0] = 1\n"
+        "    t[0, 1] = t[0, 0] + 2\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table = proj.table("table_1")
+    assert table.cell_values["body[B0]"] == 3
 
 
 def test_label_assignment_sugar():
@@ -59,13 +81,13 @@ def test_label_assignment_sugar():
         "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
         "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=3, cols=3)\n"
         "with label_context(t, 'top_labels'):\n"
-        "    a1 = 'Header'\n",
+        "    a0 = 'Header'\n",
         globals_dict,
         globals_dict,
     )
 
     table = globals_dict["proj"].table("table_1")
-    assert table.cell_values["top_labels[A1]"] == "Header"
+    assert table.cell_values["top_labels[A0]"] == "Header"
 
 
 def test_label_formula_sugar():
@@ -79,9 +101,9 @@ def test_label_formula_sugar():
         "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
         "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), "
         "rows=3, cols=3, labels={'top': 1, 'left': 0, 'bottom': 0, 'right': 0})\n"
-        "t.set_cells({'body[A1]': 1, 'body[A2]': 2})\n"
+        "t.set_cells({'body[A0]': 1, 'body[A1]': 2})\n"
         "with table_context(t):\n"
-        "    top_labels.a1 = c_sum('A1:A2')\n",
+        "    top_labels.a0 = c_sum('A0:A1')\n",
         globals_dict,
         globals_dict,
     )
@@ -89,7 +111,7 @@ def test_label_formula_sugar():
     proj = globals_dict["proj"]
     proj.apply_formulas()
     table = proj.table("table_1")
-    assert table.cell_values["top_labels[A1]"] == 3
+    assert table.cell_values["top_labels[A0]"] == 3
 
 
 def test_cross_table_formula_order():
@@ -104,17 +126,17 @@ def test_cross_table_formula_order():
         "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
         "t1 = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), rows=4, cols=3)\n"
         "with table_context(t1):\n"
-        "    a1 = 1\n"
-        "    a2 = 2\n"
-        "    a3 = 3\n"
-        "    b3 = c_sum('a1:a3')\n"
+        "    a0 = 1\n"
+        "    a1 = 2\n"
+        "    a2 = 3\n"
+        "    b2 = c_sum('a0:a2')\n"
         "t2 = proj.add_table('sheet_1', table_id='table_2', name='table_2', rect=Rect(0,0,10,10), rows=4, cols=3)\n"
         "with table_context(t2):\n"
-        "    b3 = 1\n"
-        "    a1 = 2\n"
-        "    c3 = formula('B3+A1+table_1.B3')\n"
+        "    b2 = 1\n"
+        "    a0 = 2\n"
+        "    c2 = formula('B2+A0+table_1.B2')\n"
         "with table_context(t1):\n"
-        "    b4 = formula('table_2.C3+table_2.B3+A1')\n",
+        "    b3 = formula('table_2.C2+table_2.B2+A0')\n",
         globals_dict,
         globals_dict,
     )
@@ -123,8 +145,8 @@ def test_cross_table_formula_order():
     proj.apply_formulas()
     table_1 = proj.table("table_1")
     table_2 = proj.table("table_2")
-    assert table_2.cell_values["body[C3]"] == 9
-    assert table_1.cell_values["body[B4]"] == 11
+    assert table_2.cell_values["body[C2]"] == 9
+    assert table_1.cell_values["body[B3]"] == 11
 
 
 def test_cross_table_attribute_sugar():
@@ -139,9 +161,9 @@ def test_cross_table_attribute_sugar():
         "t2 = proj.add_table('sheet_1', table_id='table_2', name='table_2', rect=Rect(0,0,10,10), rows=2, cols=2)\n"
         "table_2 = proj.table('table_2')\n"
         "with table_context(t2):\n"
-        "    b1 = 7\n"
+        "    b0 = 7\n"
         "with table_context(t1):\n"
-        "    a1 = table_2.b1\n",
+        "    a0 = table_2.b0\n",
         globals_dict,
         globals_dict,
     )
@@ -149,4 +171,4 @@ def test_cross_table_attribute_sugar():
     proj = globals_dict["proj"]
     proj.apply_formulas()
     table_1 = proj.table("table_1")
-    assert table_1.cell_values["body[A1]"] == 7
+    assert table_1.cell_values["body[A0]"] == 7

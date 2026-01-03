@@ -3,14 +3,14 @@ import XCTest
 
 final class RangeParserTests: XCTestCase {
     func testBodyAddress() throws {
-        let range = try RangeParser.parse("body[A1]")
+        let range = try RangeParser.parse("body[A0]")
         XCTAssertEqual(range.region, .body)
         XCTAssertEqual(range.start, CellAddress(row: 0, col: 0))
         XCTAssertEqual(range.end, CellAddress(row: 0, col: 0))
     }
 
     func testLabelBandAddress() throws {
-        let range = try RangeParser.parse("top_labels[B2:D3]")
+        let range = try RangeParser.parse("top_labels[B1:D2]")
         XCTAssertEqual(range.region, .topLabels)
         XCTAssertEqual(range.start, CellAddress(row: 1, col: 1))
         XCTAssertEqual(range.end, CellAddress(row: 2, col: 3))

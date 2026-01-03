@@ -18,13 +18,13 @@ def test_export_numpy_script_builds_tables():
         labels=dict(top=1, left=1, bottom=0, right=0),
     )
     table.set_cells({
-        "body[A1]": 1,
-        "body[B1]": 2,
-        "body[B2]": 4,
-        "top_labels[A1]": "Header",
-        "left_labels[A1]": "Row1",
+        "body[A0]": 1,
+        "body[B0]": 2,
+        "body[B1]": 4,
+        "top_labels[A0]": "Header",
+        "left_labels[A0]": "Row1",
     })
-    table.set_formula("body[A2]", "=SUM(A1:B1)")
+    table.set_formula("body[A1]", "=SUM(A0:B0)")
 
     script = export_numpy_script(project, include_labels=True, include_formulas=True)
     globals_dict: dict[str, object] = {"__builtins__": __builtins__}
@@ -36,4 +36,4 @@ def test_export_numpy_script_builds_tables():
     assert np.allclose(body, expected, equal_nan=True)
     assert tables["table_1"]["labels"]["top"][0][0] == "Header"
     assert tables["table_1"]["labels"]["left"][0][0] == "Row1"
-    assert "body[A2]" in tables["table_1"]["formulas"]
+    assert "body[A1]" in tables["table_1"]["formulas"]

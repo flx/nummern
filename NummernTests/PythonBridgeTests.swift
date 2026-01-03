@@ -21,8 +21,8 @@ final class PythonBridgeTests: XCTestCase {
             labels=dict(top=1, left=1, bottom=0, right=0)
         )
         table.set_cells({
-            "body[A1]": 1,
-            "body[B1]": "Hi"
+            "body[A0]": 1,
+            "body[B0]": "Hi"
         })
         """
 
@@ -41,7 +41,7 @@ final class PythonBridgeTests: XCTestCase {
         XCTAssertEqual(table.id, "table_1")
         XCTAssertEqual(table.gridSpec.bodyRows, 3)
         XCTAssertEqual(table.gridSpec.bodyCols, 2)
-        XCTAssertEqual(table.cellValues["body[A1]"], .number(1))
-        XCTAssertEqual(table.cellValues["body[B1]"], .string("Hi"))
+        XCTAssertEqual(table.cellValues["body[A0]"], .number(1))
+        XCTAssertEqual(table.cellValues["body[B0]"], .string("Hi"))
     }
 }

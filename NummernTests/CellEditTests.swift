@@ -17,13 +17,13 @@ final class CellEditTests: XCTestCase {
             [.number(1), .number(2)],
             [.string("A"), .empty]
         ]
-        let command = SetRangeCommand(tableId: "table_1", range: "body[A1:B2]", values: values)
+        let command = SetRangeCommand(tableId: "table_1", range: "body[A0:B1]", values: values)
         command.apply(to: &project)
 
         let cells = project.sheets[0].tables[0].cellValues
-        XCTAssertEqual(cells["body[A1]"], .number(1))
-        XCTAssertEqual(cells["body[B1]"], .number(2))
-        XCTAssertEqual(cells["body[A2]"], .string("A"))
-        XCTAssertEqual(cells["body[B2]"], .empty)
+        XCTAssertEqual(cells["body[A0]"], .number(1))
+        XCTAssertEqual(cells["body[B0]"], .number(2))
+        XCTAssertEqual(cells["body[A1]"], .string("A"))
+        XCTAssertEqual(cells["body[B1]"], .empty)
     }
 }
