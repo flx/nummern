@@ -134,6 +134,10 @@ struct TableCellOverlay: View {
     }
 
     private func beginEditing(_ selection: CellSelection) {
+        guard table.summarySpec == nil else {
+            onSelect(selection)
+            return
+        }
         if editingCell != selection {
             editingCell = selection
             editingText = editingValue(for: selection)

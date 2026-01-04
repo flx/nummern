@@ -1110,6 +1110,29 @@ class GridSpec:
 
 
 @dataclass
+class SummaryValueSpec:
+    col: int
+    agg: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"col": int(self.col), "agg": str(self.agg)}
+
+
+@dataclass
+class SummarySpec:
+    source_table_id: str
+    group_by: List[int]
+    values: List[SummaryValueSpec]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "sourceTableId": self.source_table_id,
+            "groupBy": list(self.group_by),
+            "values": [value.to_dict() for value in self.values],
+        }
+
+
+@dataclass
 class Table:
     id: str
     name: str
@@ -1123,6 +1146,8 @@ class Table:
     label_band_values: Dict[str, Dict[str, List[str]]] = field(
         default_factory=lambda: {"top": {}, "bottom": {}, "left": {}, "right": {}}
     )
+    summary_spec: Optional[SummarySpec] = None
+    summary_order: Optional[int] = None
 
     def __post_init__(self) -> None:
         self._normalize_column_types()
@@ -1417,7 +1442,7 @@ class Table:
         return encoded
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "id": self.id,
             "name": self.name,
             "rect": self.rect.to_dict(),
@@ -1428,6 +1453,9 @@ class Table:
             "formulas": self.formulas,
             "labelBandValues": self.label_band_values,
         }
+        if self.summary_spec is not None:
+            payload["summarySpec"] = self.summary_spec.to_dict()
+        return payload
 
 
 def _parse_col_ref(ref: str) -> Tuple[str, int]:
@@ -1442,6 +1470,188 @@ def _parse_col_ref(ref: str) -> Tuple[str, int]:
     if not col_label:
         raise RangeParserError("Invalid column reference")
     return region, column_index(col_label)
+
+
+_SUMMARY_AGGREGATIONS = {"sum", "avg", "min", "max", "count"}
+
+
+def _parse_summary_column(ref: Any) -> int:
+    if isinstance(ref, int):
+        if ref < 0:
+            raise RangeParserError("Summary column index must be non-negative")
+        return ref
+    if isinstance(ref, str):
+        region, col_index = _parse_col_ref(ref)
+        if region != "body":
+            raise RangeParserError("Summary columns must reference body columns")
+        return col_index
+    raise RangeParserError("Invalid summary column reference")
+
+
+def _parse_summary_group_by(group_by: Any) -> List[int]:
+    if group_by is None:
+        return []
+    if isinstance(group_by, (list, tuple)):
+        return [_parse_summary_column(item) for item in group_by]
+    return [_parse_summary_column(group_by)]
+
+
+def _parse_summary_values(values: Any) -> List[SummaryValueSpec]:
+    if isinstance(values, SummaryValueSpec):
+        return [values]
+    if isinstance(values, dict):
+        values = [values]
+    if not isinstance(values, (list, tuple)) or not values:
+        raise ValueError("Summary values must be a non-empty list")
+    parsed: List[SummaryValueSpec] = []
+    for item in values:
+        if isinstance(item, SummaryValueSpec):
+            parsed.append(item)
+            continue
+        if isinstance(item, dict):
+            col = item.get("col")
+            agg = item.get("agg")
+        elif isinstance(item, (list, tuple)) and len(item) == 2:
+            col, agg = item
+        else:
+            raise ValueError("Summary values must be dicts or (col, agg) tuples")
+        if agg is None:
+            raise ValueError("Summary values require an aggregation")
+        agg_name = str(agg).lower()
+        if agg_name not in _SUMMARY_AGGREGATIONS:
+            raise ValueError(f"Unsupported aggregation: {agg_name}")
+        col_index = _parse_summary_column(col)
+        parsed.append(SummaryValueSpec(col=col_index, agg=agg_name))
+    return parsed
+
+
+def _summary_key_component(value: Any) -> Any:
+    value = _unwrap_value(value)
+    if isinstance(value, dict):
+        return tuple(sorted((key, _summary_key_component(val)) for key, val in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_summary_key_component(item) for item in value)
+    np_generic = getattr(np, "generic", None)
+    if np_generic is not None and isinstance(value, np_generic):
+        return value.item()
+    return value
+
+
+def _is_summary_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and value == "":
+        return True
+    if isinstance(value, dict) and value.get("type") == "empty":
+        return True
+    if value == "#ERROR":
+        return True
+    return False
+
+
+class _SummaryAccumulator:
+    def __init__(self, agg: str) -> None:
+        self.agg = agg
+        self.count = 0
+        self.total = 0.0
+        self.minimum: Optional[float] = None
+        self.maximum: Optional[float] = None
+
+    def add(self, value: Any) -> None:
+        if _is_summary_empty(value):
+            return
+        if self.agg == "count":
+            self.count += 1
+            return
+        numeric = _summary_number(value)
+        if numeric is None:
+            return
+        if self.agg in ("sum", "avg"):
+            self.total += numeric
+            self.count += 1
+            return
+        if self.agg == "min":
+            self.minimum = numeric if self.minimum is None else min(self.minimum, numeric)
+            return
+        if self.agg == "max":
+            self.maximum = numeric if self.maximum is None else max(self.maximum, numeric)
+            return
+
+    def finalize(self) -> Any:
+        if self.agg == "count":
+            return self.count
+        if self.agg == "sum":
+            return self.total if self.count > 0 else None
+        if self.agg == "avg":
+            return (self.total / self.count) if self.count > 0 else None
+        if self.agg == "min":
+            return self.minimum
+        if self.agg == "max":
+            return self.maximum
+        return None
+
+
+def _summary_number(value: Any) -> Optional[float]:
+    value = _unwrap_value(value)
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float, np.number)):
+        return float(value)
+    return None
+
+
+def _apply_summary_table(project: "Project", summary_table: Table) -> None:
+    spec = summary_table.summary_spec
+    if spec is None:
+        return
+    source = project.table(spec.source_table_id)
+    group_by = list(spec.group_by)
+    value_specs = list(spec.values)
+    if not value_specs:
+        return
+    group_order: List[Tuple[Any, ...]] = []
+    aggregates: Dict[Tuple[Any, ...], List[_SummaryAccumulator]] = {}
+    group_values_map: Dict[Tuple[Any, ...], List[Any]] = {}
+
+    if source.grid_spec.bodyRows <= 0:
+        body_rows = 0
+    else:
+        body_rows = source.grid_spec.bodyRows
+
+    for row in range(body_rows):
+        group_values = [_unwrap_value(source.cell_values.get(address("body", row, col)))
+                        for col in group_by]
+        if group_by and all(_is_summary_empty(value) for value in group_values):
+            continue
+        key = tuple(_summary_key_component(value) for value in group_values)
+        if key not in aggregates:
+            aggregates[key] = [_SummaryAccumulator(spec.agg) for spec in value_specs]
+            group_values_map[key] = group_values
+            group_order.append(key)
+        for accumulator, value_spec in zip(aggregates[key], value_specs):
+            value = _unwrap_value(source.cell_values.get(address("body", row, value_spec.col)))
+            accumulator.add(value)
+
+    result_rows: List[List[Any]] = []
+    for key in group_order or [()]:
+        group_values = group_values_map.get(key, [])
+        accumulators = aggregates.get(key, [_SummaryAccumulator(spec.agg) for spec in value_specs])
+        row_values = list(group_values) + [acc.finalize() for acc in accumulators]
+        result_rows.append(row_values)
+
+    summary_table.cell_values = {
+        key: value for key, value in summary_table.cell_values.items()
+        if not str(key).startswith("body[")
+    }
+    summary_table.grid_spec.bodyRows = max(1, len(result_rows))
+    summary_table.grid_spec.bodyCols = max(1, len(result_rows[0]) if result_rows else len(group_by) + len(value_specs))
+    summary_table._normalize_column_types()
+    summary_table._sync_rect_size()
+
+    for row_index, row_values in enumerate(result_rows):
+        for col_index, value in enumerate(row_values):
+            key = address("body", row_index, col_index)
+            summary_table.cell_values[key] = value
 
 
 def cell(table: Table, ref: str) -> Any:
@@ -1564,6 +1774,39 @@ class Project:
         sheet.tables.append(table)
         return table
 
+    def add_summary_table(self,
+                          sheet_id: str,
+                          table_id: str,
+                          name: str,
+                          source_table_id: str,
+                          group_by: Any,
+                          values: Any,
+                          x: Optional[float] = None,
+                          y: Optional[float] = None) -> Table:
+        sheet = self._find_sheet(sheet_id)
+        if sheet is None:
+            raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        group_columns = _parse_summary_group_by(group_by)
+        value_specs = _parse_summary_values(values)
+        summary_spec = SummarySpec(source_table_id=source_table_id,
+                                   group_by=group_columns,
+                                   values=value_specs)
+        cols = max(1, len(group_columns) + len(value_specs))
+        grid_spec = GridSpec(bodyRows=1, bodyCols=cols, labelBands=LabelBands.zero())
+        rect_value = self._default_rect(rows=grid_spec.bodyRows,
+                                        cols=grid_spec.bodyCols,
+                                        bands=grid_spec.labelBands,
+                                        x=x,
+                                        y=y)
+        table = Table(id=table_id,
+                      name=name,
+                      rect=rect_value,
+                      grid_spec=grid_spec,
+                      summary_spec=summary_spec,
+                      summary_order=_next_formula_order())
+        sheet.tables.append(table)
+        return table
+
     def _default_rect(self, rows: int, cols: int, bands: LabelBands,
                       x: Optional[float], y: Optional[float]) -> Rect:
         total_cols = bands.leftCols + cols + bands.rightCols
@@ -1587,18 +1830,28 @@ class Project:
         raise KeyError(f"Unknown table_id: {table_id}")
 
     def apply_formulas(self) -> None:
-        entries: List[Tuple[int, Table, str, Dict[str, Any]]] = []
+        entries: List[Tuple[int, str, Any]] = []
         for sheet in self.sheets:
             for table in sheet.tables:
+                if table.summary_spec is not None:
+                    order = table.summary_order
+                    if order is None:
+                        order = _next_formula_order()
+                        table.summary_order = order
+                    entries.append((order, "summary", table))
                 for target_range, payload in list(table.formulas.items()):
                     order = table.formula_order.get(target_range)
                     if order is None:
                         order = _next_formula_order()
                         table.formula_order[target_range] = order
-                    entries.append((order, table, target_range, payload))
+                    entries.append((order, "formula", (table, target_range, payload)))
         entries.sort(key=lambda entry: entry[0])
-        for _, table, target_range, payload in entries:
-            table.apply_formula_entry(self, target_range, payload)
+        for _, kind, payload in entries:
+            if kind == "summary":
+                _apply_summary_table(self, payload)
+                continue
+            table, target_range, formula_payload = payload
+            table.apply_formula_entry(self, target_range, formula_payload)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"sheets": [sheet.to_dict() for sheet in self.sheets]}

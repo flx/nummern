@@ -1,5 +1,44 @@
 import Foundation
 
+enum SummaryAggregation: String, Codable, CaseIterable {
+    case sum
+    case avg
+    case min
+    case max
+    case count
+
+    var displayName: String {
+        switch self {
+        case .sum:
+            return "Sum"
+        case .avg:
+            return "Average"
+        case .min:
+            return "Min"
+        case .max:
+            return "Max"
+        case .count:
+            return "Count"
+        }
+    }
+}
+
+struct SummaryValueSpec: Codable, Equatable, Hashable {
+    let column: Int
+    let aggregation: SummaryAggregation
+
+    private enum CodingKeys: String, CodingKey {
+        case column = "col"
+        case aggregation = "agg"
+    }
+}
+
+struct SummarySpec: Codable, Equatable, Hashable {
+    let sourceTableId: String
+    let groupBy: [Int]
+    let values: [SummaryValueSpec]
+}
+
 struct TableModel: CanvasObject, Codable, Equatable, Hashable {
     var id: String
     var name: String
@@ -10,6 +49,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
     var rangeValues: [String: RangeValue]
     var formulas: [String: FormulaSpec]
     var labelBandValues: LabelBandData
+    var summarySpec: SummarySpec?
 
     init(id: String,
          name: String,
@@ -21,7 +61,8 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
          cellValues: [String: CellValue] = [:],
          rangeValues: [String: RangeValue] = [:],
          formulas: [String: FormulaSpec] = [:],
-         labelBandValues: LabelBandData = LabelBandData()) {
+         labelBandValues: LabelBandData = LabelBandData(),
+         summarySpec: SummarySpec? = nil) {
         self.id = id
         self.name = name
         self.rect = rect
@@ -35,6 +76,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         self.rangeValues = rangeValues
         self.formulas = formulas
         self.labelBandValues = labelBandValues
+        self.summarySpec = summarySpec
         normalizeColumnTypes()
     }
 
@@ -48,6 +90,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         case rangeValues
         case formulas
         case labelBandValues
+        case summarySpec
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +104,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         rangeValues = try container.decodeIfPresent([String: RangeValue].self, forKey: .rangeValues) ?? [:]
         formulas = try container.decodeIfPresent([String: FormulaSpec].self, forKey: .formulas) ?? [:]
         labelBandValues = try container.decodeIfPresent(LabelBandData.self, forKey: .labelBandValues) ?? LabelBandData()
+        summarySpec = try container.decodeIfPresent(SummarySpec.self, forKey: .summarySpec)
         if bodyColumnTypes.isEmpty {
             bodyColumnTypes = Array(repeating: .number, count: gridSpec.bodyCols)
         }
@@ -78,6 +122,7 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         try container.encode(rangeValues, forKey: .rangeValues)
         try container.encode(formulas, forKey: .formulas)
         try container.encode(labelBandValues, forKey: .labelBandValues)
+        try container.encode(summarySpec, forKey: .summarySpec)
     }
 
     mutating func normalizeColumnTypes() {

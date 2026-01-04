@@ -407,15 +407,21 @@ Status:
 
 Deliverable:
 - Implement `CreateSummaryTable` command and UI flow.
-- Add Python-side summary computation (NumPy group-by or optional pandas) and update propagation.
+- Add Python-side summary computation (row-group only) and update propagation.
+- Store `summarySpec` metadata on summary tables and treat summary body cells as read-only in the UI.
 
 Testable increment:
 - Creating a summary table updates when source data changes.
 
 Unit tests to add/run:
-- `SummaryTableTests.testAggregationSum()`
-- `SummaryTableTests.testUpdatesOnSourceChange()`
-- Run: `python3 -m pytest canvassheets_api/tests -k summary` and `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/SummaryTableTests`
+- Swift: `SummaryTableTests.testCreateSummaryTableCommandSerializes()`
+- Swift: `SummaryTableTests.testCreateSummaryTableCommandAppliesSummarySpec()`
+- Python: `test_summary_tables.py::test_summary_table_sum`
+- Python: `test_summary_tables.py::test_summary_updates_on_change`
+- Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/SummaryTableTests`
+
+Status:
+- [x] Completed
 
 ---
 

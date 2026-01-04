@@ -85,6 +85,39 @@ final class CanvasViewModel: ObservableObject {
         return table(withId: tableId)
     }
 
+    @discardableResult
+    func createSummaryTable(sourceTableId: String,
+                            groupBy: [Int],
+                            values: [SummaryValueSpec]) -> TableModel? {
+        guard let sourceTable = table(withId: sourceTableId),
+              let sheetId = sheetId(containingTableId: sourceTableId) else {
+            return nil
+        }
+        let maxCol = max(0, sourceTable.gridSpec.bodyCols - 1)
+        let filteredGroupBy = groupBy.filter { $0 >= 0 && $0 <= maxCol }
+        let filteredValues = values.filter { $0.column >= 0 && $0.column <= maxCol }
+        guard !filteredValues.isEmpty else {
+            return nil
+        }
+        let tableId = project.nextTableId()
+        let tableName = tableId
+        let summaryRows = estimateSummaryRowCount(sourceTable: sourceTable, groupBy: filteredGroupBy)
+        let summaryCols = max(CanvasGridSizing.minBodyCols, filteredGroupBy.count + filteredValues.count)
+        let baseRect = defaultTableRect(rows: summaryRows, cols: summaryCols, labelBands: .zero)
+        let sizedRect = rectWithGridSize(baseRect, rows: summaryRows, cols: summaryCols, labelBands: .zero)
+        let command = CreateSummaryTableCommand(sheetId: sheetId,
+                                                tableId: tableId,
+                                                name: tableName,
+                                                rect: sizedRect,
+                                                sourceTableId: sourceTableId,
+                                                groupBy: filteredGroupBy,
+                                                values: filteredValues,
+                                                rows: summaryRows,
+                                                cols: summaryCols)
+        apply(command)
+        return table(withId: tableId)
+    }
+
     func moveTable(tableId: String, to rect: Rect) {
         apply(SetTablePositionCommand(tableId: tableId, x: rect.x, y: rect.y))
     }
@@ -184,6 +217,9 @@ final class CanvasViewModel: ObservableObject {
                       row: Int,
                       col: Int,
                       rawValue: String) {
+        guard !isReadOnlyTable(tableId: tableId) else {
+            return
+        }
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = RangeParser.address(region: region, row: row, col: col)
         guard let table = table(withId: tableId) else {
@@ -234,6 +270,9 @@ final class CanvasViewModel: ObservableObject {
                   startRow: Int,
                   startCol: Int,
                   values: [[CellValue]]) {
+        guard !isReadOnlyTable(tableId: tableId) else {
+            return
+        }
         guard let firstRow = values.first, !firstRow.isEmpty else {
             return
         }
@@ -278,6 +317,9 @@ final class CanvasViewModel: ObservableObject {
         guard let selection = selectedCell,
               let text = NSPasteboard.general.string(forType: .string),
               !text.isEmpty else {
+            return
+        }
+        guard !isReadOnlyTable(tableId: selection.tableId) else {
             return
         }
         let values = ClipboardParser.values(from: text, region: selection.region)
@@ -349,14 +391,27 @@ final class CanvasViewModel: ObservableObject {
         for sheet in project.sheets {
             prelude.append(AddSheetCommand(name: sheet.name, sheetId: sheet.id).serializeToPython())
             for table in sheet.tables {
-                let command = AddTableCommand(sheetId: sheet.id,
-                                              tableId: table.id,
-                                              name: table.name,
-                                              rect: table.rect,
-                                              rows: table.gridSpec.bodyRows,
-                                              cols: table.gridSpec.bodyCols,
-                                              labels: table.gridSpec.labelBands)
-                prelude.append(command.serializeToPython())
+                if let summarySpec = table.summarySpec {
+                    let command = CreateSummaryTableCommand(sheetId: sheet.id,
+                                                            tableId: table.id,
+                                                            name: table.name,
+                                                            rect: table.rect,
+                                                            sourceTableId: summarySpec.sourceTableId,
+                                                            groupBy: summarySpec.groupBy,
+                                                            values: summarySpec.values,
+                                                            rows: table.gridSpec.bodyRows,
+                                                            cols: table.gridSpec.bodyCols)
+                    prelude.append(command.serializeToPython())
+                } else {
+                    let command = AddTableCommand(sheetId: sheet.id,
+                                                  tableId: table.id,
+                                                  name: table.name,
+                                                  rect: table.rect,
+                                                  rows: table.gridSpec.bodyRows,
+                                                  cols: table.gridSpec.bodyCols,
+                                                  labels: table.gridSpec.labelBands)
+                    prelude.append(command.serializeToPython())
+                }
             }
         }
         return prelude
@@ -367,7 +422,7 @@ final class CanvasViewModel: ObservableObject {
     }
 
     private func isAddTableCommand(_ line: String) -> Bool {
-        line.contains("proj.add_table(")
+        line.contains("proj.add_table(") || line.contains("proj.add_summary_table(")
     }
 
     private func nextSheetName() -> String {
@@ -450,6 +505,37 @@ final class CanvasViewModel: ObservableObject {
         return nil
     }
 
+    private func sheetId(containingTableId tableId: String) -> String? {
+        for sheet in project.sheets {
+            if sheet.tables.contains(where: { $0.id == tableId }) {
+                return sheet.id
+            }
+        }
+        return nil
+    }
+
+    private func estimateSummaryRowCount(sourceTable: TableModel, groupBy: [Int]) -> Int {
+        guard !groupBy.isEmpty else {
+            return CanvasGridSizing.minBodyRows
+        }
+        var seen = Set<SummaryKey>()
+        for row in 0..<sourceTable.gridSpec.bodyRows {
+            let values = groupBy.map { col -> CellValue in
+                let key = RangeParser.address(region: .body, row: row, col: col)
+                return sourceTable.cellValues[key] ?? .empty
+            }
+            if values.allSatisfy({ $0 == .empty }) {
+                continue
+            }
+            seen.insert(SummaryKey(values: values))
+        }
+        return max(CanvasGridSizing.minBodyRows, seen.count)
+    }
+
+    private func isReadOnlyTable(tableId: String) -> Bool {
+        table(withId: tableId)?.summarySpec != nil
+    }
+
     private func columnTypeForBody(table: TableModel, col: Int) -> ColumnDataType {
         if table.bodyColumnTypes.indices.contains(col) {
             return table.bodyColumnTypes[col]
@@ -524,6 +610,9 @@ final class CanvasViewModel: ObservableObject {
 
     func setBodyColumnType(tableId: String, col: Int, type: ColumnDataType) {
         guard col >= 0 else {
+            return
+        }
+        guard !isReadOnlyTable(tableId: tableId) else {
             return
         }
         apply(SetColumnTypeCommand(tableId: tableId, col: col, columnType: type), kind: .general)
@@ -763,7 +852,8 @@ enum PythonLogNormalizer {
     }
 
     private static func normalizeAddTableLine(_ line: String, tableId: String) -> String {
-        if assignmentAlias(from: line, call: "proj.add_table(") != nil {
+        if assignmentAlias(from: line, call: "proj.add_table(") != nil
+            || assignmentAlias(from: line, call: "proj.add_summary_table(") != nil {
             return line
         }
         return "\(tableId) = \(line)"
@@ -868,7 +958,7 @@ enum PythonLogNormalizer {
     }
 
     private static func addTableId(from line: String) -> String? {
-        guard line.contains("proj.add_table(") else {
+        guard line.contains("proj.add_table(") || line.contains("proj.add_summary_table(") else {
             return nil
         }
         return extractParameterValue(from: line, name: "table_id")
@@ -948,6 +1038,10 @@ enum PythonLogNormalizer {
             let tableId = extractParameterValue(from: line, name: "table_id") ?? alias
             return (alias: alias, tableId: tableId, kind: .addTable)
         }
+        if let alias = assignmentAlias(from: line, call: "proj.add_summary_table(") {
+            let tableId = extractParameterValue(from: line, name: "table_id") ?? alias
+            return (alias: alias, tableId: tableId, kind: .addTable)
+        }
         return nil
     }
 
@@ -1012,5 +1106,15 @@ enum PythonLogNormalizer {
     private enum AliasKind {
         case tableRef
         case addTable
+    }
+}
+
+private struct SummaryKey: Hashable {
+    let values: [CellValue]
+
+    func hash(into hasher: inout Hasher) {
+        for value in values {
+            hasher.combine(value)
+        }
     }
 }

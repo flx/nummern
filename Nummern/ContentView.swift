@@ -12,6 +12,12 @@ struct ContentView: View {
     @State private var isExporting = false
     @State private var isImportingCSV = false
     @State private var isExportingCSV = false
+    @State private var isShowingSummaryBuilder = false
+    @State private var summaryBuilderState = SummaryBuilderState(sourceTableId: "",
+                                                                 columns: [],
+                                                                 groupBy: [],
+                                                                 valueColumn: 0,
+                                                                 aggregation: .sum)
     @State private var autoRunWorkItem: DispatchWorkItem?
     @State private var pendingAutoRun = false
     @State private var didAppear = false
@@ -57,20 +63,31 @@ struct ContentView: View {
                             .font(.headline)
                         Text(selectedTable.id)
                             .font(.subheadline)
+                        if let summarySpec = selectedTable.summarySpec {
+                            Text("Summary of \(summarySpec.sourceTableId)")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
                         labelBandStepper(title: "Body Rows",
                                           value: bodyRowsBinding(table: selectedTable),
                                           range: 1...200)
+                            .disabled(selectedTable.summarySpec != nil)
                         labelBandStepper(title: "Body Columns",
                                           value: bodyColsBinding(table: selectedTable),
                                           range: 1...200)
+                            .disabled(selectedTable.summarySpec != nil)
                         labelBandStepper(title: "Top Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.topRows))
+                            .disabled(selectedTable.summarySpec != nil)
                         labelBandStepper(title: "Left Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.leftCols))
+                            .disabled(selectedTable.summarySpec != nil)
                         labelBandStepper(title: "Bottom Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.bottomRows))
+                            .disabled(selectedTable.summarySpec != nil)
                         labelBandStepper(title: "Right Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.rightCols))
+                            .disabled(selectedTable.summarySpec != nil)
                         if let selection = viewModel.selectedCell,
                            selection.tableId == selectedTable.id,
                            selection.region == .body {
@@ -82,6 +99,7 @@ struct ContentView: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .disabled(selectedTable.summarySpec != nil)
                         }
                     }
                     .padding(8)
@@ -122,6 +140,11 @@ struct ContentView: View {
         } message: {
             Text(pythonRunError ?? "Unknown error")
         }
+        .sheet(isPresented: $isShowingSummaryBuilder) {
+            SummaryBuilderView(state: $summaryBuilderState,
+                               onCancel: { isShowingSummaryBuilder = false },
+                               onCreate: { createSummaryTableFromBuilder() })
+        }
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -134,6 +157,14 @@ struct ContentView: View {
                 } label: {
                     Label("Add Table", systemImage: "tablecells")
                 }
+                Button {
+                    openSummaryBuilder()
+                } label: {
+                    Label("Create Summary", systemImage: "sum")
+                }
+                .disabled(isRunningScript
+                          || viewModel.selectedTable() == nil
+                          || viewModel.selectedTable()?.summarySpec != nil)
                 Button {
                     importCSV()
                 } label: {
@@ -218,6 +249,36 @@ struct ContentView: View {
             return
         }
         _ = viewModel.addTable(toSheetId: sheetId)
+    }
+
+    private func openSummaryBuilder() {
+        guard let table = viewModel.selectedTable() else {
+            return
+        }
+        let columns = Array(0..<table.gridSpec.bodyCols)
+        guard !columns.isEmpty else {
+            return
+        }
+        let defaultGroup = Set([columns.first].compactMap { $0 })
+        let valueColumn = columns.count > 1 ? columns[1] : columns[0]
+        summaryBuilderState = SummaryBuilderState(sourceTableId: table.id,
+                                                  columns: columns,
+                                                  groupBy: defaultGroup,
+                                                  valueColumn: valueColumn,
+                                                  aggregation: .sum)
+        isShowingSummaryBuilder = true
+    }
+
+    private func createSummaryTableFromBuilder() {
+        let groupBy = summaryBuilderState.groupBy.sorted()
+        let valueSpec = SummaryValueSpec(column: summaryBuilderState.valueColumn,
+                                         aggregation: summaryBuilderState.aggregation)
+        if let table = viewModel.createSummaryTable(sourceTableId: summaryBuilderState.sourceTableId,
+                                                    groupBy: groupBy,
+                                                    values: [valueSpec]) {
+            viewModel.selectTable(table.id)
+        }
+        isShowingSummaryBuilder = false
     }
 
     private func runScript() {
@@ -578,6 +639,83 @@ struct ScriptEditor: NSViewRepresentable {
                 parent.selectedRange = clamped
             }
         }
+    }
+}
+
+struct SummaryBuilderState: Equatable {
+    var sourceTableId: String
+    var columns: [Int]
+    var groupBy: Set<Int>
+    var valueColumn: Int
+    var aggregation: SummaryAggregation
+}
+
+struct SummaryBuilderView: View {
+    @Binding var state: SummaryBuilderState
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Create Summary Table")
+                .font(.headline)
+
+            Text("Source: \(state.sourceTableId)")
+                .font(.subheadline)
+
+            if state.columns.isEmpty {
+                Text("No body columns available.")
+                    .foregroundColor(.secondary)
+            } else {
+                Form {
+                    Section("Group By Columns") {
+                        ForEach(state.columns, id: \.self) { column in
+                            Toggle("Column \(RangeParser.columnLabel(from: column))",
+                                   isOn: groupByBinding(column))
+                        }
+                    }
+
+                    Section("Value") {
+                        Picker("Column", selection: $state.valueColumn) {
+                            ForEach(state.columns, id: \.self) { column in
+                                Text("Column \(RangeParser.columnLabel(from: column))").tag(column)
+                            }
+                        }
+                        Picker("Aggregation", selection: $state.aggregation) {
+                            ForEach(SummaryAggregation.allCases, id: \.self) { aggregation in
+                                Text(aggregation.displayName).tag(aggregation)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    onCancel()
+                }
+                Button("Create") {
+                    onCreate()
+                }
+                .disabled(state.columns.isEmpty)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 360, minHeight: 320)
+    }
+
+    private func groupByBinding(_ column: Int) -> Binding<Bool> {
+        Binding(
+            get: { state.groupBy.contains(column) },
+            set: { isOn in
+                if isOn {
+                    state.groupBy.insert(column)
+                } else {
+                    state.groupBy.remove(column)
+                }
+            }
+        )
     }
 }
 

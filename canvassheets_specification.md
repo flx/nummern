@@ -204,10 +204,12 @@ Support two formula modes:
 
 ### 5.6 Pivot tables / summaries
 MVP can ship without full pivots, but v1 should include at least:
-- Create **Summary Table** from a source table:
-  - Choose row group keys, column group keys (optional), values + aggregation.
-  - Aggregations: sum, mean, count, min, max.
-- Output is a new table object, linked to source so it updates.
+- Create **Summary Table** from a source table (body columns only):
+  - Choose row group keys (one or more body columns).
+  - Choose value columns + aggregation (sum, avg, min, max, count).
+  - Column group keys (pivot columns) are deferred.
+- Output is a new table object with `summarySpec` metadata and read-only body cells.
+- Summary computation runs in Python alongside formulas, ordered by the script call sequence (`add_summary_table` order vs `set_formula` order).
 - This can be implemented with:
   - NumPy group-by strategies, or
   - Optional pandas for pivot-like operations (still NumPy-backed under the hood).
@@ -800,6 +802,9 @@ class Project:
     def add_table(self, sheet_id: str, table_id: str, name: str,
                   rect=None, rows: int = 10, cols: int = 6, labels: dict = None,
                   x: float = None, y: float = None): ...
+    def add_summary_table(self, sheet_id: str, table_id: str, name: str,
+                          source_table_id: str, group_by: list, values: list,
+                          x: float = None, y: float = None): ...
     def table(self, table_id: str) -> "Table": ...
 
 class Table:
@@ -851,7 +856,7 @@ def c_not(value): ...
 
 - `ProjectDocument: NSDocument`
 - `SheetModel { id: String, name: String, objects: [CanvasObject] }`
-- `TableModel: CanvasObject { id: String, name: String (same as id in MVP), rect: CGRect, gridSpec: GridSpec, ... }`
+- `TableModel: CanvasObject { id: String, name: String (same as id in MVP), rect: CGRect, gridSpec: GridSpec, summarySpec: SummarySpec?, ... }`
 - `Command` protocol + concrete command structs
 - `PythonEngineClient` (XPC client) + `PythonEngineService` (helper)
 

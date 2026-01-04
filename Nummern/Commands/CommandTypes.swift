@@ -97,6 +97,88 @@ struct AddTableCommand: Command {
     }
 }
 
+struct CreateSummaryTableCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let sheetId: String
+    let tableId: String
+    let name: String
+    let rect: Rect
+    let sourceTableId: String
+    let groupBy: [Int]
+    let values: [SummaryValueSpec]
+    let rows: Int
+    let cols: Int
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         sheetId: String,
+         tableId: String,
+         name: String,
+         rect: Rect,
+         sourceTableId: String,
+         groupBy: [Int],
+         values: [SummaryValueSpec],
+         rows: Int,
+         cols: Int) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.sheetId = sheetId
+        self.tableId = tableId
+        self.name = name
+        self.rect = rect
+        self.sourceTableId = sourceTableId
+        self.groupBy = groupBy
+        self.values = values
+        self.rows = rows
+        self.cols = cols
+    }
+
+    func apply(to project: inout ProjectModel) {
+        let spec = SummarySpec(sourceTableId: sourceTableId, groupBy: groupBy, values: values)
+        project.updateSheet(id: sheetId) { sheet in
+            let table = TableModel(id: tableId,
+                                   name: name,
+                                   rect: rect,
+                                   rows: rows,
+                                   cols: cols,
+                                   labelBands: .zero,
+                                   summarySpec: spec)
+            sheet.tables.append(table)
+        }
+    }
+
+    func serializeToPython() -> String {
+        let x = PythonLiteralEncoder.encodeNumber(rect.x)
+        let y = PythonLiteralEncoder.encodeNumber(rect.y)
+        let groupLiteral = pythonColumnList(groupBy)
+        let valuesLiteral = pythonValuesList(values)
+        return "proj.add_summary_table(\(PythonLiteralEncoder.encodeString(sheetId)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), name=\(PythonLiteralEncoder.encodeString(name)), source_table_id=\(PythonLiteralEncoder.encodeString(sourceTableId)), group_by=\(groupLiteral), values=\(valuesLiteral), x=\(x), y=\(y))"
+    }
+
+    private func pythonColumnList(_ columns: [Int]) -> String {
+        guard !columns.isEmpty else {
+            return "[]"
+        }
+        let labels = columns.map { RangeParser.columnLabel(from: $0) }
+        let items = labels.map { PythonLiteralEncoder.encodeString($0) }.joined(separator: ", ")
+        return "[\(items)]"
+    }
+
+    private func pythonValuesList(_ values: [SummaryValueSpec]) -> String {
+        guard !values.isEmpty else {
+            return "[]"
+        }
+        let items = values.map { spec -> String in
+            let label = RangeParser.columnLabel(from: spec.column)
+            let colLiteral = PythonLiteralEncoder.encodeString(label)
+            let aggLiteral = PythonLiteralEncoder.encodeString(spec.aggregation.rawValue)
+            return "dict(col=\(colLiteral), agg=\(aggLiteral))"
+        }
+        return "[\(items.joined(separator: ", "))]"
+    }
+}
+
 struct SetTableRectCommand: Command {
     let commandId: String
     let timestamp: Date
