@@ -257,7 +257,8 @@ Deliverable:
 - Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = c_sum('a0:a9')`).
 - Collapse consecutive `with table_context(table_id)` / `with label_context(table_id, ...)` blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
-- Inline cross-table cell references in formulas using `table_id.A0` sugar, with `table_id = proj.add_table(...)` assignments emitted after each `add_table`.
+- Inline cross-table cell references in formulas using `table_id.A0` sugar, with `table_id = proj.add_table(...)` assignments emitted after each `add_table` (and preserved even when a context block immediately follows).
+- Ensure the generated log always includes a canonical `add_sheet`/`add_table` prelude derived from the current project so `table_id` variables are defined even if history is missing.
 - Accept dot-prefixed cross-table references (`table_id.A0`, `table_id.top_labels[A0]`) in spreadsheet formulas and highlight/insert them in the editor.
 - Evaluate formulas once in global log order (recorded at set time) across tables so dependencies match script order.
 
@@ -271,6 +272,8 @@ Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_formula_sugar.py::test_formula_helper_aggregates`
 - Python: `canvassheets_api/tests/test_formula_sugar.py::test_formula_helper_logical`
 - Swift: `PythonLogNormalizerTests.testMergesConsecutiveFormulaContextBlocks()`
+- Swift: `PythonLogNormalizerTests.testPreservesAddTableAssignmentBeforeContext()`
+- Swift: `CanvasViewModelTests.testLogIncludesProjectPreludeWhenHistoryMissing()`
 - Run: `python -m pytest -k "formula_translation or formula_sugar"`
 
 Status:

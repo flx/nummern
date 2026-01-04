@@ -297,7 +297,8 @@ final class CanvasViewModel: ObservableObject {
     }
 
     private func rebuildLogs() {
-        let commands = seedCommands + transactionManager.allCommands()
+        var commands = seedCommands + transactionManager.allCommands()
+        commands = normalizedPreludeCommands(for: project, commands: commands)
         let rawLog = commands.joined(separator: "\n")
         pythonLog = PythonLogNormalizer.normalize(rawLog)
         historyJSON = encodeHistory(commands: commands)
@@ -320,6 +321,41 @@ final class CanvasViewModel: ObservableObject {
             return []
         }
         return history.commands
+    }
+
+    private func normalizedPreludeCommands(for project: ProjectModel, commands: [String]) -> [String] {
+        let filtered = commands.filter { command in
+            let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !isAddSheetCommand(trimmed) && !isAddTableCommand(trimmed)
+        }
+        let prelude = projectPreludeCommands(project)
+        return prelude + filtered
+    }
+
+    private func projectPreludeCommands(_ project: ProjectModel) -> [String] {
+        var prelude: [String] = []
+        for sheet in project.sheets {
+            prelude.append(AddSheetCommand(name: sheet.name, sheetId: sheet.id).serializeToPython())
+            for table in sheet.tables {
+                let command = AddTableCommand(sheetId: sheet.id,
+                                              tableId: table.id,
+                                              name: table.name,
+                                              rect: table.rect,
+                                              rows: table.gridSpec.bodyRows,
+                                              cols: table.gridSpec.bodyCols,
+                                              labels: table.gridSpec.labelBands)
+                prelude.append(command.serializeToPython())
+            }
+        }
+        return prelude
+    }
+
+    private func isAddSheetCommand(_ line: String) -> Bool {
+        line.contains("proj.add_sheet(")
+    }
+
+    private func isAddTableCommand(_ line: String) -> Bool {
+        line.contains("proj.add_table(")
     }
 
     private func nextSheetName() -> String {
@@ -640,7 +676,8 @@ enum PythonLogNormalizer {
             if let aliasMapping = tableAliasMapping(from: line) {
                 aliasToTableId[aliasMapping.alias] = aliasMapping.tableId
                 currentTableId = aliasMapping.tableId
-                if index + 1 < lines.count,
+                if aliasMapping.kind == .tableRef,
+                   index + 1 < lines.count,
                    let contextKind = contextKind(from: lines[index + 1]),
                    let contextTableId = contextTableId(from: lines[index + 1],
                                                       aliasToTableId: aliasToTableId,
@@ -890,14 +927,14 @@ enum PythonLogNormalizer {
         return String(trimmed[afterQuote..<secondQuoteIndex])
     }
 
-    private static func tableAliasMapping(from line: String) -> (alias: String, tableId: String)? {
+    private static func tableAliasMapping(from line: String) -> (alias: String, tableId: String, kind: AliasKind)? {
         if let alias = assignmentAlias(from: line, call: "proj.table("),
            let tableId = tableId(fromTableLine: line) {
-            return (alias: alias, tableId: tableId)
+            return (alias: alias, tableId: tableId, kind: .tableRef)
         }
         if let alias = assignmentAlias(from: line, call: "proj.add_table(") {
             let tableId = extractParameterValue(from: line, name: "table_id") ?? alias
-            return (alias: alias, tableId: tableId)
+            return (alias: alias, tableId: tableId, kind: .addTable)
         }
         return nil
     }
@@ -921,7 +958,10 @@ enum PythonLogNormalizer {
         guard let alias = contextAlias(from: line) else {
             return fallback
         }
-        return aliasToTableId[alias] ?? alias
+        if let mapped = aliasToTableId[alias] {
+            return mapped
+        }
+        return fallback ?? alias
     }
 
     private static func contextAlias(from line: String) -> String? {
@@ -955,5 +995,10 @@ enum PythonLogNormalizer {
         }
         let afterComma = line[line.index(after: comma)...]
         return extractQuotedValue(from: String(afterComma), prefix: "")
+    }
+
+    private enum AliasKind {
+        case tableRef
+        case addTable
     }
 }

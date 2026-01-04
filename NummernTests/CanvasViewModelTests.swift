@@ -144,4 +144,26 @@ final class CanvasViewModelTests: XCTestCase {
         XCTAssertEqual(updatedTable.formulas[key]?.formula, "=SUM(A0:A1)")
         XCTAssertNil(updatedTable.cellValues[key])
     }
+
+    func testLogIncludesProjectPreludeWhenHistoryMissing() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 2,
+                               cols: 2,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        viewModel.setCellValue(tableId: "table_1",
+                               region: .body,
+                               row: 0,
+                               col: 0,
+                               rawValue: "2")
+
+        let log = viewModel.pythonLog
+        XCTAssertTrue(log.contains("proj.add_sheet('Sheet 1', sheet_id='sheet_1')"))
+        XCTAssertTrue(log.contains("table_1 = proj.add_table('sheet_1', table_id='table_1'"))
+        XCTAssertTrue(log.contains("with table_context(table_1):"))
+    }
 }

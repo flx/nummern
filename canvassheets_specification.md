@@ -242,6 +242,7 @@ v1:
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
 - Consecutive `with table_context(table_id)` / `with label_context(table_id, ...)` blocks for the same table should be merged for readability.
 - Body data entry is grouped per table and emitted in a dedicated `with table_context(table_id):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
+- The generated log always includes a canonical sheet/table prelude (current `add_sheet` + `add_table` calls) so `table_id` variables exist even if history entries are missing.
 - Column type changes are logged as `set_column_type` calls.
 
 ### 6.2 Canonical Python API (DSL)
@@ -334,7 +335,7 @@ To enable user refactoring while keeping generated output reliable, the script s
 2) **Generated region** (append-only by default)
 - The app writes commands here, below a single marker line: `# ---- Auto-generated log ----------------------------------------------`.
 - The user may edit it, but the app warns on syntax errors and offers “Repair” by regenerating from internal history.
-- Generated output is ordered: data writes first, then formula application.
+- Generated output is ordered: data writes first, then formula application. Table creation lines are preserved (`table_id = proj.add_table(...)`) even when a context block follows.
 - Marker lines tolerate trailing whitespace; if the marker is missing or edited, preserve the entire existing script as the user region and append the marker + generated log instead of resetting.
 - On “Run Script”, parse the generated region and store its command lines as the new history so future edits append to the script the user just ran.
 - When rebuilding history from the generated region, drop legacy alias lines (`table_id = proj.table(...)`) to avoid duplicate aliases on subsequent log normalization.
