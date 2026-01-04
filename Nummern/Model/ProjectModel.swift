@@ -33,4 +33,13 @@ extension ProjectModel {
         let ids = sheets.flatMap { $0.tables.map(\.id) }
         return ModelID.nextTableId(existingIDs: ids)
     }
+
+    func table(withId tableId: String) -> TableModel? {
+        for sheet in sheets {
+            if let table = sheet.tables.first(where: { $0.id == tableId }) {
+                return table
+            }
+        }
+        return nil
+    }
 }

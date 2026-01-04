@@ -365,6 +365,7 @@ Status:
 Deliverable:
 - Integrate `UndoManager` with command transactions.
 - Implement `invert()` for core commands (table move/resize, set range, insert rows/cols, label edits).
+- Add `clear_range` to the Python API for range undo/redo and serialize it from Swift.
 - Ensure undo/redo updates both model and Python log coherently.
 
 Testable increment:
@@ -374,6 +375,9 @@ Unit tests to add/run:
 - `UndoRedoTests.testUndoMoveTable()`
 - `UndoRedoTests.testUndoSetRange()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/UndoRedoTests`
+
+Status:
+- [x] Completed
 
 ---
 

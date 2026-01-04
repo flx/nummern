@@ -21,6 +21,7 @@ final class CanvasViewModel: ObservableObject {
     private let transactionManager = TransactionManager()
     private var seedCommands: [String] = []
     private let cellSize = CanvasGridSizing.cellSize
+    var undoManager: UndoManager?
 
     init(project: ProjectModel = ProjectModel(), historyJSON: String? = nil) {
         self.project = Self.normalizeTableRects(project)
@@ -33,6 +34,10 @@ final class CanvasViewModel: ObservableObject {
         self.pendingReferenceInsert = nil
         self.seedCommands = decodeHistoryCommands(from: historyJSON)
         rebuildLogs()
+    }
+
+    func setUndoManager(_ manager: UndoManager?) {
+        undoManager = manager
     }
 
     func load(project: ProjectModel, historyJSON: String?) {
@@ -287,6 +292,7 @@ final class CanvasViewModel: ObservableObject {
     }
 
     private func apply(_ command: any Command, kind: TransactionKind = .general) {
+        let previous = project
         transactionManager.begin(kind: kind)
         transactionManager.record(command)
         transactionManager.commit()
@@ -294,6 +300,12 @@ final class CanvasViewModel: ObservableObject {
         command.apply(to: &updated)
         project = updated
         rebuildLogs()
+        if let undoManager,
+           let inverse = command.invert(previous: previous) {
+            undoManager.registerUndo(withTarget: self) { target in
+                target.apply(inverse, kind: kind)
+            }
+        }
     }
 
     private func rebuildLogs() {

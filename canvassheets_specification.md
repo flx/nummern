@@ -240,6 +240,7 @@ v1:
   - Example: typing “123” logs one `set_cells(...)` at commit, not three.
 - Each command is deterministic and order-dependent.
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
+- Undo/redo emits compensating commands (for example, `clear_range(...)` + `set_cells(...)` when undoing a range fill).
 - Consecutive `with table_context(table_id)` / `with label_context(table_id, ...)` blocks for the same table should be merged for readability.
 - Body data entry is grouped per table and emitted in a dedicated `with table_context(table_id):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
 - The generated log always includes a canonical sheet/table prelude (current `add_sheet` + `add_table` calls) so `table_id` variables exist even if history entries are missing.
@@ -270,6 +271,7 @@ Generated formulas should use a small helper surface in `canvassheets_api` to ke
 - `set_cell(table, "A0", value)` -> write scalar into the table
 - `set_col(table, "A", values)` -> write a column vector
 - `set_range(table, "A0:B9", values)` -> write a 2D range
+- `clear_range(table, "A0:B9")` -> remove a range block (used for undo/redo)
 - `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, etc. -> spreadsheet-like helpers implemented over NumPy
 - `formula("A0+B0")` -> create a spreadsheet formula expression for use inside `table_context`
 - `c_range("A0:B2")` -> create a formula reference expression

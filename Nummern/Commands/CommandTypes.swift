@@ -119,6 +119,13 @@ struct SetTableRectCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return SetTableRectCommand(tableId: tableId, rect: table.rect)
+    }
+
     func serializeToPython() -> String {
         "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_rect(\(PythonLiteralEncoder.encodeRect(rect)))"
     }
@@ -147,6 +154,13 @@ struct SetTablePositionCommand: Command {
         project.updateTable(id: tableId) { table in
             table.rect = Rect(x: x, y: y, width: table.rect.width, height: table.rect.height)
         }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return SetTablePositionCommand(tableId: tableId, x: table.rect.x, y: table.rect.y)
     }
 
     func serializeToPython() -> String {
@@ -185,6 +199,15 @@ struct MinimizeTableCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return ResizeTableCommand(tableId: tableId,
+                                  rows: table.gridSpec.bodyRows,
+                                  cols: table.gridSpec.bodyCols)
+    }
+
     func serializeToPython() -> String {
         "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).minimize()"
     }
@@ -221,6 +244,15 @@ struct ResizeTableCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return ResizeTableCommand(tableId: tableId,
+                                  rows: table.gridSpec.bodyRows,
+                                  cols: table.gridSpec.bodyCols)
+    }
+
     func serializeToPython() -> String {
         var args: [String] = []
         if let rows {
@@ -254,6 +286,13 @@ struct SetLabelBandsCommand: Command {
         project.updateTable(id: tableId) { table in
             table.gridSpec.labelBands = labelBands
         }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return SetLabelBandsCommand(tableId: tableId, labelBands: table.gridSpec.labelBands)
     }
 
     func serializeToPython() -> String {
@@ -293,6 +332,14 @@ struct SetColumnTypeCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId),
+              table.bodyColumnTypes.indices.contains(col) else {
+            return nil
+        }
+        return SetColumnTypeCommand(tableId: tableId, col: col, columnType: table.bodyColumnTypes[col])
+    }
+
     func serializeToPython() -> String {
         "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_column_type(col=\(col), type=\(PythonLiteralEncoder.encodeString(columnType.rawValue)))"
     }
@@ -325,6 +372,17 @@ struct SetCellsCommand: Command {
                 table.updateColumnType(forBodyColumn: parsed.start.col, value: value)
             }
         }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        var previousMap: [String: CellValue] = [:]
+        for key in cellMap.keys {
+            previousMap[key] = table.cellValues[key] ?? .empty
+        }
+        return SetCellsCommand(tableId: tableId, cellMap: previousMap)
     }
 
     func merged(with other: SetCellsCommand) -> SetCellsCommand? {
@@ -434,12 +492,84 @@ struct SetRangeCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId),
+              let parsed = try? RangeParser.parse(range) else {
+            return nil
+        }
+        if let previousRange = table.rangeValues[range] {
+            return SetRangeCommand(tableId: tableId,
+                                   range: range,
+                                   values: previousRange.values,
+                                   dtype: previousRange.dtype)
+        }
+        let cellMap = previousCellMap(table: table, range: parsed)
+        let clear = ClearRangeCommand(tableId: tableId, range: range)
+        if cellMap.isEmpty {
+            return clear
+        }
+        return CommandBatch(commands: [clear, SetCellsCommand(tableId: tableId, cellMap: cellMap)])
+    }
+
     func serializeToPython() -> String {
         var args = "\(PythonLiteralEncoder.encodeString(range)), \(PythonLiteralEncoder.encode2D(values))"
         if let dtype {
             args += ", dtype=\(PythonLiteralEncoder.encodeString(dtype))"
         }
         return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_range(\(args))"
+    }
+
+    private func previousCellMap(table: TableModel, range: RangeAddress) -> [String: CellValue] {
+        let rowStart = min(range.start.row, range.end.row)
+        let rowEnd = max(range.start.row, range.end.row)
+        let colStart = min(range.start.col, range.end.col)
+        let colEnd = max(range.start.col, range.end.col)
+        var cellMap: [String: CellValue] = [:]
+        for row in rowStart...rowEnd {
+            for col in colStart...colEnd {
+                let key = RangeParser.address(region: range.region, row: row, col: col)
+                cellMap[key] = table.cellValues[key] ?? .empty
+            }
+        }
+        return cellMap
+    }
+}
+
+struct ClearRangeCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let tableId: String
+    let range: String
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         tableId: String,
+         range: String) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.tableId = tableId
+        self.range = range
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateTable(id: tableId) { table in
+            table.rangeValues.removeValue(forKey: range)
+        }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId),
+              let previousRange = table.rangeValues[range] else {
+            return nil
+        }
+        return SetRangeCommand(tableId: tableId,
+                               range: range,
+                               values: previousRange.values,
+                               dtype: previousRange.dtype)
+    }
+
+    func serializeToPython() -> String {
+        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).clear_range(\(PythonLiteralEncoder.encodeString(range)))"
     }
 }
 
@@ -469,6 +599,24 @@ struct SetLabelBandCommand: Command {
         project.updateTable(id: tableId) { table in
             table.labelBandValues.set(band: band, index: index, values: values)
         }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        let prior: [String]
+        switch band {
+        case .top:
+            prior = table.labelBandValues.top[index] ?? []
+        case .bottom:
+            prior = table.labelBandValues.bottom[index] ?? []
+        case .left:
+            prior = table.labelBandValues.left[index] ?? []
+        case .right:
+            prior = table.labelBandValues.right[index] ?? []
+        }
+        return SetLabelBandCommand(tableId: tableId, band: band, index: index, values: prior)
     }
 
     func serializeToPython() -> String {
@@ -523,6 +671,29 @@ struct SetFormulaCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        let previousFormula = table.formulas[targetRange]?.formula ?? ""
+        let previousMode = table.formulas[targetRange]?.mode ?? mode
+        let formulaCommand = SetFormulaCommand(tableId: tableId,
+                                               targetRange: targetRange,
+                                               formula: previousFormula,
+                                               mode: previousMode)
+        if !previousFormula.isEmpty {
+            return formulaCommand
+        }
+        guard let parsed = try? RangeParser.parse(targetRange) else {
+            return formulaCommand
+        }
+        let cellMap = previousCellMap(table: table, range: parsed)
+        guard !cellMap.isEmpty else {
+            return formulaCommand
+        }
+        return CommandBatch(commands: [formulaCommand, SetCellsCommand(tableId: tableId, cellMap: cellMap)])
+    }
+
     func serializeToPython() -> String {
         let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -561,6 +732,23 @@ struct SetFormulaCommand: Command {
             "with table_context(t):",
             "    \(assignmentTarget)"
         ].joined(separator: "\n")
+    }
+
+    private func previousCellMap(table: TableModel, range: RangeAddress) -> [String: CellValue] {
+        let rowStart = min(range.start.row, range.end.row)
+        let rowEnd = max(range.start.row, range.end.row)
+        let colStart = min(range.start.col, range.end.col)
+        let colEnd = max(range.start.col, range.end.col)
+        var cellMap: [String: CellValue] = [:]
+        for row in rowStart...rowEnd {
+            for col in colStart...colEnd {
+                let key = RangeParser.address(region: range.region, row: row, col: col)
+                if let value = table.cellValues[key] {
+                    cellMap[key] = value
+                }
+            }
+        }
+        return cellMap
     }
 }
 
@@ -738,6 +926,15 @@ struct InsertRowsCommand: Command {
         }
     }
 
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return ResizeTableCommand(tableId: tableId,
+                                  rows: table.gridSpec.bodyRows,
+                                  cols: table.gridSpec.bodyCols)
+    }
+
     func serializeToPython() -> String {
         "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).insert_rows(at=\(at), count=\(count))"
     }
@@ -767,6 +964,15 @@ struct InsertColsCommand: Command {
             table.gridSpec.bodyCols += count
             table.normalizeColumnTypes()
         }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let table = previous.table(withId: tableId) else {
+            return nil
+        }
+        return ResizeTableCommand(tableId: tableId,
+                                  rows: table.gridSpec.bodyRows,
+                                  cols: table.gridSpec.bodyCols)
     }
 
     func serializeToPython() -> String {

@@ -1246,6 +1246,9 @@ class Table:
                 key = address(region, row, col)
                 self.cell_values[key] = value
 
+    def clear_range(self, range_str: str) -> None:
+        self.range_values.pop(range_str, None)
+
     def set_label_band(self, band: str, index: int, values: List[str]) -> None:
         target = self.label_band_values.get(band)
         if target is None:
@@ -1509,6 +1512,11 @@ def set_range(table: Table, ref: str, values: Any, dtype: Optional[str] = None) 
     cols = end_col - start_col + 1
     values_2d = _coerce_range_values(values, rows, cols)
     table.set_range(normalized, values_2d, dtype=dtype)
+
+
+def clear_range(table: Table, ref: str) -> None:
+    normalized = _normalize_ref(ref)
+    table.clear_range(normalized)
 
 
 @dataclass
@@ -2011,6 +2019,7 @@ __all__ = [
     "set_cell",
     "set_col",
     "set_range",
+    "clear_range",
     "cs_sum",
     "cs_avg",
     "cs_min",

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Binding var document: NummernDocument
+    @Environment(\.undoManager) private var undoManager
     @StateObject private var viewModel: CanvasViewModel
     @State private var selectedSheetId: String?
     @State private var pythonRunError: String?
@@ -184,6 +185,7 @@ struct ContentView: View {
             if selectedSheetId == nil {
                 selectedSheetId = viewModel.project.sheets.first?.id
             }
+            viewModel.setUndoManager(undoManager)
             didAppear = true
         }
         .frame(minWidth: 900, minHeight: 600)
