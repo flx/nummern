@@ -254,6 +254,7 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Table naming**: `table_id` is the display label in MVP; custom display names are a future feature.
 - **Context managers**: use `table_context(table)` for body cell writes and `label_context(table, "top_labels"/"left_labels"/"bottom_labels"/"right_labels")` for label bands.
 - **Array-style indexing**: `t[row, col]` reads/writes body cells (0-based). Inside `table_context`, reads return formula references; assignments set values or formulas.
+- **Direct assignment**: `table_id.a0 = 1` (or `table_id.a0 = table_2.b0 + 1`) is supported outside `table_context` and writes a value/formula to the body cell.
 - **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a0 = c_sum('A0:A9')`).
 - **Formula wrapper**: `formula("A0+B0")` explicitly marks a spreadsheet formula when needed.
 - **Cross-table sugar**: `table_id.A0` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.

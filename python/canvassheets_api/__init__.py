@@ -1141,6 +1141,18 @@ class Table:
             return FormulaExpr(f"{self.id}.{cell_ref}")
         raise AttributeError(name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_") or name in getattr(self, "__dataclass_fields__", {}):
+            return object.__setattr__(self, name, value)
+        if _FORMULA_CELL_RE.match(name):
+            cell_ref = name.upper()
+            if isinstance(value, FormulaExpr):
+                self.set_formula(f"body[{cell_ref}]", f"={value.expr}")
+                return
+            self.set_cells({f"body[{cell_ref}]": value})
+            return
+        object.__setattr__(self, name, value)
+
     def __getitem__(self, key: Any) -> Any:
         row, col = _normalize_table_index(key)
         cell_ref = cell_label(row, col)

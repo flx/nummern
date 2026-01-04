@@ -203,6 +203,7 @@ Deliverable:
   - `add_sheet`, `add_table`, `set_rect`, `set_position`, `resize`, `minimize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
 - Add `table_context`, `label_context`, and `formula()` helpers for readable script logging.
 - Support array-style `t[row, col]` indexing (0-based rows) for body cell reads/writes in Python scripts.
+- Support direct body cell assignment via `table_id.a0 = ...` outside `table_context`.
 - Auto-expand table size when programmatic writes target cells beyond current bounds; add `Table.minimize()` to shrink to non-empty body cells.
 - Canonicalize row numbering to 0-based across Swift and Python (`A0` is the first row; `t[0, 0]` maps to `A0`).
 - Allow `add_table` to accept `x`/`y` with grid-derived width/height (rect remains supported).
@@ -217,6 +218,7 @@ Testable increment:
 Unit tests to add/run:
 - Python: `canvassheets_api/tests/test_project_api.py::test_setitem_expands_table`
 - Python: `canvassheets_api/tests/test_project_api.py::test_minimize_shrinks_table`
+- Python: `canvassheets_api/tests/test_project_api.py::test_table_attribute_assignment_sets_cell`
 - Swift: `PythonBridgeTests.testRunScriptBuildsTables()`
 - Run: `RUN_PYTHON_BRIDGE_TESTS=1 xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/PythonBridgeTests`
 

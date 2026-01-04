@@ -174,3 +174,24 @@ def test_set_column_type_updates_table():
     body_types = data["sheets"][0]["tables"][0]["bodyColumnTypes"]
     assert body_types[1] == "currency"
     assert body_types[3] == "date"
+
+
+def test_table_attribute_assignment_sets_cell():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=1,
+        cols=1,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.c2 = 5
+
+    assert table.grid_spec.bodyRows == 3
+    assert table.grid_spec.bodyCols == 3
+    assert table.cell_values["body[C2]"] == 5
