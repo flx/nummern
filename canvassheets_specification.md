@@ -518,8 +518,8 @@ To make open fast for large files:
   - Data type info
   - Formula help
 - Bottom or side “Code” panel:
-  - Script viewer/editor with syntax highlighting and line numbers
-  - Console output / traceback panel (MVP: event log is emitted to the developer console rather than a dedicated panel)
+  - Script editor (monospaced, editable) with a visible log marker line
+  - Console output / traceback panel is not in-app for MVP; log deltas + Python stderr are emitted to the developer console
 
 ### 11.2 Table interaction details
 - Selecting a table shows:
@@ -532,17 +532,15 @@ To make open fast for large files:
   - with modifier key, duplicates table (optional)
 
 ### 11.3 Code panel behavior
-- Two modes:
-  1) **Read-only generated view** (safe default)
-  2) **Editable script** (requires explicit “Unlock Editing”)
+- Script is editable by default (no unlock gate in MVP).
 - Buttons:
-  - Run Selection
-  - Run All
-  - Reset Runtime
+  - Run Selection (runs the selected text with the script header/imports and injects `proj = Project()` if missing).
+  - Run All (full script run from top to bottom).
+  - Reset Runtime (fresh run; Python executes in a new process each time).
 - Errors:
-  - Highlight line with error
-  - Show traceback in console
-  - Provide “Restore from history” if script becomes unparsable (if history.json exists)
+  - Parse stderr for line numbers when tracebacks are available.
+  - Show a line-numbered error in the alert and print the full traceback to the developer console.
+  - Provide “Restore from history” if script becomes unparsable (if history.json exists) (future).
 
 ### 11.4 Formula entry
 - Formula bar similar to Excel.

@@ -84,4 +84,37 @@ with table_context(t):
     a0 = 1
 """)
     }
+
+    func testSelectionScriptAddsProjectInitWhenMissing() {
+        let script = """
+import numpy as np
+# ---- Auto-generated log ----------------------------------------------
+proj = Project()
+proj.add_sheet('Sheet 1', sheet_id='sheet_1')
+"""
+        let range = (script as NSString).range(of: "proj.add_sheet('Sheet 1', sheet_id='sheet_1')")
+        let selectionScript = ScriptComposer.selectionScript(from: script, selectionRange: range)
+
+        XCTAssertNotNil(selectionScript)
+        XCTAssertTrue(selectionScript?.contains("import numpy as np") ?? false)
+        XCTAssertTrue(selectionScript?.contains("proj = Project()") ?? false)
+        XCTAssertTrue(selectionScript?.contains("proj.add_sheet('Sheet 1'") ?? false)
+    }
+
+    func testSelectionScriptUsesImportHeaderWhenMarkerMissing() {
+        let script = """
+import numpy as np
+from canvassheets_api import Project
+
+proj = Project()
+proj.add_sheet('Sheet 1', sheet_id='sheet_1')
+"""
+        let range = (script as NSString).range(of: "proj.add_sheet('Sheet 1', sheet_id='sheet_1')")
+        let selectionScript = ScriptComposer.selectionScript(from: script, selectionRange: range)
+
+        XCTAssertNotNil(selectionScript)
+        XCTAssertTrue(selectionScript?.contains("import numpy as np") ?? false)
+        XCTAssertTrue(selectionScript?.contains("from canvassheets_api import Project") ?? false)
+        XCTAssertTrue(selectionScript?.contains("proj = Project()") ?? false)
+    }
 }

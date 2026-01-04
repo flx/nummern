@@ -90,6 +90,29 @@ struct ScriptComposer {
         return String(data: data, encoding: .utf8)
     }
 
+    static func selectionScript(from script: String, selectionRange: NSRange) -> String? {
+        guard selectionRange.length > 0 else {
+            return nil
+        }
+        let nsScript = script as NSString
+        guard selectionRange.location + selectionRange.length <= nsScript.length else {
+            return nil
+        }
+        let selection = nsScript.substring(with: selectionRange)
+        let headerLines = selectionHeaderLines(from: script)
+        let headerText = headerLines.joined(separator: "\n")
+        let needsProject = !containsProjectInit(in: headerText) && !containsProjectInit(in: selection)
+        var lines = headerLines
+        if needsProject {
+            lines.append("proj = Project()")
+        }
+        if let last = lines.last, !last.isEmpty {
+            lines.append("")
+        }
+        lines.append(selection)
+        return lines.joined(separator: "\n")
+    }
+
     private static func isTableAliasLine(_ line: String) -> Bool {
         let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
         guard parts.count == 2 else {
@@ -105,6 +128,36 @@ struct ScriptComposer {
         }
         return lhs.unicodeScalars.allSatisfy { scalar in
             CharacterSet.alphanumerics.contains(scalar) || scalar == "_"
+        }
+    }
+
+    private static func selectionHeaderLines(from script: String) -> [String] {
+        let lines = script.components(separatedBy: .newlines)
+        if let markerIndex = markerIndex(logMarker, in: lines) {
+            return Array(lines[0..<markerIndex])
+        }
+        var header: [String] = []
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("import ") || trimmed.hasPrefix("from ") {
+                header.append(line)
+                continue
+            }
+            if trimmed.isEmpty, !header.isEmpty {
+                header.append(line)
+                continue
+            }
+            break
+        }
+        return header
+    }
+
+    private static func containsProjectInit(in text: String) -> Bool {
+        let lines = text.components(separatedBy: .newlines)
+        return lines.contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.range(of: #"^proj\s*=\s*Project\(\)"#,
+                                 options: .regularExpression) != nil
         }
     }
 

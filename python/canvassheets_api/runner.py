@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 
 from canvassheets_api import FormulaLocals, Project, export_numpy_script
 
@@ -30,8 +31,8 @@ def main() -> int:
 
     try:
         project = run_script(args.script)
-    except Exception as exc:  # pylint: disable=broad-except
-        print(f"Error: {exc}", file=sys.stderr)
+    except Exception:  # pylint: disable=broad-except
+        traceback.print_exc()
         return 1
 
     if args.export_numpy:

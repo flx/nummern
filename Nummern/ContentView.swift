@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var pendingAutoRun = false
     @State private var didAppear = false
     @State private var lastPrintedPythonLog: String = ""
+    @State private var scriptSelection = NSRange(location: 0, length: 0)
     private let autoRunDelay: TimeInterval = 0.4
 
     init(document: Binding<NummernDocument>) {
@@ -87,8 +88,7 @@ struct ContentView: View {
 
                 Text("script.py")
                     .font(.headline)
-                TextEditor(text: $document.script)
-                    .font(.system(.body, design: .monospaced))
+                ScriptEditor(text: $document.script, selectedRange: $scriptSelection)
             }
             .frame(minWidth: 320)
             .padding(12)
@@ -134,7 +134,21 @@ struct ContentView: View {
                 Button {
                     runScript()
                 } label: {
-                    Label("Run Script", systemImage: "play.circle")
+                    Label("Run All", systemImage: "play.circle")
+                }
+                .disabled(isRunningScript)
+
+                Button {
+                    runSelection()
+                } label: {
+                    Label("Run Selection", systemImage: "play.fill")
+                }
+                .disabled(isRunningScript || scriptSelection.length == 0)
+
+                Button {
+                    resetRuntime()
+                } label: {
+                    Label("Reset Runtime", systemImage: "arrow.counterclockwise")
                 }
                 .disabled(isRunningScript)
 
@@ -191,25 +205,44 @@ struct ContentView: View {
     }
 
     private func runScript() {
+        let script = document.script
+        let historyJSON = ScriptComposer.historyJSON(from: script) ?? document.historyJSON
+        executeScript(script: script, historyJSON: historyJSON, updateHistory: true)
+    }
+
+    private func runSelection() {
+        guard let selectionScript = ScriptComposer.selectionScript(from: document.script,
+                                                                   selectionRange: scriptSelection) else {
+            return
+        }
+        executeScript(script: selectionScript, historyJSON: document.historyJSON, updateHistory: false)
+    }
+
+    private func resetRuntime() {
+        print("Resetting Python runtime (fresh run).")
+        runScript()
+    }
+
+    private func executeScript(script: String, historyJSON: String?, updateHistory: Bool) {
         guard !isRunningScript else {
             return
         }
         isRunningScript = true
-        let script = document.script
-        let historyJSON = ScriptComposer.historyJSON(from: script) ?? document.historyJSON
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let engine = try PythonEngineClient()
                 let result = try engine.runProject(script: script)
                 DispatchQueue.main.async {
                     viewModel.load(project: result.project, historyJSON: historyJSON)
-                    document.historyJSON = historyJSON
+                    if updateHistory {
+                        document.historyJSON = historyJSON
+                    }
                     isRunningScript = false
                     handlePendingAutoRun()
                 }
             } catch {
                 DispatchQueue.main.async {
-                    pythonRunError = error.localizedDescription
+                    pythonRunError = formatPythonError(error)
                     isRunningScript = false
                     handlePendingAutoRun()
                 }
@@ -348,5 +381,158 @@ struct ContentView: View {
 
         lastPrintedPythonLog = newValue
         print("Event Log:\n\(output)")
+    }
+
+    private func formatPythonError(_ error: Error) -> String {
+        if let engineError = error as? PythonEngineError {
+            switch engineError {
+            case .pythonFailed(_, let stderr):
+                let detail = PythonErrorParser.parse(stderr: stderr)
+                print("Python stderr:\n\(stderr)")
+                if let line = detail.line {
+                    return "Line \(line): \(detail.message)"
+                }
+                return detail.message
+            default:
+                print("Python error: \(engineError.localizedDescription)")
+                return engineError.localizedDescription
+            }
+        }
+        print("Python error: \(error.localizedDescription)")
+        return error.localizedDescription
+    }
+}
+
+struct ScriptEditor: NSViewRepresentable {
+    @Binding var text: String
+    @Binding var selectedRange: NSRange
+    var isEditable: Bool = true
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let textView = NSTextView()
+        textView.isEditable = isEditable
+        textView.isSelectable = true
+        textView.allowsUndo = true
+        textView.isRichText = false
+        textView.usesFindPanel = true
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        textView.textContainer?.widthTracksTextView = false
+        textView.textContainer?.heightTracksTextView = false
+        textView.textContainer?.containerSize = CGSize(width: CGFloat.greatestFiniteMagnitude,
+                                                       height: CGFloat.greatestFiniteMagnitude)
+        textView.delegate = context.coordinator
+        textView.string = text
+        context.coordinator.textView = textView
+
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.borderType = .bezelBorder
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        guard let textView = nsView.documentView as? NSTextView else {
+            return
+        }
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.isEditable = isEditable
+        let clamped = clampRange(selectedRange, for: text)
+        if textView.selectedRange() != clamped {
+            textView.setSelectedRange(clamped)
+        }
+    }
+
+    private func clampRange(_ range: NSRange, for text: String) -> NSRange {
+        let length = text.utf16.count
+        let location = min(range.location, length)
+        let maxLength = max(0, length - location)
+        let clampedLength = min(range.length, maxLength)
+        return NSRange(location: location, length: clampedLength)
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        private let parent: ScriptEditor
+        weak var textView: NSTextView?
+
+        init(_ parent: ScriptEditor) {
+            self.parent = parent
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView else {
+                return
+            }
+            let newText = textView.string
+            if parent.text != newText {
+                parent.text = newText
+            }
+            let clamped = parent.clampRange(textView.selectedRange(), for: newText)
+            if parent.selectedRange != clamped {
+                parent.selectedRange = clamped
+            }
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let textView else {
+                return
+            }
+            let clamped = parent.clampRange(textView.selectedRange(), for: textView.string)
+            if parent.selectedRange != clamped {
+                parent.selectedRange = clamped
+            }
+        }
+    }
+}
+
+struct PythonErrorDetail: Equatable {
+    let line: Int?
+    let message: String
+}
+
+enum PythonErrorParser {
+    static func parse(stderr: String) -> PythonErrorDetail {
+        let lines = stderr
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let message = extractMessage(from: lines) ?? "Python run failed."
+        let lineNumber = extractLineNumber(from: stderr)
+        return PythonErrorDetail(line: lineNumber, message: message)
+    }
+
+    private static func extractMessage(from lines: [String]) -> String? {
+        guard let last = lines.last else {
+            return nil
+        }
+        if last.hasPrefix("Error:") {
+            return last.replacingOccurrences(of: "Error:", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return last
+    }
+
+    private static func extractLineNumber(from stderr: String) -> Int? {
+        let pattern = #"File \"[^\"]+\", line ([0-9]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        let matches = regex.matches(in: stderr, options: [], range: NSRange(stderr.startIndex..., in: stderr))
+        guard let match = matches.last, match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: stderr) else {
+            return nil
+        }
+        return Int(stderr[range])
     }
 }

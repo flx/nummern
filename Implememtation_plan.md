@@ -315,9 +315,9 @@ Status:
 Deliverable:
 - Implement code panel with user/generated/entrypoint sections.
 - Use a single log marker line (`# ---- Auto-generated log ----------------------------------------------`) to separate user code (above) from generated log (below).
-- Add Run Selection/Run All/Reset Runtime controls.
+- Add Run Selection/Run All/Reset Runtime controls (selection uses script header/imports and injects `proj = Project()` when missing).
 - On Run All: restart Python engine, run full script, update model and grid display.
-- Implement error mapping to line numbers and console display.
+- Implement error mapping to line numbers and console display (stderr parsed for line numbers; full stderr printed to console).
 - MVP update: event log is no longer a separate UI panel; Python log output is sent to the developer console.
 - When running a script, parse the generated log section and store it as command history so subsequent edits append to the script that was just run.
 - Strip legacy table alias lines (`table_id = proj.table(...)`) when rebuilding history from the generated region to prevent duplicate aliases.
@@ -327,12 +327,15 @@ Testable increment:
 - Editing user code and running the script updates the document; errors surface in the panel.
 
 Unit tests to add/run:
-- `ScriptSectionTests.testRoundTripPreservesUserRegion()`
-- `RunAllTests.testRebuildMatchesModelState()`
-- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ScriptSectionTests`
+- `ScriptComposerTests.testComposePreservesUserCodeWhenMarkersMissing()`
+- `ScriptComposerTests.testSelectionScriptAddsProjectInitWhenMissing()`
+- `ScriptComposerTests.testSelectionScriptUsesImportHeaderWhenMarkerMissing()`
+- `PythonErrorParserTests.testParsesTracebackLineAndMessage()`
+- `PythonErrorParserTests.testParsesRunnerErrorMessage()`
+- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ScriptComposerTests`
 
 Status:
-- [ ] In progress (script editor + Run Script + auto-run + error alert done; Run Selection/Reset Runtime + error mapping pending)
+- [x] Completed
 
 ---
 
