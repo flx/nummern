@@ -103,6 +103,7 @@ Deliverable:
 - Table sizing snaps to grid footprint; resize adds/removes body rows/cols and snaps on release.
 - Resize/label changes update rect size without logging `set_rect`; position changes log `set_position`.
 - Double-clicking the resize handle minimizes the table to the last non-empty body cell (no-op when empty).
+- Loading or running scripts normalizes table rect sizes to the grid footprint so UI reflects programmatic expansions.
 - Inspector includes body row/column controls alongside label bands.
 
 Testable increment:
