@@ -2,24 +2,19 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ScriptComposer {
-    static let userMarker = "# ---- User code (editable) ---------------------------------------------"
-    static let logMarker = "# ---- Auto-generated log (append-only) --------------------------------"
-    static let endMarker = "# ---- End of script ----------------------------------------------------"
+    static let logMarker = "# ---- Auto-generated log ----------------------------------------------"
 
     static func compose(existing: String, generatedLog: String) -> String {
         let trimmedLog = generatedLog.trimmingCharacters(in: .whitespacesAndNewlines)
         let logLines = buildLogLines(from: trimmedLog)
         let lines = existing.components(separatedBy: .newlines)
 
-        guard let logIndex = markerIndex(logMarker, in: lines),
-              let endIndex = markerIndex(endMarker, in: lines),
-              logIndex < endIndex else {
+        guard let logIndex = markerIndex(logMarker, in: lines) else {
             return composePreservingUser(existing: existing, logLines: logLines)
         }
 
         let prefix = lines[0...logIndex]
-        let suffix = lines[endIndex...]
-        let updated = Array(prefix) + logLines + Array(suffix)
+        let updated = Array(prefix) + logLines
         return updated.joined(separator: "\n")
     }
 
@@ -27,19 +22,16 @@ struct ScriptComposer {
         let trimmedLog = generatedLog.trimmingCharacters(in: .whitespacesAndNewlines)
         let logLines = buildLogLines(from: trimmedLog)
         let lines = [
-            userMarker,
             "import numpy as np",
             "from canvassheets_api import Project, Rect, formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, date_value, time_value",
             "",
             logMarker,
-        ] + logLines + [
-            endMarker
-        ]
+        ] + logLines
         return lines.joined(separator: "\n")
     }
 
     private static func buildLogLines(from trimmedLog: String) -> [String] {
-        var logLines = ["from canvassheets_api import formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, date_value, time_value", "proj = Project()", ""]
+        var logLines = ["proj = Project()"]
         if !trimmedLog.isEmpty {
             logLines.append(contentsOf: trimmedLog.components(separatedBy: .newlines))
         }
@@ -49,12 +41,11 @@ struct ScriptComposer {
     static func extractGeneratedLog(from script: String) -> String? {
         let lines = script.components(separatedBy: .newlines)
         guard let logIndex = markerIndex(logMarker, in: lines),
-              let endIndex = markerIndex(endMarker, in: lines),
-              logIndex < endIndex else {
+              logIndex + 1 < lines.count else {
             return nil
         }
 
-        var logLines = Array(lines[(logIndex + 1)..<endIndex])
+        var logLines = Array(lines[(logIndex + 1)...])
         while let first = logLines.first,
               first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             logLines.removeFirst()
@@ -64,10 +55,6 @@ struct ScriptComposer {
             logLines.removeLast()
         }
 
-        if let first = logLines.first,
-           first.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("from canvassheets_api import") {
-            logLines.removeFirst()
-        }
         if let first = logLines.first,
            first.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("proj = Project()") {
             logLines.removeFirst()
@@ -127,23 +114,15 @@ struct ScriptComposer {
         }
     }
 
-    private static func containsMarker(_ marker: String, in lines: [String]) -> Bool {
-        markerIndex(marker, in: lines) != nil
-    }
-
     private static func composePreservingUser(existing: String, logLines: [String]) -> String {
         let existingLines = existing.components(separatedBy: .newlines)
         var lines: [String] = []
-        if !containsMarker(userMarker, in: existingLines) {
-            lines.append(userMarker)
-        }
         lines.append(contentsOf: existingLines)
         if let last = lines.last, !last.isEmpty {
             lines.append("")
         }
         lines.append(logMarker)
         lines.append(contentsOf: logLines)
-        lines.append(endMarker)
         return lines.joined(separator: "\n")
     }
 }

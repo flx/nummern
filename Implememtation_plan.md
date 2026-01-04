@@ -311,6 +311,7 @@ Status:
 
 Deliverable:
 - Implement code panel with user/generated/entrypoint sections.
+- Use a single log marker line (`# ---- Auto-generated log ----------------------------------------------`) to separate user code (above) from generated log (below).
 - Add Run Selection/Run All/Reset Runtime controls.
 - On Run All: restart Python engine, run full script, update model and grid display.
 - Implement error mapping to line numbers and console display.

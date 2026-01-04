@@ -326,27 +326,22 @@ inputs = proj.table("table_2")
 set_range(t1, "body[B0:E19]",
     rng(t1, "B0:E19") * (1 + cell(inputs, "B0"))  # example cross-table ref
 )
-
-# ---- End of script ----------------------------------------------------
 ```
 
 ### 6.4 Script sections and edit policy
-To enable user refactoring while keeping generated output reliable, the script should be structured into distinct regions:
+To enable user refactoring while keeping generated output reliable, the script should be structured into two regions:
 
 1) **User code region** (free editing)
 - Imports, helper functions, reusable transformations.
 
 2) **Generated region** (append-only by default)
-- The app writes commands here.
+- The app writes commands here, below a single marker line: `# ---- Auto-generated log ----------------------------------------------`.
 - The user may edit it, but the app warns on syntax errors and offers “Repair” by regenerating from internal history.
-- Generated output is ordered: data writes first, then formula application, then the entrypoint.
-- Marker lines tolerate trailing whitespace; if markers are missing or edited, preserve the entire existing script as the user region and append fresh markers + generated log instead of resetting.
+- Generated output is ordered: data writes first, then formula application.
+- Marker lines tolerate trailing whitespace; if the marker is missing or edited, preserve the entire existing script as the user region and append the marker + generated log instead of resetting.
 - On “Run Script”, parse the generated region and store its command lines as the new history so future edits append to the script the user just ran.
 - When rebuilding history from the generated region, drop table alias lines (`table_id = proj.table(...)`) to avoid duplicate aliases on subsequent log normalization.
 - Alias stripping should be whitespace-tolerant (e.g., `table_1=proj.table('table_1')`).
-
-3) **Entrypoint region**
-- The canonical execution entrypoint used for rebuild.
 
 **Optional enhancement:** Store the command log internally as JSON and generate Python from it, but still ship the Python text. This improves safety (you can regenerate) while satisfying the “inspectable script” requirement.
 
