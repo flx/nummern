@@ -124,7 +124,7 @@ Tables are independent objects with:
 **Interactions:**
 - Create table by clicking “Add Table”; default size is computed from the grid (body + label bands). Drag-resize to adjust.
 - Move table by dragging its frame.
-- Resize table with handles; size always snaps to the grid footprint.
+- Resize table with handles; size always snaps to the grid footprint. Double-click the handle to minimize to the last non-empty body cell (no-op if the table is empty).
 - Add/remove body rows/cols.
 - Adjust label band counts independently (top/left/bottom/right).
 - Direct edit cells.
@@ -136,6 +136,7 @@ Tables are independent objects with:
 - Changing label band counts expands/contracts the table size.
 - Drag-resize adds/removes body rows/cols as the bounds cross cell thresholds and snaps on release.
 - Resizing keeps the top-left corner fixed; the bottom-right handle controls growth/shrink.
+- Programmatic writes beyond the current grid (e.g., `t[100, 100] = 1`) auto-expand the body size to include the cell.
 - Scripted creation uses `x`/`y` plus grid size (width/height derived from rows/cols and label bands).
 
 ### 5.4 Cell and range addressing
@@ -676,6 +677,9 @@ proj.table("table_1").set_position(x=220, y=120)
 
 # Resize (size derived from grid)
 proj.table("table_1").resize(rows=12, cols=8)
+
+# Minimize to last non-empty body cell
+proj.table("table_1").minimize()
 ```
 
 ---
@@ -789,6 +793,7 @@ class Table:
     def set_rect(self, rect): ...
     def set_position(self, x: float, y: float): ...
     def resize(self, rows: int = None, cols: int = None): ...
+    def minimize(self): ...
     def set_labels(self, top=None, left=None, bottom=None, right=None): ...
     def set_cells(self, mapping: dict): ...
     def set_range(self, range_str: str, values, dtype: str = None): ...

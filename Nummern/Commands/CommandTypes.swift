@@ -156,6 +156,40 @@ struct SetTablePositionCommand: Command {
     }
 }
 
+struct MinimizeTableCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let tableId: String
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         tableId: String) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.tableId = tableId
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateTable(id: tableId) { table in
+            guard let bounds = table.bodyContentBounds() else {
+                return
+            }
+            let targetRows = max(1, bounds.maxRow + 1)
+            let targetCols = max(1, bounds.maxCol + 1)
+            guard targetRows != table.gridSpec.bodyRows || targetCols != table.gridSpec.bodyCols else {
+                return
+            }
+            table.gridSpec.bodyRows = targetRows
+            table.gridSpec.bodyCols = targetCols
+            table.normalizeColumnTypes()
+        }
+    }
+
+    func serializeToPython() -> String {
+        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).minimize()"
+    }
+}
+
 struct ResizeTableCommand: Command {
     let commandId: String
     let timestamp: Date

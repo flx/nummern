@@ -80,3 +80,46 @@ def test_set_position_updates_origin():
 
     assert table.rect.x == 42
     assert table.rect.y == 84
+
+
+def test_setitem_expands_table():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=2,
+        cols=2,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table[3, 4] = 1
+
+    assert table.grid_spec.bodyRows == 4
+    assert table.grid_spec.bodyCols == 5
+    assert table.rect.width == 5 * _DEFAULT_CELL_WIDTH
+    assert table.rect.height == 4 * _DEFAULT_CELL_HEIGHT
+
+
+def test_minimize_shrinks_table():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=6,
+        cols=6,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table[2, 3] = 1
+    table.minimize()
+
+    assert table.grid_spec.bodyRows == 3
+    assert table.grid_spec.bodyCols == 4

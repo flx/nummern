@@ -113,6 +113,20 @@ final class CanvasViewModel: ObservableObject {
         syncTableRect(tableId: tableId)
     }
 
+    func minimizeTable(tableId: String) {
+        guard let table = table(withId: tableId),
+              let bounds = table.bodyContentBounds() else {
+            return
+        }
+        let targetRows = max(CanvasGridSizing.minBodyRows, bounds.maxRow + 1)
+        let targetCols = max(CanvasGridSizing.minBodyCols, bounds.maxCol + 1)
+        guard targetRows != table.gridSpec.bodyRows || targetCols != table.gridSpec.bodyCols else {
+            return
+        }
+        apply(MinimizeTableCommand(tableId: tableId))
+        syncTableRect(tableId: tableId)
+    }
+
     func selectTable(_ tableId: String) {
         selectedTableId = tableId
     }

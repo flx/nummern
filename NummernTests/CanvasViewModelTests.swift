@@ -40,6 +40,46 @@ final class CanvasViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.pythonLog.contains("set_rect"))
     }
 
+    func testMinimizeTableShrinksToContent() {
+        let labels = LabelBands(topRows: 0, bottomRows: 0, leftCols: 0, rightCols: 0)
+        let cellKey = RangeParser.address(region: .body, row: 3, col: 4)
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 10,
+                               cols: 6,
+                               labelBands: labels,
+                               cellValues: [cellKey: .number(1)])
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        viewModel.minimizeTable(tableId: "table_1")
+
+        let updatedTable = viewModel.project.sheets[0].tables[0]
+        XCTAssertEqual(updatedTable.gridSpec.bodyRows, 4)
+        XCTAssertEqual(updatedTable.gridSpec.bodyCols, 5)
+        XCTAssertTrue(viewModel.pythonLog.contains("minimize()"))
+    }
+
+    func testMinimizeTableIgnoresEmptyTable() {
+        let labels = LabelBands(topRows: 0, bottomRows: 0, leftCols: 0, rightCols: 0)
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 5,
+                               cols: 4,
+                               labelBands: labels)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        viewModel.minimizeTable(tableId: "table_1")
+
+        let updatedTable = viewModel.project.sheets[0].tables[0]
+        XCTAssertEqual(updatedTable.gridSpec.bodyRows, 5)
+        XCTAssertEqual(updatedTable.gridSpec.bodyCols, 4)
+        XCTAssertFalse(viewModel.pythonLog.contains("minimize()"))
+    }
+
     func testReducingLabelBandsClearsInvalidSelection() {
         let labels = LabelBands(topRows: 2, bottomRows: 0, leftCols: 1, rightCols: 0)
         let table = TableModel(id: "table_1",

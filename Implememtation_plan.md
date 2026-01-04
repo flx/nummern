@@ -55,7 +55,7 @@ Status:
 
 Deliverable:
 - Implement `Command` protocol with `apply(model)`, `invert()`, and `serializeToPython()`.
-- Add concrete commands: `AddSheet`, `RenameSheet`, `AddTable`, `SetTableRect`, `SetTablePosition`, `ResizeTable`, `SetCells`, `SetRange`, `SetLabelBand`, `SetFormula`, `InsertRows`, `InsertCols`.
+- Add concrete commands: `AddSheet`, `RenameSheet`, `AddTable`, `SetTableRect`, `SetTablePosition`, `ResizeTable`, `MinimizeTable`, `SetCells`, `SetRange`, `SetLabelBand`, `SetFormula`, `InsertRows`, `InsertCols`.
 - Implement a `TransactionManager` that groups commands and produces a Python log string.
 
 Testable increment:
@@ -102,6 +102,7 @@ Deliverable:
 - Canvas auto-sizes to the visible window or to fit all tables, whichever is larger.
 - Table sizing snaps to grid footprint; resize adds/removes body rows/cols and snaps on release.
 - Resize/label changes update rect size without logging `set_rect`; position changes log `set_position`.
+- Double-clicking the resize handle minimizes the table to the last non-empty body cell (no-op when empty).
 - Inspector includes body row/column controls alongside label bands.
 
 Testable increment:
@@ -110,6 +111,7 @@ Testable increment:
 Unit tests to add/run:
 - `CanvasViewModelTests.testMoveTableUpdatesModelAndLogsCommand()`
 - `CanvasViewModelTests.testResizeTableUpdatesRect()`
+- `CanvasViewModelTests.testMinimizeTableShrinksToContent()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/CanvasViewModelTests`
 
 Status:
@@ -167,9 +169,10 @@ Status:
 
 Deliverable:
 - Implement `canvassheets_api` in Python with `Project` and `Table` classes supporting:
-  - `add_sheet`, `add_table`, `set_rect`, `set_position`, `resize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
+  - `add_sheet`, `add_table`, `set_rect`, `set_position`, `resize`, `minimize`, `set_labels`, `set_cells`, `set_range`, `set_formula`.
 - Add `table_context`, `label_context`, and `formula()` helpers for readable script logging.
 - Support array-style `t[row, col]` indexing (0-based rows) for body cell reads/writes in Python scripts.
+- Auto-expand table size when programmatic writes target cells beyond current bounds; add `Table.minimize()` to shrink to non-empty body cells.
 - Canonicalize row numbering to 0-based across Swift and Python (`A0` is the first row; `t[0, 0]` maps to `A0`).
 - Allow `add_table` to accept `x`/`y` with grid-derived width/height (rect remains supported).
 - Add a Swift `PythonEngineClient` that runs the script in a Python process and returns a reconstructed `ProjectModel`.
@@ -181,6 +184,8 @@ Testable increment:
 - Running the generated script reconstructs tables and returns a `ProjectModel` derived from Python output.
 
 Unit tests to add/run:
+- Python: `canvassheets_api/tests/test_project_api.py::test_setitem_expands_table`
+- Python: `canvassheets_api/tests/test_project_api.py::test_minimize_shrinks_table`
 - Swift: `PythonBridgeTests.testRunScriptBuildsTables()`
 - Run: `RUN_PYTHON_BRIDGE_TESTS=1 xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/PythonBridgeTests`
 

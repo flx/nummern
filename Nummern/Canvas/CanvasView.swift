@@ -195,6 +195,9 @@ struct TableCanvasItem: View {
                 .frame(width: 10, height: 10)
                 .cornerRadius(2)
                 .padding(4)
+                .onTapGesture(count: 2) {
+                    viewModel.minimizeTable(tableId: table.id)
+                }
                 .gesture(resizeGesture())
         }
         .position(x: CGFloat(centerX), y: CGFloat(centerY))

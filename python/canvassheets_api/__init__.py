@@ -1093,6 +1093,7 @@ class Table:
 
     def __setitem__(self, key: Any, value: Any) -> None:
         row, col = _normalize_table_index(key)
+        self._ensure_body_size(row + 1, col + 1)
         cell_ref = cell_label(row, col)
         if isinstance(value, FormulaExpr):
             self.set_formula(f"body[{cell_ref}]", f"={value.expr}")
@@ -1125,6 +1126,21 @@ class Table:
         self._sync_rect_size()
 
     def set_cells(self, mapping: Dict[str, Any]) -> None:
+        max_row: Optional[int] = None
+        max_col: Optional[int] = None
+        for key in mapping.keys():
+            try:
+                region, start_row, start_col, end_row, end_col = parse_range(key)
+            except RangeParserError:
+                continue
+            if region != "body":
+                continue
+            row = max(start_row, end_row)
+            col = max(start_col, end_col)
+            max_row = row if max_row is None else max(max_row, row)
+            max_col = col if max_col is None else max(max_col, col)
+        if max_row is not None and max_col is not None:
+            self._ensure_body_size(max_row + 1, max_col + 1)
         for key, value in mapping.items():
             self.cell_values[key] = value
 
@@ -1134,6 +1150,13 @@ class Table:
             region, start_row, start_col, _, _ = parse_range(range_str)
         except RangeParserError:
             return
+        if region == "body":
+            value_rows = len(values)
+            value_cols = max((len(row) for row in values), default=0)
+            if value_rows > 0 and value_cols > 0:
+                end_row = start_row + value_rows - 1
+                end_col = start_col + value_cols - 1
+                self._ensure_body_size(end_row + 1, end_col + 1)
         for row_index, row_values in enumerate(values):
             for col_index, value in enumerate(row_values):
                 row = start_row + row_index
@@ -1152,6 +1175,14 @@ class Table:
             self.formulas.pop(target_range, None)
             self.formula_order.pop(target_range, None)
             return
+        try:
+            region, start_row, start_col, end_row, end_col = parse_range(target_range)
+        except RangeParserError:
+            region = None
+        if region == "body":
+            row = max(start_row, end_row)
+            col = max(start_col, end_col)
+            self._ensure_body_size(row + 1, col + 1)
         self.formulas[target_range] = {"formula": formula, "mode": mode}
         self.formula_order[target_range] = _next_formula_order()
 
@@ -1163,12 +1194,63 @@ class Table:
         self.grid_spec.bodyCols += int(count)
         self._sync_rect_size()
 
+    def minimize(self) -> None:
+        max_row: Optional[int] = None
+        max_col: Optional[int] = None
+        for key, value in self.cell_values.items():
+            if value in (None, ""):
+                continue
+            try:
+                region, start_row, start_col, end_row, end_col = parse_range(key)
+            except RangeParserError:
+                continue
+            if region != "body":
+                continue
+            row = max(start_row, end_row)
+            col = max(start_col, end_col)
+            max_row = row if max_row is None else max(max_row, row)
+            max_col = col if max_col is None else max(max_col, col)
+        for key, payload in self.formulas.items():
+            formula = payload.get("formula") if isinstance(payload, dict) else None
+            if not formula or not str(formula).strip():
+                continue
+            try:
+                region, start_row, start_col, end_row, end_col = parse_range(key)
+            except RangeParserError:
+                continue
+            if region != "body":
+                continue
+            row = max(start_row, end_row)
+            col = max(start_col, end_col)
+            max_row = row if max_row is None else max(max_row, row)
+            max_col = col if max_col is None else max(max_col, col)
+        if max_row is None or max_col is None:
+            return
+        target_rows = max(1, max_row + 1)
+        target_cols = max(1, max_col + 1)
+        if target_rows == self.grid_spec.bodyRows and target_cols == self.grid_spec.bodyCols:
+            return
+        self.grid_spec.bodyRows = target_rows
+        self.grid_spec.bodyCols = target_cols
+        self._sync_rect_size()
+
     def _sync_rect_size(self) -> None:
         bands = self.grid_spec.labelBands
         total_cols = bands.leftCols + self.grid_spec.bodyCols + bands.rightCols
         total_rows = bands.topRows + self.grid_spec.bodyRows + bands.bottomRows
         self.rect.width = float(total_cols) * _DEFAULT_CELL_WIDTH
         self.rect.height = float(total_rows) * _DEFAULT_CELL_HEIGHT
+
+    def _ensure_body_size(self, rows: int, cols: int) -> None:
+        changed = False
+        if rows > self.grid_spec.bodyRows:
+            self.grid_spec.bodyRows = int(rows)
+            changed = True
+        if cols > self.grid_spec.bodyCols:
+            self.grid_spec.bodyCols = int(cols)
+            changed = True
+        if changed:
+            self._sync_rect_size()
 
     def _iter_formulas_by_order(self) -> List[Tuple[int, str, Dict[str, Any]]]:
         entries: List[Tuple[int, str, Dict[str, Any]]] = []

@@ -110,3 +110,42 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
         }
     }
 }
+
+extension TableModel {
+    func bodyContentBounds() -> (maxRow: Int, maxCol: Int)? {
+        var maxRow: Int?
+        var maxCol: Int?
+
+        func consider(_ range: RangeAddress) {
+            guard range.region == .body else {
+                return
+            }
+            let row = max(range.start.row, range.end.row)
+            let col = max(range.start.col, range.end.col)
+            maxRow = maxRow.map { max($0, row) } ?? row
+            maxCol = maxCol.map { max($0, col) } ?? col
+        }
+
+        for (key, value) in cellValues {
+            guard value != .empty,
+                  let range = try? RangeParser.parse(key) else {
+                continue
+            }
+            consider(range)
+        }
+
+        for (key, formula) in formulas {
+            let trimmed = formula.formula.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  let range = try? RangeParser.parse(key) else {
+                continue
+            }
+            consider(range)
+        }
+
+        guard let maxRow, let maxCol else {
+            return nil
+        }
+        return (maxRow, maxCol)
+    }
+}
