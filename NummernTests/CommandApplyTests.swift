@@ -25,4 +25,21 @@ final class CommandApplyTests: XCTestCase {
         XCTAssertEqual(project.sheets[0].tables[0].gridSpec.bodyRows, 12)
         XCTAssertEqual(project.sheets[0].tables[0].gridSpec.bodyCols, 4)
     }
+
+    func testSetColumnTypeAppliesToTable() {
+        let table = TableModel(
+            id: "table_1",
+            name: "Table",
+            rect: Rect(x: 0, y: 0, width: 200, height: 120),
+            rows: 4,
+            cols: 3
+        )
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        var project = ProjectModel(sheets: [sheet])
+
+        let command = SetColumnTypeCommand(tableId: "table_1", col: 1, columnType: .currency)
+        command.apply(to: &project)
+
+        XCTAssertEqual(project.sheets[0].tables[0].bodyColumnTypes[1], .currency)
+    }
 }

@@ -5,7 +5,7 @@ This plan is sequenced so every step ships a testable increment. Each step lists
 Testing conventions assumed:
 - Swift: XCTest in the app test target.
 - Python: pytest for the bundled `canvassheets_api` module.
-- After each step, run `python -m pytest -k "formula_sugar or export_numpy"` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`.
+- After each step, run `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`.
 
 ---
 
@@ -161,6 +161,35 @@ Unit tests to add/run:
 - `LabelBandTests.testAdjustLabelBandCounts()`
 - `TypeInferenceTests.testColumnPromotesToStringOnText()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/LabelBandTests`
+
+Status:
+- [x] Completed
+
+---
+
+## Step 6b: Column data types + formatting (Swift + Python)
+
+Deliverable:
+- Add `ColumnDataType` with `number`, `string`, `date`, `time`, `currency`, `percentage`, stored per body column.
+- Add an inspector picker for the selected body column type.
+- Parse body input and clipboard ranges based on the column type; invalid typed input leaves the previous cell value unchanged.
+- Format body display/copy using column type (currency/percent/date/time); label bands remain string values.
+- Log column type changes via a `SetColumnTypeCommand` and Python `set_column_type`.
+- Add Python helpers `date_value`/`time_value`, persist `bodyColumnTypes` in JSON, and normalize column types on resize/minimize/auto-expand.
+- Include `date_value`/`time_value` in default and generated script imports.
+
+Testable increment:
+- Selecting a body column type changes parsing/formatting, and the Python log includes `set_column_type`.
+
+Unit tests to add/run:
+- Swift: `CellValueParsingTests` (date/time/currency/percentage parsing)
+- Swift: `TypeInferenceTests.testExplicitColumnTypeIsNotOverridden()`
+- Swift: `CommandApplyTests.testSetColumnTypeAppliesToTable()`
+- Swift: `CommandSerializationTests.testColumnTypeSerialization()`
+- Swift: `PythonLiteralEncoderTests.testEncodeDateAndTime()`
+- Python: `test_project_api.py::test_date_time_cells_roundtrip`
+- Python: `test_project_api.py::test_set_column_type_updates_table`
+- Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`
 
 Status:
 - [x] Completed

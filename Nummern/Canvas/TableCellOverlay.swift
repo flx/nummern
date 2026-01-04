@@ -169,6 +169,10 @@ struct TableCellOverlay: View {
     private func displayValue(for selection: CellSelection) -> String {
         let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
         if let value = table.cellValues[key], value != .empty {
+            if selection.region == .body {
+                let columnType = columnType(for: selection.col)
+                return CellValue.displayString(value, columnType: columnType)
+            }
             return value.displayString
         }
         if let formula = table.formulas[key]?.formula,
@@ -176,6 +180,13 @@ struct TableCellOverlay: View {
             return formula
         }
         return ""
+    }
+
+    private func columnType(for col: Int) -> ColumnDataType {
+        if table.bodyColumnTypes.indices.contains(col) {
+            return table.bodyColumnTypes[col]
+        }
+        return .number
     }
 
     private func editingValue(for selection: CellSelection) -> String {

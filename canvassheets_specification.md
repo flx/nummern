@@ -126,6 +126,7 @@ Tables are independent objects with:
 - Move table by dragging its frame.
 - Resize table with handles; size always snaps to the grid footprint. Double-click the handle to minimize to the last non-empty body cell (no-op if the table is empty).
 - Add/remove body rows/cols.
+- Set per-body-column data types via the inspector (Number, Text, Date, Time, Currency, Percentage).
 - Adjust label band counts independently (top/left/bottom/right).
 - Direct edit cells.
 - Copy/paste ranges, fill series, drag fill handle.
@@ -241,6 +242,7 @@ v1:
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
 - Consecutive `t = proj.table(...)` + `with table_context(...)` / `with label_context(...)` blocks for the same table should be merged for readability.
 - Body data entry is grouped per table and emitted in a dedicated `with table_context(t):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
+- Column type changes are logged as `set_column_type` calls.
 
 ### 6.2 Canonical Python API (DSL)
 The script should use a stable internal API shipped with the app (a Python module bundled inside the app). Example module: `canvassheets_api`.
@@ -255,6 +257,8 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a0 = c_sum('A0:A9')`).
 - **Formula wrapper**: `formula("A0+B0")` explicitly marks a spreadsheet formula when needed.
 - **Cross-table sugar**: `table_id.A0` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
+- **Typed values**: `date_value("YYYY-MM-DD")` and `time_value("HH:MM:SS")` encode typed dates/times in logs.
+- **Column typing**: `t.set_column_type(col=0, type="currency")` sets a body column type.
 
 ### 6.2.1 Formula helper API (Python)
 Generated formulas should use a small helper surface in `canvassheets_api` to keep scripts readable and evaluatable:
@@ -357,7 +361,29 @@ Provide a Python export target that produces a portable script with two modes:
 
 ## 7. Data model and typing
 
-### 7.1 Table storage model (engine-level)
+### 7.1 Column types (body)
+- Each table stores `bodyColumnTypes` aligned to body columns.
+- Supported types: `number`, `string`, `date`, `time`, `currency`, `percentage`.
+- Default for new columns is `number`.
+- Column type selection is explicit in the inspector and applies per body column.
+
+### 7.2 Parsing + display rules (strict)
+- Body entry is parsed according to the column type:
+  - **number**: numeric parse; `true/false` map to boolean; empty maps to empty.
+  - **string**: store literal text.
+  - **date**: accept `YYYY-MM-DD` plus locale short/medium dates; store a date; display with locale short date.
+  - **time**: accept `HH:mm` or `HH:mm:ss` plus locale short/medium time; store seconds from a reference date; display with locale short time.
+  - **currency**: parse locale currency or decimal; store numeric value; display with locale currency.
+  - **percentage**: parse locale percent or decimal; store fractional numeric (e.g., `10%` -> `0.10`); display with locale percent.
+- Invalid typed input leaves the previous cell value unchanged.
+- Label bands remain string-based (no typing/formatting).
+
+### 7.3 Column type inference (limited)
+- Only used when the current column type is `number` or `string`.
+- A string entry can promote `number` -> `string`.
+- Explicit types (`date`, `time`, `currency`, `percentage`) are never overridden by inference.
+
+### 7.4 Table storage model (engine-level)
 The engine should store table data in a form optimized for vectorized computation:
 
 - **Columnar typed arrays** are preferred.
@@ -369,15 +395,7 @@ The engine should store table data in a form optimized for vectorized computatio
 - Strings:
   - Store as `object` arrays (MVP) or Arrow-backed strings (v1 for performance).
 
-### 7.2 Type inference and coercion
-- On import/paste and on cell entry, infer dtype per column.
-- Coercion rules:
-  - If a column starts numeric and a string appears, either:
-    - Promote column to object, or
-    - Keep numeric and treat invalid entries as missing with an error indicator.
-- The UI must surface type conflicts unobtrusively (e.g., a small warning badge on the column).
-
-### 7.3 Label bands storage
+### 7.5 Label bands storage
 Label bands are separate 2D arrays (or per-band structures) storing:
 - Strings
 - Optional metadata (e.g., semantic role: “column name”, “units”, “category”).
@@ -711,8 +729,8 @@ proj.table("table_1").minimize()
 ## 18. Versioning and compatibility
 - `project.json` schema versioning.
 - Script API versioning:
-  - The `canvassheets_api` module must remain backward compatible across app versions.
-  - If breaking changes are needed, provide a migration step that rewrites script calls.
+  - Backward compatibility is not required during MVP iteration; breaking changes are acceptable (old files may be discarded).
+  - Once stability is needed, add a migration step that rewrites script calls.
 
 ---
 
@@ -778,7 +796,7 @@ A document must be considered correct when:
 ## 11. Build and tooling
 - Generate the Xcode project via XcodeGen (`project.yml`) for reproducibility.
 - Enable generated asset symbol extensions for asset catalogs to align with Xcode recommended settings.
-- After changes, run the Python API tests (`python -m pytest -k "formula_sugar or export_numpy"`) and the macOS test suite (`xcodebuild test -scheme Nummern -destination 'platform=macOS'`).
+- After changes, run the Python API tests (`.venv/bin/python3.14 -m pytest`) and the macOS test suite (`xcodebuild test -scheme Nummern -destination 'platform=macOS'`).
 
 ## Appendix A: Proposed minimal Python API surface
 
@@ -796,6 +814,7 @@ class Table:
     def resize(self, rows: int = None, cols: int = None): ...
     def minimize(self): ...
     def set_labels(self, top=None, left=None, bottom=None, right=None): ...
+    def set_column_type(self, col: int, type: str): ...
     def set_cells(self, mapping: dict): ...
     def set_range(self, range_str: str, values, dtype: str = None): ...
     def set_formula(self, target_range: str, formula: str, mode: str = "spreadsheet"): ...
@@ -814,6 +833,8 @@ def cs_min(*args, **kwargs): ...
 def cs_max(*args, **kwargs): ...
 def cs_if(condition, true_val, false_val): ...
 def formula(text: str): ...
+def date_value(value: str): ...
+def time_value(value: str): ...
 def table_context(table: Table): ...
 def label_context(table: Table, region: str): ...
 def export_numpy_script(project: Project, include_labels: bool = True, include_formulas: bool = False) -> str: ...

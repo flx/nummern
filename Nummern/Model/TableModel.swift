@@ -98,11 +98,15 @@ struct TableModel: CanvasObject, Codable, Equatable, Hashable {
             let missing = col - bodyColumnTypes.count + 1
             bodyColumnTypes.append(contentsOf: Array(repeating: .number, count: missing))
         }
+        let currentType = bodyColumnTypes[col]
+        guard currentType == .number || currentType == .string else {
+            return
+        }
         switch value {
         case .string:
             bodyColumnTypes[col] = .string
-        case .number, .bool:
-            if bodyColumnTypes[col] != .string {
+        case .number, .bool, .date, .time:
+            if currentType != .string {
                 bodyColumnTypes[col] = .number
             }
         case .empty:

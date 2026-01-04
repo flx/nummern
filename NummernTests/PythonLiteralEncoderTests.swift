@@ -16,4 +16,20 @@ final class PythonLiteralEncoderTests: XCTestCase {
         XCTAssertTrue(encoded.contains("\\\\"))
         XCTAssertTrue(encoded.contains("\\'"))
     }
+
+    func testEncodeDateAndTime() {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2024
+        components.month = 1
+        components.day = 15
+        let date = components.date ?? Date(timeIntervalSinceReferenceDate: 0)
+
+        let dateEncoded = PythonLiteralEncoder.encode(.date(date))
+        XCTAssertEqual(dateEncoded, "date_value('2024-01-15')")
+
+        let timeEncoded = PythonLiteralEncoder.encode(.time(3600 + 62))
+        XCTAssertEqual(timeEncoded, "time_value('01:01:02')")
+    }
 }

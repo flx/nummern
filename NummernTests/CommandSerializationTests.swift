@@ -17,4 +17,11 @@ final class CommandSerializationTests: XCTestCase {
 
         XCTAssertEqual(commandA.serializeToPython(), commandB.serializeToPython())
     }
+
+    func testColumnTypeSerialization() {
+        let command = SetColumnTypeCommand(tableId: "table_1", col: 2, columnType: .percentage)
+
+        XCTAssertEqual(command.serializeToPython(),
+                       "proj.table('table_1').set_column_type(col=2, type='percentage')")
+    }
 }

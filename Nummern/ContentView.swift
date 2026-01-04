@@ -67,6 +67,18 @@ struct ContentView: View {
                                           value: labelBandBinding(table: selectedTable, keyPath: \.bottomRows))
                         labelBandStepper(title: "Right Labels",
                                           value: labelBandBinding(table: selectedTable, keyPath: \.rightCols))
+                        if let selection = viewModel.selectedCell,
+                           selection.tableId == selectedTable.id,
+                           selection.region == .body {
+                            let columnLabel = RangeParser.columnLabel(from: selection.col)
+                            Picker("Column Type (\(columnLabel))",
+                                   selection: columnTypeBinding(table: selectedTable, col: selection.col)) {
+                                ForEach(ColumnDataType.allCases, id: \.self) { columnType in
+                                    Text(columnType.displayName).tag(columnType)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
                     }
                     .padding(8)
                     .background(Color(nsColor: .windowBackgroundColor))
@@ -271,6 +283,20 @@ struct ContentView: View {
                 var bands = table.gridSpec.labelBands
                 bands[keyPath: keyPath] = max(0, newValue)
                 viewModel.setLabelBands(tableId: table.id, labelBands: bands)
+            }
+        )
+    }
+
+    private func columnTypeBinding(table: TableModel, col: Int) -> Binding<ColumnDataType> {
+        Binding(
+            get: {
+                if table.bodyColumnTypes.indices.contains(col) {
+                    return table.bodyColumnTypes[col]
+                }
+                return .number
+            },
+            set: { newValue in
+                viewModel.setBodyColumnType(tableId: table.id, col: col, type: newValue)
             }
         )
     }

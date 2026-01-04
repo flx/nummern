@@ -29,7 +29,7 @@ struct ScriptComposer {
         let lines = [
             userMarker,
             "import numpy as np",
-            "from canvassheets_api import Project, Rect, formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not",
+            "from canvassheets_api import Project, Rect, formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, date_value, time_value",
             "",
             logMarker,
         ] + logLines + [
@@ -39,7 +39,7 @@ struct ScriptComposer {
     }
 
     private static func buildLogLines(from trimmedLog: String) -> [String] {
-        var logLines = ["from canvassheets_api import formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not", "proj = Project()", ""]
+        var logLines = ["from canvassheets_api import formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, date_value, time_value", "proj = Project()", ""]
         if !trimmedLog.isEmpty {
             logLines.append(contentsOf: trimmedLog.components(separatedBy: .newlines))
         }

@@ -261,6 +261,43 @@ struct SetLabelBandsCommand: Command {
     }
 }
 
+struct SetColumnTypeCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let tableId: String
+    let col: Int
+    let columnType: ColumnDataType
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         tableId: String,
+         col: Int,
+         columnType: ColumnDataType) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.tableId = tableId
+        self.col = col
+        self.columnType = columnType
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateTable(id: tableId) { table in
+            guard col >= 0, col < table.gridSpec.bodyCols else {
+                return
+            }
+            if table.bodyColumnTypes.count < table.gridSpec.bodyCols {
+                let missing = table.gridSpec.bodyCols - table.bodyColumnTypes.count
+                table.bodyColumnTypes.append(contentsOf: Array(repeating: .number, count: missing))
+            }
+            table.bodyColumnTypes[col] = columnType
+        }
+    }
+
+    func serializeToPython() -> String {
+        "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_column_type(col=\(col), type=\(PythonLiteralEncoder.encodeString(columnType.rawValue)))"
+    }
+}
+
 struct SetCellsCommand: Command {
     let commandId: String
     let timestamp: Date

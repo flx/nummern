@@ -9,6 +9,8 @@ from canvassheets_api import (
     Rect,
     _DEFAULT_CELL_HEIGHT,
     _DEFAULT_CELL_WIDTH,
+    date_value,
+    time_value,
 )
 
 
@@ -123,3 +125,52 @@ def test_minimize_shrinks_table():
 
     assert table.grid_spec.bodyRows == 3
     assert table.grid_spec.bodyCols == 4
+
+
+def test_date_time_cells_roundtrip():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=1,
+        cols=2,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.set_cells({
+        "body[A0]": date_value("2024-01-15"),
+        "body[B0]": time_value("13:45:30"),
+    })
+
+    data = project.to_dict()
+    cell_values = data["sheets"][0]["tables"][0]["cellValues"]
+    assert cell_values["body[A0]"] == {"type": "date", "value": "2024-01-15"}
+    assert cell_values["body[B0]"] == {"type": "time", "value": "13:45:30"}
+
+
+def test_set_column_type_updates_table():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=2,
+        cols=2,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.set_column_type(1, "currency")
+    table.set_column_type(3, "date")
+
+    assert table.grid_spec.bodyCols == 4
+    data = project.to_dict()
+    body_types = data["sheets"][0]["tables"][0]["bodyColumnTypes"]
+    assert body_types[1] == "currency"
+    assert body_types[3] == "date"

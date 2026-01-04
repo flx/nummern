@@ -198,6 +198,17 @@ final class CanvasViewModel: ObservableObject {
             return
         }
 
+        let value: CellValue
+        if region == .body {
+            let columnType = columnTypeForBody(table: table, col: col)
+            guard let parsed = CellValue.fromUserInput(rawValue, columnType: columnType) else {
+                return
+            }
+            value = parsed
+        } else {
+            value = trimmed.isEmpty ? .empty : .string(trimmed)
+        }
+
         if let existingFormula = table.formulas[key],
            !existingFormula.formula.isEmpty {
             apply(SetFormulaCommand(tableId: tableId,
@@ -206,12 +217,6 @@ final class CanvasViewModel: ObservableObject {
                   kind: .cellEdit)
         }
 
-        let value: CellValue
-        if region == .body {
-            value = CellValue.fromUserInput(rawValue)
-        } else {
-            value = trimmed.isEmpty ? .empty : .string(trimmed)
-        }
         let existing = table.cellValues[key] ?? .empty
         if existing == value {
             return
@@ -227,6 +232,14 @@ final class CanvasViewModel: ObservableObject {
         guard let firstRow = values.first, !firstRow.isEmpty else {
             return
         }
+        guard let table = table(withId: tableId) else {
+            return
+        }
+        let normalizedValues = normalizeRangeValues(table: table,
+                                                    region: region,
+                                                    startRow: startRow,
+                                                    startCol: startCol,
+                                                    values: values)
         let endRow = startRow + values.count - 1
         let endCol = startCol + firstRow.count - 1
         let range = RangeParser.rangeString(region: region,
@@ -234,7 +247,7 @@ final class CanvasViewModel: ObservableObject {
                                             startCol: startCol,
                                             endRow: endRow,
                                             endCol: endCol)
-        apply(SetRangeCommand(tableId: tableId, range: range, values: values), kind: .general)
+        apply(SetRangeCommand(tableId: tableId, range: range, values: normalizedValues), kind: .general)
     }
 
     func copySelectionToClipboard() {
@@ -243,7 +256,14 @@ final class CanvasViewModel: ObservableObject {
             return
         }
         let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
-        let text = table.cellValues[key]?.displayString ?? ""
+        let text: String
+        if selection.region == .body {
+            let columnType = columnTypeForBody(table: table, col: selection.col)
+            let value = table.cellValues[key] ?? .empty
+            text = CellValue.displayString(value, columnType: columnType)
+        } else {
+            text = table.cellValues[key]?.displayString ?? ""
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
@@ -382,11 +402,83 @@ final class CanvasViewModel: ObservableObject {
         return nil
     }
 
+    private func columnTypeForBody(table: TableModel, col: Int) -> ColumnDataType {
+        if table.bodyColumnTypes.indices.contains(col) {
+            return table.bodyColumnTypes[col]
+        }
+        return .number
+    }
+
+    private func normalizeRangeValues(table: TableModel,
+                                      region: GridRegion,
+                                      startRow: Int,
+                                      startCol: Int,
+                                      values: [[CellValue]]) -> [[CellValue]] {
+        guard region == .body else {
+            return values.map { row in
+                row.map { value in
+                    switch value {
+                    case .string, .empty:
+                        return value
+                    default:
+                        return .string(value.displayString)
+                    }
+                }
+            }
+        }
+        var normalized: [[CellValue]] = []
+        for (rowOffset, rowValues) in values.enumerated() {
+            var normalizedRow: [CellValue] = []
+            for (colOffset, value) in rowValues.enumerated() {
+                let col = startCol + colOffset
+                let columnType = columnTypeForBody(table: table, col: col)
+                let normalizedValue: CellValue?
+                switch columnType {
+                case .number:
+                    normalizedValue = value
+                case .string:
+                    switch value {
+                    case .string, .empty:
+                        normalizedValue = value
+                    default:
+                        normalizedValue = .string(value.displayString)
+                    }
+                case .currency, .percentage, .date, .time:
+                    switch value {
+                    case .string(let raw):
+                        normalizedValue = CellValue.fromUserInput(raw, columnType: columnType)
+                    case .empty:
+                        normalizedValue = .empty
+                    default:
+                        normalizedValue = value
+                    }
+                }
+
+                if let normalizedValue {
+                    normalizedRow.append(normalizedValue)
+                } else {
+                    let row = startRow + rowOffset
+                    let key = RangeParser.address(region: region, row: row, col: col)
+                    normalizedRow.append(table.cellValues[key] ?? .empty)
+                }
+            }
+            normalized.append(normalizedRow)
+        }
+        return normalized
+    }
+
     func selectedTable() -> TableModel? {
         guard let selectedTableId else {
             return nil
         }
         return table(withId: selectedTableId)
+    }
+
+    func setBodyColumnType(tableId: String, col: Int, type: ColumnDataType) {
+        guard col >= 0 else {
+            return
+        }
+        apply(SetColumnTypeCommand(tableId: tableId, col: col, columnType: type), kind: .general)
     }
 
     private func clearCellSelectionIfInvalid(tableId: String) {

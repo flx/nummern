@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import math
 import re
 from contextlib import contextmanager
@@ -261,6 +262,34 @@ def formula(text: str) -> FormulaExpr:
     if not trimmed:
         raise FormulaError("formula() cannot be empty")
     return FormulaExpr(trimmed)
+
+
+def date_value(value: Any) -> Dict[str, Any]:
+    if isinstance(value, datetime.datetime):
+        value = value.date()
+    if isinstance(value, datetime.date):
+        return {"type": "date", "value": value.isoformat()}
+    if isinstance(value, str):
+        try:
+            parsed = datetime.date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("date_value expects YYYY-MM-DD") from exc
+        return {"type": "date", "value": parsed.isoformat()}
+    return {"type": "date", "value": str(value)}
+
+
+def time_value(value: Any) -> Dict[str, Any]:
+    if isinstance(value, datetime.datetime):
+        value = value.time()
+    if isinstance(value, datetime.time):
+        return {"type": "time", "value": value.strftime("%H:%M:%S")}
+    if isinstance(value, str):
+        try:
+            parsed = datetime.time.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("time_value expects HH:MM or HH:MM:SS") from exc
+        return {"type": "time", "value": parsed.strftime("%H:%M:%S")}
+    return {"type": "time", "value": str(value)}
 
 
 @contextmanager
@@ -731,6 +760,18 @@ def _unwrap_value(value: Any) -> Any:
             return str(value.get("value", ""))
         if value_type == "bool":
             return bool(value.get("value", False))
+        if value_type == "date":
+            raw = str(value.get("value", ""))
+            try:
+                return datetime.date.fromisoformat(raw)
+            except ValueError:
+                return None
+        if value_type == "time":
+            raw = str(value.get("value", ""))
+            try:
+                return datetime.time.fromisoformat(raw)
+            except ValueError:
+                return None
         return None
     return value
 
@@ -991,6 +1032,12 @@ def _cell_value_to_json(value: Any) -> Dict[str, Any]:
         return {"type": "empty"}
     if isinstance(value, (bool, np.bool_)):
         return {"type": "bool", "value": bool(value)}
+    if isinstance(value, datetime.datetime):
+        return {"type": "string", "value": value.isoformat()}
+    if isinstance(value, datetime.date):
+        return {"type": "date", "value": value.isoformat()}
+    if isinstance(value, datetime.time):
+        return {"type": "time", "value": value.strftime("%H:%M:%S")}
     if isinstance(value, (int, float, np.number)):
         return {"type": "number", "value": float(value)}
     return {"type": "string", "value": str(value)}
@@ -1068,6 +1115,7 @@ class Table:
     name: str
     rect: Rect
     grid_spec: GridSpec
+    body_column_types: List[str] = field(default_factory=list)
     cell_values: Dict[str, Any] = field(default_factory=dict)
     range_values: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     formulas: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -1075,6 +1123,17 @@ class Table:
     label_band_values: Dict[str, Dict[str, List[str]]] = field(
         default_factory=lambda: {"top": {}, "bottom": {}, "left": {}, "right": {}}
     )
+
+    def __post_init__(self) -> None:
+        self._normalize_column_types()
+
+    def _normalize_column_types(self) -> None:
+        target = int(self.grid_spec.bodyCols)
+        if len(self.body_column_types) < target:
+            missing = target - len(self.body_column_types)
+            self.body_column_types.extend(["number"] * missing)
+        elif len(self.body_column_types) > target:
+            self.body_column_types = self.body_column_types[:target]
 
     def __getattr__(self, name: str) -> Any:
         if _FORMULA_CELL_RE.match(name):
@@ -1111,6 +1170,7 @@ class Table:
             self.grid_spec.bodyRows = int(rows)
         if cols is not None:
             self.grid_spec.bodyCols = int(cols)
+        self._normalize_column_types()
         self._sync_rect_size()
 
     def set_labels(self, top: Optional[int] = None, left: Optional[int] = None,
@@ -1124,6 +1184,16 @@ class Table:
         if right is not None:
             self.grid_spec.labelBands.rightCols = int(right)
         self._sync_rect_size()
+
+    def set_column_type(self, col: int, type: str) -> None:
+        index = int(col)
+        if index < 0:
+            raise ValueError("Column index must be non-negative")
+        if index >= self.grid_spec.bodyCols:
+            self._ensure_body_size(self.grid_spec.bodyRows, index + 1)
+        self._normalize_column_types()
+        if index < len(self.body_column_types):
+            self.body_column_types[index] = str(type)
 
     def set_cells(self, mapping: Dict[str, Any]) -> None:
         max_row: Optional[int] = None
@@ -1192,6 +1262,7 @@ class Table:
 
     def insert_cols(self, at: int, count: int) -> None:
         self.grid_spec.bodyCols += int(count)
+        self._normalize_column_types()
         self._sync_rect_size()
 
     def minimize(self) -> None:
@@ -1232,6 +1303,7 @@ class Table:
             return
         self.grid_spec.bodyRows = target_rows
         self.grid_spec.bodyCols = target_cols
+        self._normalize_column_types()
         self._sync_rect_size()
 
     def _sync_rect_size(self) -> None:
@@ -1249,6 +1321,8 @@ class Table:
         if cols > self.grid_spec.bodyCols:
             self.grid_spec.bodyCols = int(cols)
             changed = True
+        if changed:
+            self._normalize_column_types()
         if changed:
             self._sync_rect_size()
 
@@ -1333,6 +1407,7 @@ class Table:
             "name": self.name,
             "rect": self.rect.to_dict(),
             "gridSpec": self.grid_spec.to_dict(),
+            "bodyColumnTypes": list(self.body_column_types),
             "cellValues": self._encode_cell_values(),
             "rangeValues": self._encode_range_values(),
             "formulas": self.formulas,
@@ -1746,6 +1821,10 @@ def _emit_export_helpers(include_labels: bool, include_formulas: bool) -> List[s
         "            return str(value.get('value', ''))",
         "        if value_type == 'bool':",
         "            return bool(value.get('value', False))",
+        "        if value_type == 'date':",
+        "            return str(value.get('value', ''))",
+        "        if value_type == 'time':",
+        "            return str(value.get('value', ''))",
         "        return None",
         "    np_generic = getattr(np, 'generic', None)",
         "    if np_generic is not None and isinstance(value, np_generic):",
@@ -1821,6 +1900,12 @@ def _collect_region_values(table: Table, region: str, rows: int, cols: int) -> L
 
 def _normalize_export_value(value: Any) -> Any:
     value = _unwrap_value(value)
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    if isinstance(value, datetime.time):
+        return value.strftime("%H:%M:%S")
     np_generic = getattr(np, "generic", None)
     if np_generic is not None and isinstance(value, np_generic):
         return value.item()
@@ -1895,6 +1980,8 @@ __all__ = [
     "table_context",
     "label_context",
     "formula",
+    "date_value",
+    "time_value",
     "c_range",
     "c_sum",
     "c_avg",

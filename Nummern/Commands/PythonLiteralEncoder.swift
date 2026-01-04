@@ -9,6 +9,13 @@ struct PythonLiteralEncoder {
             return encodeNumber(number)
         case .bool(let bool):
             return bool ? "True" : "False"
+        case .date(let date):
+            let formatted = dateFormatter.string(from: date)
+            return "date_value(\(encodeString(formatted)))"
+        case .time(let seconds):
+            let date = referenceDate.addingTimeInterval(seconds)
+            let formatted = timeFormatter.string(from: date)
+            return "time_value(\(encodeString(formatted)))"
         case .empty:
             return "None"
         }
@@ -75,4 +82,22 @@ struct PythonLiteralEncoder {
     static func encodeLabels(_ labels: LabelBands) -> String {
         "dict(top=\(labels.topRows), left=\(labels.leftCols), bottom=\(labels.bottomRows), right=\(labels.rightCols))"
     }
+
+    private static let referenceDate = Date(timeIntervalSinceReferenceDate: 0)
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
 }
