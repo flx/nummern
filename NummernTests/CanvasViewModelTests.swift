@@ -80,6 +80,28 @@ final class CanvasViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.pythonLog.contains("minimize()"))
     }
 
+    func testLoadNormalizesRectToGrid() {
+        let labels = LabelBands(topRows: 1, bottomRows: 0, leftCols: 1, rightCols: 0)
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 100, height: 80),
+                               rows: 4,
+                               cols: 3,
+                               labelBands: labels)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel())
+
+        viewModel.load(project: ProjectModel(sheets: [sheet]), historyJSON: nil)
+
+        let updatedTable = viewModel.project.sheets[0].tables[0]
+        let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                       bodyRows: 4,
+                                       bodyCols: 3,
+                                       labelBands: labels)
+        XCTAssertEqual(updatedTable.rect.width, Double(metrics.totalWidth))
+        XCTAssertEqual(updatedTable.rect.height, Double(metrics.totalHeight))
+    }
+
     func testReducingLabelBandsClearsInvalidSelection() {
         let labels = LabelBands(topRows: 2, bottomRows: 0, leftCols: 1, rightCols: 0)
         let table = TableModel(id: "table_1",

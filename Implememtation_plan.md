@@ -112,6 +112,7 @@ Unit tests to add/run:
 - `CanvasViewModelTests.testMoveTableUpdatesModelAndLogsCommand()`
 - `CanvasViewModelTests.testResizeTableUpdatesRect()`
 - `CanvasViewModelTests.testMinimizeTableShrinksToContent()`
+- `CanvasViewModelTests.testLoadNormalizesRectToGrid()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/CanvasViewModelTests`
 
 Status:

@@ -23,7 +23,7 @@ final class CanvasViewModel: ObservableObject {
     private let cellSize = CanvasGridSizing.cellSize
 
     init(project: ProjectModel = ProjectModel(), historyJSON: String? = nil) {
-        self.project = project
+        self.project = Self.normalizeTableRects(project)
         self.pythonLog = ""
         self.historyJSON = ""
         self.selectedTableId = nil
@@ -38,7 +38,7 @@ final class CanvasViewModel: ObservableObject {
     func load(project: ProjectModel, historyJSON: String?) {
         transactionManager.reset()
         seedCommands = decodeHistoryCommands(from: historyJSON)
-        self.project = project
+        self.project = Self.normalizeTableRects(project)
         selectedTableId = nil
         selectedCell = nil
         formulaHighlightState = nil
@@ -327,6 +327,29 @@ final class CanvasViewModel: ObservableObject {
                                        bodyCols: cols,
                                        labelBands: labelBands)
         return CGSize(width: metrics.totalWidth, height: metrics.totalHeight)
+    }
+
+    private static func normalizeTableRects(_ project: ProjectModel) -> ProjectModel {
+        var updated = project
+        for sheetIndex in updated.sheets.indices {
+            for tableIndex in updated.sheets[sheetIndex].tables.indices {
+                let table = updated.sheets[sheetIndex].tables[tableIndex]
+                let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
+                                               bodyRows: table.gridSpec.bodyRows,
+                                               bodyCols: table.gridSpec.bodyCols,
+                                               labelBands: table.gridSpec.labelBands)
+                let targetWidth = Double(metrics.totalWidth)
+                let targetHeight = Double(metrics.totalHeight)
+                guard table.rect.width != targetWidth || table.rect.height != targetHeight else {
+                    continue
+                }
+                updated.sheets[sheetIndex].tables[tableIndex].rect = Rect(x: table.rect.x,
+                                                                          y: table.rect.y,
+                                                                          width: targetWidth,
+                                                                          height: targetHeight)
+            }
+        }
+        return updated
     }
 
     private func syncTableRect(tableId: String) {

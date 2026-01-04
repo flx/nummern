@@ -137,6 +137,7 @@ Tables are independent objects with:
 - Drag-resize adds/removes body rows/cols as the bounds cross cell thresholds and snaps on release.
 - Resizing keeps the top-left corner fixed; the bottom-right handle controls growth/shrink.
 - Programmatic writes beyond the current grid (e.g., `t[100, 100] = 1`) auto-expand the body size to include the cell.
+- When loading/running scripts, table rectangles are normalized to the grid size (width/height derived from rows/cols + label bands).
 - Scripted creation uses `x`/`y` plus grid size (width/height derived from rows/cols and label bands).
 
 ### 5.4 Cell and range addressing
