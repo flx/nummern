@@ -255,9 +255,9 @@ Deliverable:
 - Support cell-level formulas and range formulas with relative reference expansion.
 - Generate Python formula expressions after data writes during script generation.
 - Log body edits in `table_context` blocks; label-band value edits in `label_context` blocks; label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = c_sum('a0:a9')`).
-- Collapse consecutive `t = proj.table(...)` + context blocks into a single block for readability.
+- Collapse consecutive `with table_context(table_id)` / `with label_context(table_id, ...)` blocks into a single block for readability.
 - Hoist body data edits into a dedicated `table_context` block immediately after each `add_table` call, while leaving formula blocks append-only in chronological order.
-- Inline cross-table cell references in formulas using `table_id.A0` sugar, with `table_id = proj.table("table_id")` aliases emitted after each `add_table`.
+- Inline cross-table cell references in formulas using `table_id.A0` sugar, with `table_id = proj.add_table(...)` assignments emitted after each `add_table`.
 - Accept dot-prefixed cross-table references (`table_id.A0`, `table_id.top_labels[A0]`) in spreadsheet formulas and highlight/insert them in the editor.
 - Evaluate formulas once in global log order (recorded at set time) across tables so dependencies match script order.
 
@@ -317,7 +317,7 @@ Deliverable:
 - Implement error mapping to line numbers and console display.
 - MVP update: event log is no longer a separate UI panel; Python log output is sent to the developer console.
 - When running a script, parse the generated log section and store it as command history so subsequent edits append to the script that was just run.
-- Strip table alias lines (`table_id = proj.table(...)`) when rebuilding history from the generated region to prevent duplicate aliases.
+- Strip legacy table alias lines (`table_id = proj.table(...)`) when rebuilding history from the generated region to prevent duplicate aliases.
 - Alias stripping should tolerate formatting differences (spaces around `=`).
 
 Testable increment:

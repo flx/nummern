@@ -180,7 +180,7 @@ Support two formula modes:
 - Full script rerun recomputes all formulas; no Swift-side dependency graph in MVP.
 - The Python engine evaluates formulas once in global log order (recorded when formulas are set), so cross-table dependencies must be ordered explicitly in the script.
 - Prefer vectorized evaluation over per-cell loops when a formula targets a range.
-- Generated script groups body edits under `with table_context(t):` blocks; label-band value edits use `with label_context(t, "..."):` while label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = ...`). Simple formulas are logged as Python expressions (e.g., `b0 = a0 + a1`); complex formulas fall back to `formula("...")`.
+- Generated script groups body edits under `with table_context(table_id):` blocks; label-band value edits use `with label_context(table_id, "..."):` while label-band formulas use region proxies inside `table_context` (e.g., `top_labels.a0 = ...`). Simple formulas are logged as Python expressions (e.g., `b0 = a0 + a1`); complex formulas fall back to `formula("...")`.
 
 #### 5.5.4 Recalculation model (future optimization)
 - Maintain a dependency graph per table and across tables.
@@ -240,8 +240,8 @@ v1:
   - Example: typing “123” logs one `set_cells(...)` at commit, not three.
 - Each command is deterministic and order-dependent.
 - There should be grouping of manual input. If someone fills a table with lots of data, one cell after the other, this should be consolidated in a command that fills all these together
-- Consecutive `t = proj.table(...)` + `with table_context(...)` / `with label_context(...)` blocks for the same table should be merged for readability.
-- Body data entry is grouped per table and emitted in a dedicated `with table_context(t):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
+- Consecutive `with table_context(table_id)` / `with label_context(table_id, ...)` blocks for the same table should be merged for readability.
+- Body data entry is grouped per table and emitted in a dedicated `with table_context(table_id):` block placed immediately after the corresponding `add_table` call. Formula blocks remain append-only in chronological order so formulas always run after data blocks.
 - Column type changes are logged as `set_column_type` calls.
 
 ### 6.2 Canonical Python API (DSL)
@@ -257,7 +257,7 @@ The script should use a stable internal API shipped with the app (a Python modul
 - **Direct assignment**: `table_id.a0 = 1` (or `table_id.a0 = table_2.b0 + 1`) is supported outside `table_context` and writes a value/formula to the body cell.
 - **Label formula sugar**: inside `table_context`, label-band proxies (`top_labels`, `left_labels`, `bottom_labels`, `right_labels`) accept cell assignments (e.g., `top_labels.a0 = c_sum('A0:A9')`).
 - **Formula wrapper**: `formula("A0+B0")` explicitly marks a spreadsheet formula when needed.
-- **Cross-table sugar**: `table_id.A0` is the standard spreadsheet reference. The log inserts `table_id = proj.table("table_id")` after each `add_table` to enable dot syntax.
+- **Cross-table sugar**: `table_id.A0` is the standard spreadsheet reference. The log assigns the `add_table` result to a variable named `table_id` to enable dot syntax.
 - **Typed values**: `date_value("YYYY-MM-DD")` and `time_value("HH:MM:SS")` encode typed dates/times in logs.
 - **Column typing**: `t.set_column_type(col=0, type="currency")` sets a body column type.
 
@@ -289,20 +289,20 @@ import numpy as np
 from canvassheets_api import Project, Rect, cell, rng, set_col, set_range, c_sum, table_context, label_context
 
 def make_revenue_table(proj, sheet_id, x, y):
-    t = proj.add_table(sheet_id, table_id="table_1",
-                       name="table_1", x=x, y=y,
-                       rows=20, cols=6,
-                       labels=dict(top=1, left=1, bottom=0, right=0))
-    with label_context(t, "top_labels"):
+    table_1 = proj.add_table(sheet_id, table_id="table_1",
+                             name="table_1", x=x, y=y,
+                             rows=20, cols=6,
+                             labels=dict(top=1, left=1, bottom=0, right=0))
+    with label_context(table_1, "top_labels"):
         b0 = "Q1"
         c0 = "Q2"
         d0 = "Q3"
         e0 = "Q4"
         f0 = "Total"
-    set_range(t, "body[B0:E19]", 0.0, dtype="float64")
-    with table_context(t):
+    set_range(table_1, "body[B0:E19]", 0.0, dtype="float64")
+    with table_context(table_1):
         f0 = c_sum("B0:E0")
-    return t
+    return table_1
 
 # ---- Auto-generated log (append-only) --------------------------------
 proj = Project()
@@ -310,21 +310,18 @@ proj = Project()
 sheet1 = proj.add_sheet("Tab1", sheet_id="sheet_1")
 make_revenue_table(proj, "sheet_1", x=120, y=120)
 
-proj.add_table("sheet_1", table_id="table_2", name="table_2",
-               x=700, y=120,
-               rows=12, cols=4,
-               labels=dict(top=1, left=1, bottom=0, right=0))
+table_2 = proj.add_table("sheet_1", table_id="table_2", name="table_2",
+                         x=700, y=120,
+                         rows=12, cols=4,
+                         labels=dict(top=1, left=1, bottom=0, right=0))
 
-t2 = proj.table("table_2")
-with label_context(t2, "left_labels"):
+with label_context(table_2, "left_labels"):
     a0 = "Tax rate"
-with table_context(t2):
+with table_context(table_2):
     b0 = 0.08
 
-t1 = proj.table("table_1")
-inputs = proj.table("table_2")
-set_range(t1, "body[B0:E19]",
-    rng(t1, "B0:E19") * (1 + cell(inputs, "B0"))  # example cross-table ref
+set_range(table_1, "body[B0:E19]",
+    rng(table_1, "B0:E19") * (1 + cell(table_2, "B0"))  # example cross-table ref
 )
 ```
 
@@ -340,7 +337,7 @@ To enable user refactoring while keeping generated output reliable, the script s
 - Generated output is ordered: data writes first, then formula application.
 - Marker lines tolerate trailing whitespace; if the marker is missing or edited, preserve the entire existing script as the user region and append the marker + generated log instead of resetting.
 - On “Run Script”, parse the generated region and store its command lines as the new history so future edits append to the script the user just ran.
-- When rebuilding history from the generated region, drop table alias lines (`table_id = proj.table(...)`) to avoid duplicate aliases on subsequent log normalization.
+- When rebuilding history from the generated region, drop legacy alias lines (`table_id = proj.table(...)`) to avoid duplicate aliases on subsequent log normalization.
 - Alias stripping should be whitespace-tolerant (e.g., `table_1=proj.table('table_1')`).
 
 **Optional enhancement:** Store the command log internally as JSON and generate Python from it, but still ship the Python text. This improves safety (you can regenerate) while satisfying the “inspectable script” requirement.
@@ -657,9 +654,9 @@ Command:
 
 Python:
 ```python
-proj.add_table("sheet_1", table_id="table_1",
-               name="table_1", x=100, y=100,
-               rows=10, cols=6, labels=dict(top=1,left=1,bottom=0,right=0))
+table_1 = proj.add_table("sheet_1", table_id="table_1",
+                         name="table_1", x=100, y=100,
+                         rows=10, cols=6, labels=dict(top=1,left=1,bottom=0,right=0))
 ```
 
 ### 15.2 Edit cells
@@ -677,8 +674,7 @@ UI action:
 
 Python:
 ```python
-t = proj.table("table_1")
-with table_context(t):
+with table_context(table_1):
     f0 = formula("SUM(B0:E0)")
 ```
 

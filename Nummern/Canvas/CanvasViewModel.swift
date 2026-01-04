@@ -544,38 +544,32 @@ enum PythonLogNormalizer {
                 }
                 outputBlocks.append(.line(line))
             case .context(let context):
-                if context.type == .table {
+                if case .table = context.context {
                     let split = partitionAssignments(context.assignments)
                     if !split.data.isEmpty {
                         dataEntriesByTable[context.tableId, default: []].append(contentsOf: split.data.map { .assignment($0) })
                     }
                     if !split.formula.isEmpty {
                         outputBlocks.append(.context(ContextBlock(tableId: context.tableId,
-                                                                  contextLine: context.contextLine,
+                                                                  context: .table,
                                                                   assignments: split.formula,
-                                                                  purpose: .formula,
-                                                                  type: context.type)))
+                                                                  purpose: .formula)))
                     }
                     continue
                 }
                 outputBlocks.append(.context(ContextBlock(tableId: context.tableId,
-                                                          contextLine: context.contextLine,
+                                                          context: context.context,
                                                           assignments: context.assignments,
-                                                          purpose: .label,
-                                                          type: context.type)))
+                                                          purpose: .label)))
             }
         }
 
         var finalBlocks: [Block] = []
         var insertedTables = Set<String>()
-        var insertedAliases = Set<String>()
         for block in outputBlocks {
             if case .line(let line) = block, let tableId = addTableId(from: line) {
-                append(block, to: &finalBlocks)
-                if !insertedAliases.contains(tableId) {
-                    append(.line(tableAliasLine(for: tableId)), to: &finalBlocks)
-                    insertedAliases.insert(tableId)
-                }
+                let normalizedLine = normalizeAddTableLine(line, tableId: tableId)
+                append(.line(normalizedLine), to: &finalBlocks)
                 if let dataBlock = dataBlock(for: tableId, entries: dataEntriesByTable[tableId]) {
                     append(dataBlock, to: &finalBlocks)
                     insertedTables.insert(tableId)
@@ -597,8 +591,7 @@ enum PythonLogNormalizer {
             case .line(let line):
                 outputLines.append(line)
             case .context(let context):
-                outputLines.append("t = proj.table(\(PythonLiteralEncoder.encodeString(context.tableId)))")
-                outputLines.append(context.contextLine)
+                outputLines.append(contextLine(for: context))
                 for assignment in context.assignments {
                     outputLines.append("    \(assignment)")
                 }
@@ -606,11 +599,6 @@ enum PythonLogNormalizer {
         }
 
         return outputLines.joined(separator: "\n")
-    }
-
-    private enum ContextType {
-        case table
-        case label
     }
 
     private enum ContextPurpose: Equatable {
@@ -626,10 +614,9 @@ enum PythonLogNormalizer {
 
     private struct ContextBlock: Equatable {
         let tableId: String
-        let contextLine: String
+        let context: ContextKind
         let assignments: [String]
         let purpose: ContextPurpose
-        let type: ContextType
     }
 
     private enum Block: Equatable {
@@ -637,34 +624,55 @@ enum PythonLogNormalizer {
         case context(ContextBlock)
     }
 
+    private enum ContextKind: Equatable {
+        case table
+        case label(String)
+    }
+
     private static func parseBlocks(from lines: [String]) -> [Block] {
         var blocks: [Block] = []
         var index = 0
         var currentTableId: String?
+        var aliasToTableId: [String: String] = [:]
 
         while index < lines.count {
             let line = lines[index]
-            if let tableId = tableId(fromTableLine: line) {
-                currentTableId = tableId
-                if index + 1 < lines.count, let context = contextType(from: lines[index + 1]) {
-                    let contextLine = lines[index + 1]
+            if let aliasMapping = tableAliasMapping(from: line) {
+                aliasToTableId[aliasMapping.alias] = aliasMapping.tableId
+                currentTableId = aliasMapping.tableId
+                if index + 1 < lines.count,
+                   let contextKind = contextKind(from: lines[index + 1]),
+                   let contextTableId = contextTableId(from: lines[index + 1],
+                                                      aliasToTableId: aliasToTableId,
+                                                      fallback: aliasMapping.tableId) {
                     var assignments: [String] = []
                     var cursor = index + 2
                     while cursor < lines.count, isIndented(lines[cursor]) {
                         assignments.append(stripIndent(lines[cursor]))
                         cursor += 1
                     }
-                    blocks.append(.context(ContextBlock(tableId: tableId,
-                                                        contextLine: contextLine,
+                    blocks.append(.context(ContextBlock(tableId: contextTableId,
+                                                        context: contextKind,
                                                         assignments: assignments,
-                                                        purpose: .formula,
-                                                        type: context)))
+                                                        purpose: .formula)))
                     index = cursor
                     continue
                 }
             }
 
-            if let context = contextType(from: line), let tableId = currentTableId {
+            if let tableId = tableId(fromTableLine: line) {
+                currentTableId = tableId
+            }
+
+            if let tableId = addTableId(from: line) {
+                currentTableId = tableId
+                aliasToTableId[tableId] = tableId
+            }
+
+            if let contextKind = contextKind(from: line),
+               let tableId = contextTableId(from: line,
+                                            aliasToTableId: aliasToTableId,
+                                            fallback: currentTableId) {
                 var assignments: [String] = []
                 var cursor = index + 1
                 while cursor < lines.count, isIndented(lines[cursor]) {
@@ -672,16 +680,11 @@ enum PythonLogNormalizer {
                     cursor += 1
                 }
                 blocks.append(.context(ContextBlock(tableId: tableId,
-                                                    contextLine: line,
+                                                    context: contextKind,
                                                     assignments: assignments,
-                                                    purpose: .formula,
-                                                    type: context)))
+                                                    purpose: .formula)))
                 index = cursor
                 continue
-            }
-
-            if let tableId = tableId(fromTableLine: line) {
-                currentTableId = tableId
             }
 
             blocks.append(.line(line))
@@ -705,40 +708,53 @@ enum PythonLogNormalizer {
             }
         }
         return .context(ContextBlock(tableId: tableId,
-                                     contextLine: "with table_context(t):",
+                                     context: .table,
                                      assignments: assignments,
-                                     purpose: .data,
-                                     type: .table))
+                                     purpose: .data))
     }
 
-    private static func tableAliasLine(for tableId: String) -> String {
-        "\(tableId) = proj.table(\(PythonLiteralEncoder.encodeString(tableId)))"
+    private static func normalizeAddTableLine(_ line: String, tableId: String) -> String {
+        if assignmentAlias(from: line, call: "proj.add_table(") != nil {
+            return line
+        }
+        return "\(tableId) = \(line)"
     }
 
     private static func append(_ block: Block, to blocks: inout [Block]) {
         if case .context(let incoming) = block,
            case .context(let last) = blocks.last,
            last.tableId == incoming.tableId,
-           last.contextLine == incoming.contextLine,
+           last.context == incoming.context,
            last.purpose == incoming.purpose {
             let mergedAssignments = last.assignments + incoming.assignments
             let merged = ContextBlock(tableId: last.tableId,
-                                      contextLine: last.contextLine,
+                                      context: last.context,
                                       assignments: mergedAssignments,
-                                      purpose: last.purpose,
-                                      type: last.type)
+                                      purpose: last.purpose)
             blocks[blocks.count - 1] = .context(merged)
             return
         }
         blocks.append(block)
     }
 
-    private static func contextType(from line: String) -> ContextType? {
-        if line.hasPrefix("with table_context(t):") {
+    private static func contextLine(for context: ContextBlock) -> String {
+        switch context.context {
+        case .table:
+            return "with table_context(\(context.tableId)):"
+        case .label(let region):
+            let encodedRegion = PythonLiteralEncoder.encodeString(region)
+            return "with label_context(\(context.tableId), \(encodedRegion)):"
+        }
+    }
+
+    private static func contextKind(from line: String) -> ContextKind? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("with table_context(") {
             return .table
         }
-        if line.hasPrefix("with label_context(t,") {
-            return .label
+        if trimmed.hasPrefix("with label_context("),
+           let region = labelRegion(from: trimmed) {
+            return .label(region)
         }
         return nil
     }
@@ -795,14 +811,15 @@ enum PythonLogNormalizer {
     }
 
     private static func tableId(fromTableLine line: String) -> String? {
-        guard line.hasPrefix("t = proj.table(") else {
+        guard let open = line.range(of: "proj.table(") else {
             return nil
         }
-        return extractQuotedValue(from: line, prefix: "t = proj.table(")
+        let segment = line[open.upperBound...]
+        return extractQuotedValue(from: String(segment), prefix: "")
     }
 
     private static func addTableId(from line: String) -> String? {
-        guard line.hasPrefix("proj.add_table(") else {
+        guard line.contains("proj.add_table(") else {
             return nil
         }
         return extractParameterValue(from: line, name: "table_id")
@@ -871,5 +888,72 @@ enum PythonLogNormalizer {
             return nil
         }
         return String(trimmed[afterQuote..<secondQuoteIndex])
+    }
+
+    private static func tableAliasMapping(from line: String) -> (alias: String, tableId: String)? {
+        if let alias = assignmentAlias(from: line, call: "proj.table("),
+           let tableId = tableId(fromTableLine: line) {
+            return (alias: alias, tableId: tableId)
+        }
+        if let alias = assignmentAlias(from: line, call: "proj.add_table(") {
+            let tableId = extractParameterValue(from: line, name: "table_id") ?? alias
+            return (alias: alias, tableId: tableId)
+        }
+        return nil
+    }
+
+    private static func assignmentAlias(from line: String, call: String) -> String? {
+        let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)
+        guard parts.count == 2 else {
+            return nil
+        }
+        let lhs = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rhs.hasPrefix(call), !lhs.isEmpty else {
+            return nil
+        }
+        return lhs
+    }
+
+    private static func contextTableId(from line: String,
+                                       aliasToTableId: [String: String],
+                                       fallback: String?) -> String? {
+        guard let alias = contextAlias(from: line) else {
+            return fallback
+        }
+        return aliasToTableId[alias] ?? alias
+    }
+
+    private static func contextAlias(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("with table_context(") {
+            return extractContextArgument(from: trimmed)
+        }
+        if trimmed.hasPrefix("with label_context(") {
+            return extractContextArgument(from: trimmed)
+        }
+        return nil
+    }
+
+    private static func extractContextArgument(from line: String) -> String? {
+        guard let open = line.firstIndex(of: "(") else {
+            return nil
+        }
+        let afterOpen = line.index(after: open)
+        let remainder = line[afterOpen...]
+        let endIndex = remainder.firstIndex(of: ",") ?? remainder.firstIndex(of: ")") ?? line.endIndex
+        let value = remainder[..<endIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
+    private static func labelRegion(from line: String) -> String? {
+        guard let comma = line.firstIndex(of: ",") else {
+            return nil
+        }
+        let afterComma = line[line.index(after: comma)...]
+        return extractQuotedValue(from: String(afterComma), prefix: "")
     }
 }
