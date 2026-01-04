@@ -386,7 +386,9 @@ Status:
 Deliverable:
 - Implement CSV import into a new table with dtype inference.
 - Implement CSV export from a selected table.
-- Integrate clipboard copy/paste with CSV semantics.
+- Integrate clipboard copy/paste with CSV semantics (CSV parse when no tab delimiter).
+- CSV import creates a new table with no label bands and applies inferred column types before inserting values.
+- CSV export uses body content bounds (last non-empty cell) to size the CSV output.
 
 Testable increment:
 - Import a CSV into a table and export back with matching content.
@@ -395,6 +397,9 @@ Unit tests to add/run:
 - `CSVImportTests.testInferTypesOnImport()`
 - `CSVExportTests.testExportMatchesSource()`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/CSVImportTests`
+
+Status:
+- [x] Completed
 
 ---
 

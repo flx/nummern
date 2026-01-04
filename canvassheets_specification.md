@@ -215,8 +215,9 @@ MVP can ship without full pivots, but v1 should include at least:
 ### 5.7 Import/export
 MVP:
 - Import CSV/TSV into a new table.
-- Export table to CSV.
-- Copy/paste from/to system clipboard.
+- Import creates a new table with no label bands and uses column-wise type inference (date/time/number/string, plus currency/percentage when symbols are present).
+- Export table to CSV using body cells up to the last non-empty row/column.
+- Copy/paste from/to system clipboard, accepting CSV when no tab delimiters are present.
 - Export a standalone NumPy script of the current project.
 
 v1:

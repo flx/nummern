@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var pythonRunError: String?
     @State private var isRunningScript = false
     @State private var isExporting = false
+    @State private var isImportingCSV = false
+    @State private var isExportingCSV = false
     @State private var autoRunWorkItem: DispatchWorkItem?
     @State private var pendingAutoRun = false
     @State private var didAppear = false
@@ -133,6 +135,12 @@ struct ContentView: View {
                     Label("Add Table", systemImage: "tablecells")
                 }
                 Button {
+                    importCSV()
+                } label: {
+                    Label("Import CSV", systemImage: "square.and.arrow.down")
+                }
+                .disabled(isRunningScript || isImportingCSV)
+                Button {
                     runScript()
                 } label: {
                     Label("Run All", systemImage: "play.circle")
@@ -159,6 +167,12 @@ struct ContentView: View {
                     Label("Export NumPy", systemImage: "square.and.arrow.up")
                 }
                 .disabled(isRunningScript || isExporting)
+                Button {
+                    exportCSV()
+                } label: {
+                    Label("Export CSV", systemImage: "square.and.arrow.up.on.square")
+                }
+                .disabled(isRunningScript || isExportingCSV || viewModel.selectedTable() == nil)
             }
         }
         .onChange(of: viewModel.project) { _, newValue in
@@ -282,6 +296,76 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func importCSV() {
+        guard !isImportingCSV else {
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else {
+                return
+            }
+            isImportingCSV = true
+            do {
+                let text = try String(contentsOf: url, encoding: .utf8)
+                guard let tableImport = CSVTableImporter.parse(text) else {
+                    isImportingCSV = false
+                    return
+                }
+                let sheetId = selectedSheetId ?? viewModel.project.sheets.first?.id ?? viewModel.addSheet().id
+                let rows = max(CanvasGridSizing.minBodyRows, tableImport.values.count)
+                let cols = max(CanvasGridSizing.minBodyCols, tableImport.columnTypes.count)
+                if let table = viewModel.addTable(toSheetId: sheetId,
+                                                  rows: rows,
+                                                  cols: cols,
+                                                  labels: .zero) {
+                    for (index, columnType) in tableImport.columnTypes.enumerated() {
+                        viewModel.setBodyColumnType(tableId: table.id, col: index, type: columnType)
+                    }
+                    viewModel.setRange(tableId: table.id,
+                                       region: .body,
+                                       startRow: 0,
+                                       startCol: 0,
+                                       values: tableImport.values)
+                    viewModel.selectTable(table.id)
+                }
+                isImportingCSV = false
+            } catch {
+                pythonRunError = error.localizedDescription
+                isImportingCSV = false
+            }
+        }
+    }
+
+    private func exportCSV() {
+        guard !isExportingCSV,
+              let table = viewModel.selectedTable() else {
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText]
+        panel.nameFieldStringValue = "\(table.id).csv"
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else {
+                return
+            }
+            isExportingCSV = true
+            let csv = CSVTableExporter.export(table: table)
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+                print("Exported CSV to \(url.path)")
+            } catch {
+                pythonRunError = error.localizedDescription
+            }
+            isExportingCSV = false
         }
     }
 
