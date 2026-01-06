@@ -37,4 +37,26 @@ final class FormulaSerializationTests: XCTestCase {
         XCTAssertTrue(python.contains("with table_context(t):"))
         XCTAssertTrue(python.contains("top_labels.a0 = c_sum('a0:a9')"))
     }
+
+    func testPmtFormulaUsesHelper() {
+        let command = SetFormulaCommand(
+            tableId: "table_1",
+            targetRange: "body[B0]",
+            formula: "=PMT(A0, B0, C0)"
+        )
+
+        let python = command.serializeToPython()
+        XCTAssertTrue(python.contains("c_pmt('a0', 'b0', 'c0')"))
+    }
+
+    func testMathFormulaUsesHelper() {
+        let command = SetFormulaCommand(
+            tableId: "table_1",
+            targetRange: "body[B0]",
+            formula: "=ABS(A0)"
+        )
+
+        let python = command.serializeToPython()
+        XCTAssertTrue(python.contains("c_abs('a0')"))
+    }
 }

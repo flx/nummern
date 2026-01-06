@@ -248,6 +248,60 @@ def c_not(value: Any) -> FormulaExpr:
     return _formula_call("NOT", value)
 
 
+def c_pmt(rate: Any, nper: Any, pv: Any, fv: Any = 0, when: Any = 0) -> FormulaExpr:
+    return _formula_call("PMT", rate, nper, pv, fv, when)
+
+
+def c_abs(value: Any) -> FormulaExpr:
+    return _formula_call("ABS", value)
+
+
+def c_round(value: Any, digits: Any = 0) -> FormulaExpr:
+    return _formula_call("ROUND", value, digits)
+
+
+def c_floor(value: Any) -> FormulaExpr:
+    return _formula_call("FLOOR", value)
+
+
+def c_ceil(value: Any) -> FormulaExpr:
+    return _formula_call("CEIL", value)
+
+
+def c_sqrt(value: Any) -> FormulaExpr:
+    return _formula_call("SQRT", value)
+
+
+def c_pow(base: Any, exponent: Any) -> FormulaExpr:
+    return _formula_call("POWER", base, exponent)
+
+
+def c_log(value: Any, base: Any = None) -> FormulaExpr:
+    if base is None:
+        return _formula_call("LOG", value)
+    return _formula_call("LOG", value, base)
+
+
+def c_log10(value: Any) -> FormulaExpr:
+    return _formula_call("LOG10", value)
+
+
+def c_exp(value: Any) -> FormulaExpr:
+    return _formula_call("EXP", value)
+
+
+def c_sin(value: Any) -> FormulaExpr:
+    return _formula_call("SIN", value)
+
+
+def c_cos(value: Any) -> FormulaExpr:
+    return _formula_call("COS", value)
+
+
+def c_tan(value: Any) -> FormulaExpr:
+    return _formula_call("TAN", value)
+
+
 def formula_mode(table: Optional["Table"]) -> None:
     global _active_formula_table
     _active_formula_table = table
@@ -396,6 +450,10 @@ def _tokenize_formula(text: str) -> List[Token]:
     tokens: List[Token] = []
     index = 0
     length = len(text)
+    def next_non_space(pos: int) -> str:
+        while pos < length and text[pos].isspace():
+            pos += 1
+        return text[pos] if pos < length else ""
     while index < length:
         ch = text[index]
         if ch.isspace():
@@ -411,7 +469,9 @@ def _tokenize_formula(text: str) -> List[Token]:
             continue
         match = _CELL_TOKEN_RE.match(text, index)
         if match:
-            tokens.append(Token("CELL", match.group(0), index))
+            next_char = next_non_space(match.end())
+            token_type = "IDENT" if next_char == "(" else "CELL"
+            tokens.append(Token(token_type, match.group(0), index))
             index = match.end()
             continue
         match = _NUMBER_TOKEN_RE.match(text, index)
@@ -950,6 +1010,125 @@ def cs_not(value: Any) -> bool:
     return not bool(value)
 
 
+def cs_pmt(rate: Any, nper: Any, pv: Any, fv: Any = 0, when: Any = 0) -> float:
+    rate_num = _require_number(rate)
+    nper_num = _require_number(nper)
+    pv_num = _require_number(pv)
+    fv_num = _require_number(fv)
+    when_num = _require_number(when)
+    if nper_num == 0:
+        raise FormulaError("PMT requires nper != 0")
+    if rate_num == 0:
+        return -(pv_num + fv_num) / nper_num
+    factor = (1 + rate_num) ** nper_num
+    denom = (1 + rate_num * when_num) * (factor - 1)
+    if denom == 0:
+        raise FormulaError("PMT division by zero")
+    return -(rate_num * (fv_num + pv_num * factor)) / denom
+
+
+def cs_abs(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.abs(_to_numeric_array(value))
+    return abs(_require_number(value))
+
+
+def cs_round(value: Any, digits: Any = 0) -> Any:
+    digits_num = int(_require_number(digits))
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.round(_to_numeric_array(value), decimals=digits_num)
+    return round(_require_number(value), digits_num)
+
+
+def cs_floor(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.floor(_to_numeric_array(value))
+    return math.floor(_require_number(value))
+
+
+def cs_ceil(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.ceil(_to_numeric_array(value))
+    return math.ceil(_require_number(value))
+
+
+def cs_sqrt(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        array = _to_numeric_array(value)
+        if np.any(array < 0):
+            raise FormulaError("SQRT requires non-negative values")
+        return np.sqrt(array)
+    number = _require_number(value)
+    if number < 0:
+        raise FormulaError("SQRT requires non-negative values")
+    return math.sqrt(number)
+
+
+def cs_pow(base: Any, exponent: Any) -> Any:
+    if isinstance(base, (np.ndarray, list, tuple)) or isinstance(exponent, (np.ndarray, list, tuple)):
+        return np.power(_to_numeric_array(base), _to_numeric_array(exponent))
+    return math.pow(_require_number(base), _require_number(exponent))
+
+
+def cs_log(value: Any, base: Any = None) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        array = _to_numeric_array(value)
+        if np.any(array <= 0):
+            raise FormulaError("LOG requires positive values")
+        result = np.log(array)
+        if base is None:
+            return result
+        base_num = _require_number(base)
+        if base_num <= 0 or base_num == 1:
+            raise FormulaError("LOG base must be positive and not 1")
+        return result / math.log(base_num)
+    number = _require_number(value)
+    if number <= 0:
+        raise FormulaError("LOG requires positive values")
+    if base is None:
+        return math.log(number)
+    base_num = _require_number(base)
+    if base_num <= 0 or base_num == 1:
+        raise FormulaError("LOG base must be positive and not 1")
+    return math.log(number, base_num)
+
+
+def cs_log10(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        array = _to_numeric_array(value)
+        if np.any(array <= 0):
+            raise FormulaError("LOG10 requires positive values")
+        return np.log10(array)
+    number = _require_number(value)
+    if number <= 0:
+        raise FormulaError("LOG10 requires positive values")
+    return math.log10(number)
+
+
+def cs_exp(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.exp(_to_numeric_array(value))
+    return math.exp(_require_number(value))
+
+
+def cs_sin(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.sin(_to_numeric_array(value))
+    return math.sin(_require_number(value))
+
+
+def cs_cos(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.cos(_to_numeric_array(value))
+    return math.cos(_require_number(value))
+
+
+def cs_tan(value: Any) -> Any:
+    if isinstance(value, (np.ndarray, list, tuple)):
+        return np.tan(_to_numeric_array(value))
+    return math.tan(_require_number(value))
+
+
 def _evaluate_formula(node: Any, context: FormulaContext) -> Any:
     if isinstance(node, NumberNode):
         return node.value
@@ -1007,6 +1186,58 @@ def _evaluate_formula(node: Any, context: FormulaContext) -> Any:
             if len(args) != 1:
                 raise FormulaError("NOT requires 1 argument")
             return cs_not(args[0])
+        if name == "PMT":
+            if len(args) not in (3, 4, 5):
+                raise FormulaError("PMT requires 3 to 5 arguments")
+            return cs_pmt(*args)
+        if name == "ABS":
+            if len(args) != 1:
+                raise FormulaError("ABS requires 1 argument")
+            return cs_abs(args[0])
+        if name == "ROUND":
+            if len(args) not in (1, 2):
+                raise FormulaError("ROUND requires 1 or 2 arguments")
+            return cs_round(*args)
+        if name == "FLOOR":
+            if len(args) != 1:
+                raise FormulaError("FLOOR requires 1 argument")
+            return cs_floor(args[0])
+        if name == "CEIL":
+            if len(args) != 1:
+                raise FormulaError("CEIL requires 1 argument")
+            return cs_ceil(args[0])
+        if name == "SQRT":
+            if len(args) != 1:
+                raise FormulaError("SQRT requires 1 argument")
+            return cs_sqrt(args[0])
+        if name == "POWER":
+            if len(args) != 2:
+                raise FormulaError("POWER requires 2 arguments")
+            return cs_pow(args[0], args[1])
+        if name == "LOG":
+            if len(args) not in (1, 2):
+                raise FormulaError("LOG requires 1 or 2 arguments")
+            return cs_log(*args)
+        if name == "LOG10":
+            if len(args) != 1:
+                raise FormulaError("LOG10 requires 1 argument")
+            return cs_log10(args[0])
+        if name == "EXP":
+            if len(args) != 1:
+                raise FormulaError("EXP requires 1 argument")
+            return cs_exp(args[0])
+        if name == "SIN":
+            if len(args) != 1:
+                raise FormulaError("SIN requires 1 argument")
+            return cs_sin(args[0])
+        if name == "COS":
+            if len(args) != 1:
+                raise FormulaError("COS requires 1 argument")
+            return cs_cos(args[0])
+        if name == "TAN":
+            if len(args) != 1:
+                raise FormulaError("TAN requires 1 argument")
+            return cs_tan(args[0])
         raise FormulaError(f"Unknown function: {name}")
     if isinstance(node, CellRefNode):
         table = _resolve_table(context, node.table_id)
@@ -2266,6 +2497,19 @@ __all__ = [
     "c_and",
     "c_or",
     "c_not",
+    "c_pmt",
+    "c_abs",
+    "c_round",
+    "c_floor",
+    "c_ceil",
+    "c_sqrt",
+    "c_pow",
+    "c_log",
+    "c_log10",
+    "c_exp",
+    "c_sin",
+    "c_cos",
+    "c_tan",
     "cell",
     "col",
     "rng",
@@ -2279,6 +2523,19 @@ __all__ = [
     "cs_max",
     "cs_count",
     "cs_counta",
+    "cs_pmt",
+    "cs_abs",
+    "cs_round",
+    "cs_floor",
+    "cs_ceil",
+    "cs_sqrt",
+    "cs_pow",
+    "cs_log",
+    "cs_log10",
+    "cs_exp",
+    "cs_sin",
+    "cs_cos",
+    "cs_tan",
     "cs_if",
     "cs_and",
     "cs_or",

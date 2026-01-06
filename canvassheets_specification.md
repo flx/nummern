@@ -159,6 +159,8 @@ Support two formula modes:
   - Arithmetic: `+ - * / ^`
   - Aggregates: `SUM, AVERAGE, MIN, MAX, COUNT, COUNTA`
   - Logical: `IF, AND, OR, NOT`
+  - Financial: `PMT(rate, nper, pv, fv=0, type=0)`
+  - Math: `ABS, ROUND, FLOOR, CEIL, SQRT, POWER, LOG, LOG10, EXP, SIN, COS, TAN`
   - Lookup (v1): `XLOOKUP` or `VLOOKUP`, `INDEX/MATCH`
   - Date/time basics: `TODAY, NOW, DATE, YEAR, MONTH, DAY`
 - Cell references can point to:
@@ -233,6 +235,17 @@ v1:
 - Important: undo should also update the script view coherently.
   - Strategy: keep an **event log** and a **working head**; undo adds compensating commands or rewinds a transactional buffer (see §8.2).
 
+### 5.9 Charts (line, bar, pie)
+v1 scope:
+- Charts are canvas objects anchored to a sheet and bound to table data ranges.
+- Supported chart types: line, bar, pie.
+- Data binding:
+  - Line/bar: one or more series from body ranges; category labels from top or left labels.
+  - Pie: single series with category labels (top/left labels) and values (body range).
+- Charts update whenever the source table data changes (on script run or incremental updates).
+- Basic properties: title, legend, axis labels (line/bar), and value labels (pie).
+- Commands are logged to the script (e.g., `add_chart(...)`) and persisted in `project.json`.
+
 ---
 
 ## 6. Python event log requirements
@@ -275,17 +288,18 @@ Generated formulas should use a small helper surface in `canvassheets_api` to ke
 - `set_col(table, "A", values)` -> write a column vector
 - `set_range(table, "A0:B9", values)` -> write a 2D range
 - `clear_range(table, "A0:B9")` -> remove a range block (used for undo/redo)
-- `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, etc. -> spreadsheet-like helpers implemented over NumPy
+- `cs_sum`, `cs_avg`, `cs_min`, `cs_max`, `cs_if`, `cs_pmt`, `cs_abs`, `cs_round`, `cs_floor`, `cs_ceil`, `cs_sqrt`, `cs_pow`, `cs_log`, `cs_log10`, `cs_exp`, `cs_sin`, `cs_cos`, `cs_tan` -> spreadsheet-like helpers implemented over NumPy
 - `formula("A0+B0")` -> create a spreadsheet formula expression for use inside `table_context`
 - `c_range("A0:B2")` -> create a formula reference expression
 - `c_sum("A0:B2")`, `c_avg(...)`, `c_min(...)`, `c_max(...)`, `c_count(...)`, `c_counta(...)` -> formula helpers for common aggregates
 - `c_if(...)`, `c_and(...)`, `c_or(...)`, `c_not(...)` -> logical helpers for common spreadsheet conditionals
+- `c_pmt(...)`, `c_abs(...)`, `c_round(...)`, `c_floor(...)`, `c_ceil(...)`, `c_sqrt(...)`, `c_pow(...)`, `c_log(...)`, `c_log10(...)`, `c_exp(...)`, `c_sin(...)`, `c_cos(...)`, `c_tan(...)` -> financial/math helpers for formula composition
 
 Notes:
 - Bare addresses default to `body[...]`.
 - Label bands require explicit region prefixes (e.g., `top_labels[A0]`).
 - Label-band formulas use the `table_context` region proxies (`top_labels.a0 = ...`); `label_context` remains the path for literal label values.
-- Unit tests should cover each helper (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_if`, `c_and`, `c_or`, `c_not`).
+- Unit tests should cover each helper (`c_sum`, `c_avg`, `c_min`, `c_max`, `c_count`, `c_counta`, `c_if`, `c_and`, `c_or`, `c_not`, `c_pmt`, `c_abs`, `c_round`, `c_floor`, `c_ceil`, `c_sqrt`, `c_pow`, `c_log`, `c_log10`, `c_exp`, `c_sin`, `c_cos`, `c_tan`).
 
 ### 6.3 Example generated script (illustrative)
 
@@ -750,7 +764,7 @@ proj.table("table_1").minimize()
 - Cross-table references robust UI
 - Snapshots for fast open
 - Safer script editing workflow (history.json + regeneration)
-- Chart objects (optional)
+- Charts (line, bar, pie)
 
 ### 19.3 v2+
 - Full pivot table UI
@@ -844,6 +858,19 @@ def c_min(*args): ...
 def c_max(*args): ...
 def c_count(*args): ...
 def c_counta(*args): ...
+def c_pmt(*args): ...
+def c_abs(*args): ...
+def c_round(*args): ...
+def c_floor(*args): ...
+def c_ceil(*args): ...
+def c_sqrt(*args): ...
+def c_pow(*args): ...
+def c_log(*args): ...
+def c_log10(*args): ...
+def c_exp(*args): ...
+def c_sin(*args): ...
+def c_cos(*args): ...
+def c_tan(*args): ...
 def c_if(condition, true_val, false_val): ...
 def c_and(*args): ...
 def c_or(*args): ...

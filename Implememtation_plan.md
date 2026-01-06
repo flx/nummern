@@ -425,6 +425,48 @@ Status:
 
 ---
 
+## Step 14a: Formula function expansion (PMT + math)
+
+Deliverable:
+- Add PMT and core math functions to the spreadsheet formula parser and evaluation (`PMT`, `ABS`, `ROUND`, `FLOOR`, `CEIL`, `SQRT`, `POWER`, `LOG`, `LOG10`, `EXP`, `SIN`, `COS`, `TAN`).
+- Add Python helper equivalents (`c_pmt`, `c_abs`, `c_round`, `c_floor`, `c_ceil`, `c_sqrt`, `c_pow`, `c_log`, `c_log10`, `c_exp`, `c_sin`, `c_cos`, `c_tan`) and NumPy-backed `cs_` implementations where applicable.
+- Update formula serialization to favor helper calls where possible.
+
+Testable increment:
+- Entering `=PMT(...)` or `=SQRT(...)` formulas recomputes and displays results after a run.
+
+Unit tests to add/run:
+- Python: `test_formula_translation.py` cases for PMT + math helpers.
+- Python: `test_formula_sugar.py` cases for `c_pmt`, `c_abs`, `c_round`, `c_floor`, `c_ceil`, `c_sqrt`, `c_pow`, `c_log`, `c_log10`, `c_exp`, `c_sin`, `c_cos`, `c_tan`.
+- Swift: `FormulaSerializationTests` cases for PMT + math helpers.
+- Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/FormulaSerializationTests`
+
+Status:
+- [x] Completed
+
+---
+
+## Step 14b: Charts (line, bar, pie)
+
+Deliverable:
+- Add chart models (`ChartSpec`) stored in `project.json` and surfaced in the canvas.
+- Implement chart commands and Python log serialization (e.g., `add_chart(...)`), tied to table ranges and labels.
+- Build chart UI (line, bar, pie) with basic inspector controls (title, legend, axis labels).
+- Charts update when source tables change (after script run or incremental edits).
+
+Testable increment:
+- Create a chart from a table range, move/resize it, and see it update when source data changes.
+
+Unit tests to add/run:
+- Swift: `ChartModelTests` for range binding + serialization.
+- Swift: `CommandSerializationTests` for chart command logging.
+- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ChartModelTests`
+
+Status:
+- [ ] Pending
+
+---
+
 ## Step 15: Snapshot caching (optional but recommended)
 
 Deliverable:
@@ -460,7 +502,7 @@ Unit tests to add/run:
 ## Definition of Done Checkpoints
 
 - MVP complete after Step 13.
-- v1 core feature complete after Step 14.
+- v1 core feature complete after Step 14b.
 - Optional performance snapshot complete after Step 15.
 
 ---

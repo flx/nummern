@@ -867,7 +867,19 @@ private enum FormulaPythonSerializer {
             ("(?i)(?<!\\.)SUM\\s*\\(", "np.sum("),
             ("(?i)(?<!\\.)AVERAGE\\s*\\(", "np.mean("),
             ("(?i)(?<!\\.)MIN\\s*\\(", "np.min("),
-            ("(?i)(?<!\\.)MAX\\s*\\(", "np.max(")
+            ("(?i)(?<!\\.)MAX\\s*\\(", "np.max("),
+            ("(?i)(?<!\\.)ABS\\s*\\(", "np.abs("),
+            ("(?i)(?<!\\.)ROUND\\s*\\(", "np.round("),
+            ("(?i)(?<!\\.)FLOOR\\s*\\(", "np.floor("),
+            ("(?i)(?<!\\.)CEIL\\s*\\(", "np.ceil("),
+            ("(?i)(?<!\\.)SQRT\\s*\\(", "np.sqrt("),
+            ("(?i)(?<!\\.)POWER\\s*\\(", "np.power("),
+            ("(?i)(?<!\\.)LOG10\\s*\\(", "np.log10("),
+            ("(?i)(?<!\\.)LOG\\s*\\(", "np.log("),
+            ("(?i)(?<!\\.)EXP\\s*\\(", "np.exp("),
+            ("(?i)(?<!\\.)SIN\\s*\\(", "np.sin("),
+            ("(?i)(?<!\\.)COS\\s*\\(", "np.cos("),
+            ("(?i)(?<!\\.)TAN\\s*\\(", "np.tan(")
         ]
         for (pattern, replacement) in replacements {
             if let regex = try? NSRegularExpression(pattern: pattern) {
@@ -962,6 +974,32 @@ private enum FormulaPythonSerializer {
             return "c_count"
         case "COUNTA":
             return "c_counta"
+        case "PMT":
+            return "c_pmt"
+        case "ABS":
+            return "c_abs"
+        case "ROUND":
+            return "c_round"
+        case "FLOOR":
+            return "c_floor"
+        case "CEIL":
+            return "c_ceil"
+        case "SQRT":
+            return "c_sqrt"
+        case "POWER":
+            return "c_pow"
+        case "LOG":
+            return "c_log"
+        case "LOG10":
+            return "c_log10"
+        case "EXP":
+            return "c_exp"
+        case "SIN":
+            return "c_sin"
+        case "COS":
+            return "c_cos"
+        case "TAN":
+            return "c_tan"
         default:
             return nil
         }

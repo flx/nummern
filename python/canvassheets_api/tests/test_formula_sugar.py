@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import math
+
+import pytest
+
 from canvassheets_api import (
     FormulaLocals,
     Project,
@@ -18,6 +22,19 @@ from canvassheets_api import (
     c_and,
     c_or,
     c_not,
+    c_pmt,
+    c_abs,
+    c_round,
+    c_floor,
+    c_ceil,
+    c_sqrt,
+    c_pow,
+    c_log,
+    c_log10,
+    c_exp,
+    c_sin,
+    c_cos,
+    c_tan,
 )
 
 
@@ -137,6 +154,65 @@ def test_formula_helper_logical():
     assert table.cell_values["body[B1]"] is True
     assert table.cell_values["body[B2]"] is True
     assert table.cell_values["body[B3]"] == 20
+
+
+def test_formula_helper_math():
+    globals_dict = FormulaLocals({"__builtins__": __builtins__})
+    globals_dict["proj"] = Project()
+    globals_dict["Rect"] = Rect
+    globals_dict["table_context"] = table_context
+    globals_dict["c_pmt"] = c_pmt
+    globals_dict["c_abs"] = c_abs
+    globals_dict["c_round"] = c_round
+    globals_dict["c_floor"] = c_floor
+    globals_dict["c_ceil"] = c_ceil
+    globals_dict["c_sqrt"] = c_sqrt
+    globals_dict["c_pow"] = c_pow
+    globals_dict["c_log"] = c_log
+    globals_dict["c_log10"] = c_log10
+    globals_dict["c_exp"] = c_exp
+    globals_dict["c_sin"] = c_sin
+    globals_dict["c_cos"] = c_cos
+    globals_dict["c_tan"] = c_tan
+
+    exec(
+        "proj.add_sheet('Sheet 1', sheet_id='sheet_1')\n"
+        "t = proj.add_table('sheet_1', table_id='table_1', name='table_1', rect=Rect(0,0,10,10), "
+        "rows=13, cols=2)\n"
+        "with table_context(t):\n"
+        "    b0 = c_abs(-5)\n"
+        "    b1 = c_round(1.234, 1)\n"
+        "    b2 = c_floor(1.9)\n"
+        "    b3 = c_ceil(1.1)\n"
+        "    b4 = c_sqrt(9)\n"
+        "    b5 = c_pow(2, 3)\n"
+        "    b6 = c_log(100, 10)\n"
+        "    b7 = c_log10(100)\n"
+        "    b8 = c_exp(1)\n"
+        "    b9 = c_sin(0)\n"
+        "    b10 = c_cos(0)\n"
+        "    b11 = c_tan(0)\n"
+        "    b12 = c_pmt(0.1, 2, 100)\n",
+        globals_dict,
+        globals_dict,
+    )
+
+    proj = globals_dict["proj"]
+    proj.apply_formulas()
+    table = proj.table("table_1")
+    assert table.cell_values["body[B0]"] == 5
+    assert table.cell_values["body[B1]"] == pytest.approx(1.2)
+    assert table.cell_values["body[B2]"] == 1
+    assert table.cell_values["body[B3]"] == 2
+    assert table.cell_values["body[B4]"] == 3
+    assert table.cell_values["body[B5]"] == 8
+    assert table.cell_values["body[B6]"] == pytest.approx(2.0)
+    assert table.cell_values["body[B7]"] == pytest.approx(2.0)
+    assert table.cell_values["body[B8]"] == pytest.approx(math.e)
+    assert table.cell_values["body[B9]"] == pytest.approx(0.0)
+    assert table.cell_values["body[B10]"] == pytest.approx(1.0)
+    assert table.cell_values["body[B11]"] == pytest.approx(0.0)
+    assert table.cell_values["body[B12]"] == pytest.approx(-57.619047619, rel=1e-6)
 
 
 def test_table_indexing_sugar():

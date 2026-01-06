@@ -23,7 +23,7 @@ struct ScriptComposer {
         let logLines = buildLogLines(from: trimmedLog)
         let lines = [
             "import numpy as np",
-            "from canvassheets_api import Project, Rect, formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, date_value, time_value",
+            "from canvassheets_api import Project, Rect, formula, table_context, label_context, c_range, c_sum, c_avg, c_min, c_max, c_count, c_counta, c_if, c_and, c_or, c_not, c_pmt, c_abs, c_round, c_floor, c_ceil, c_sqrt, c_pow, c_log, c_log10, c_exp, c_sin, c_cos, c_tan, date_value, time_value",
             "",
             logMarker,
         ] + logLines
