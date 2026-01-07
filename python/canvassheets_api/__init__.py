@@ -113,6 +113,9 @@ _DEFAULT_CELL_WIDTH = 80.0
 _DEFAULT_CELL_HEIGHT = 24.0
 _DEFAULT_TABLE_OFFSET = 24.0
 _DEFAULT_TABLE_ORIGIN = 80.0
+_DEFAULT_CHART_WIDTH = 360.0
+_DEFAULT_CHART_HEIGHT = 240.0
+_UNSET = object()
 
 
 def _next_formula_order() -> int:
@@ -1364,6 +1367,71 @@ class SummarySpec:
 
 
 @dataclass
+class Chart:
+    id: str
+    name: str
+    rect: Rect
+    chart_type: str
+    table_id: str
+    value_range: str
+    label_range: Optional[str] = None
+    title: str = ""
+    x_axis_title: str = ""
+    y_axis_title: str = ""
+    show_legend: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "rect": self.rect.to_dict(),
+            "chartType": self.chart_type,
+            "tableId": self.table_id,
+            "valueRange": self.value_range,
+            "labelRange": self.label_range,
+            "title": self.title,
+            "xAxisTitle": self.x_axis_title,
+            "yAxisTitle": self.y_axis_title,
+            "showLegend": self.show_legend,
+        }
+
+    def set_rect(self, rect: Any) -> None:
+        self.rect = Rect.from_value(rect)
+
+    def set_position(self, x: float, y: float) -> None:
+        self.rect = Rect(float(x), float(y), self.rect.width, self.rect.height)
+
+    def set_size(self, width: float, height: float) -> None:
+        self.rect = Rect(self.rect.x, self.rect.y, float(width), float(height))
+
+    def set_spec(self,
+                 chart_type: Any = _UNSET,
+                 table_id: Any = _UNSET,
+                 value_range: Any = _UNSET,
+                 label_range: Any = _UNSET,
+                 title: Any = _UNSET,
+                 x_axis_title: Any = _UNSET,
+                 y_axis_title: Any = _UNSET,
+                 show_legend: Any = _UNSET) -> None:
+        if chart_type is not _UNSET:
+            self.chart_type = str(chart_type)
+        if table_id is not _UNSET:
+            self.table_id = str(table_id)
+        if value_range is not _UNSET:
+            self.value_range = str(value_range)
+        if label_range is not _UNSET:
+            self.label_range = None if label_range is None else str(label_range)
+        if title is not _UNSET:
+            self.title = str(title)
+        if x_axis_title is not _UNSET:
+            self.x_axis_title = str(x_axis_title)
+        if y_axis_title is not _UNSET:
+            self.y_axis_title = str(y_axis_title)
+        if show_legend is not _UNSET:
+            self.show_legend = bool(show_legend)
+
+
+@dataclass
 class Table:
     id: str
     name: str
@@ -1965,9 +2033,15 @@ class Sheet:
     id: str
     name: str
     tables: List[Table] = field(default_factory=list)
+    charts: List[Chart] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "name": self.name, "tables": [table.to_dict() for table in self.tables]}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "tables": [table.to_dict() for table in self.tables],
+            "charts": [chart.to_dict() for chart in self.charts],
+        }
 
 
 class Project:
@@ -2004,6 +2078,45 @@ class Project:
         table = Table(id=table_id, name=name, rect=rect_value, grid_spec=grid_spec)
         sheet.tables.append(table)
         return table
+
+    def add_chart(self,
+                  sheet_id: str,
+                  chart_id: str,
+                  name: str,
+                  chart_type: str,
+                  table_id: str,
+                  value_range: str,
+                  label_range: Optional[str] = None,
+                  rect: Optional[Any] = None,
+                  x: Optional[float] = None,
+                  y: Optional[float] = None,
+                  width: Optional[float] = None,
+                  height: Optional[float] = None,
+                  title: str = "",
+                  x_axis_title: str = "",
+                  y_axis_title: str = "",
+                  show_legend: bool = True) -> Chart:
+        sheet = self._find_sheet(sheet_id)
+        if sheet is None:
+            raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        rect_value = Rect.from_value(rect) if rect is not None else self._default_chart_rect(
+            x=x, y=y, width=width, height=height
+        )
+        chart = Chart(
+            id=chart_id,
+            name=name,
+            rect=rect_value,
+            chart_type=chart_type,
+            table_id=table_id,
+            value_range=value_range,
+            label_range=label_range,
+            title=title,
+            x_axis_title=x_axis_title,
+            y_axis_title=y_axis_title,
+            show_legend=bool(show_legend),
+        )
+        sheet.charts.append(chart)
+        return chart
 
     def add_summary_table(self,
                           sheet_id: str,
@@ -2053,12 +2166,35 @@ class Project:
                 y = _DEFAULT_TABLE_ORIGIN + offset
         return Rect(float(x), float(y), float(width), float(height))
 
+    def _default_chart_rect(self,
+                            x: Optional[float],
+                            y: Optional[float],
+                            width: Optional[float],
+                            height: Optional[float]) -> Rect:
+        chart_width = _DEFAULT_CHART_WIDTH if width is None else float(width)
+        chart_height = _DEFAULT_CHART_HEIGHT if height is None else float(height)
+        if x is None or y is None:
+            count = sum(len(sheet.tables) + len(sheet.charts) for sheet in self.sheets)
+            offset = count * _DEFAULT_TABLE_OFFSET
+            if x is None:
+                x = _DEFAULT_TABLE_ORIGIN + offset
+            if y is None:
+                y = _DEFAULT_TABLE_ORIGIN + offset
+        return Rect(float(x), float(y), float(chart_width), float(chart_height))
+
     def table(self, table_id: str) -> Table:
         for sheet in self.sheets:
             for table in sheet.tables:
                 if table.id == table_id:
                     return table
         raise KeyError(f"Unknown table_id: {table_id}")
+
+    def chart(self, chart_id: str) -> Chart:
+        for sheet in self.sheets:
+            for chart in sheet.charts:
+                if chart.id == chart_id:
+                    return chart
+        raise KeyError(f"Unknown chart_id: {chart_id}")
 
     def apply_formulas(self) -> None:
         entries: List[Tuple[int, str, Any]] = []
@@ -2473,6 +2609,7 @@ def _emit_literal_assignment(var_name: str, value: Any) -> List[str]:
 __all__ = [
     "Project",
     "Table",
+    "Chart",
     "Rect",
     "GridSpec",
     "LabelBands",

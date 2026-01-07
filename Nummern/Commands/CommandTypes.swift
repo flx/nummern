@@ -179,6 +179,291 @@ struct CreateSummaryTableCommand: Command {
     }
 }
 
+enum ChartLabelRangeUpdate: Equatable {
+    case noChange
+    case set(String)
+    case clear
+}
+
+struct AddChartCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let sheetId: String
+    let chartId: String
+    let name: String
+    let rect: Rect
+    let chartType: ChartType
+    let tableId: String
+    let valueRange: String
+    let labelRange: String?
+    let title: String
+    let xAxisTitle: String
+    let yAxisTitle: String
+    let showLegend: Bool
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         sheetId: String,
+         chartId: String,
+         name: String,
+         rect: Rect,
+         chartType: ChartType,
+         tableId: String,
+         valueRange: String,
+         labelRange: String? = nil,
+         title: String = "",
+         xAxisTitle: String = "",
+         yAxisTitle: String = "",
+         showLegend: Bool = true) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.sheetId = sheetId
+        self.chartId = chartId
+        self.name = name
+        self.rect = rect
+        self.chartType = chartType
+        self.tableId = tableId
+        self.valueRange = valueRange
+        self.labelRange = labelRange
+        self.title = title
+        self.xAxisTitle = xAxisTitle
+        self.yAxisTitle = yAxisTitle
+        self.showLegend = showLegend
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateSheet(id: sheetId) { sheet in
+            let chart = ChartModel(id: chartId,
+                                   name: name,
+                                   rect: rect,
+                                   chartType: chartType,
+                                   tableId: tableId,
+                                   valueRange: valueRange,
+                                   labelRange: labelRange,
+                                   title: title,
+                                   xAxisTitle: xAxisTitle,
+                                   yAxisTitle: yAxisTitle,
+                                   showLegend: showLegend)
+            sheet.charts.append(chart)
+        }
+    }
+
+    func serializeToPython() -> String {
+        let x = PythonLiteralEncoder.encodeNumber(rect.x)
+        let y = PythonLiteralEncoder.encodeNumber(rect.y)
+        let width = PythonLiteralEncoder.encodeNumber(rect.width)
+        let height = PythonLiteralEncoder.encodeNumber(rect.height)
+        let labelLiteral = labelRange.map(PythonLiteralEncoder.encodeString) ?? "None"
+        let legendLiteral = showLegend ? "True" : "False"
+        return "proj.add_chart(\(PythonLiteralEncoder.encodeString(sheetId)), chart_id=\(PythonLiteralEncoder.encodeString(chartId)), name=\(PythonLiteralEncoder.encodeString(name)), chart_type=\(PythonLiteralEncoder.encodeString(chartType.rawValue)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), value_range=\(PythonLiteralEncoder.encodeString(valueRange)), label_range=\(labelLiteral), x=\(x), y=\(y), width=\(width), height=\(height), title=\(PythonLiteralEncoder.encodeString(title)), x_axis_title=\(PythonLiteralEncoder.encodeString(xAxisTitle)), y_axis_title=\(PythonLiteralEncoder.encodeString(yAxisTitle)), show_legend=\(legendLiteral))"
+    }
+}
+
+struct SetChartRectCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let chartId: String
+    let rect: Rect
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         chartId: String,
+         rect: Rect) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.chartId = chartId
+        self.rect = rect
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateChart(id: chartId) { chart in
+            chart.rect = rect
+        }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let chart = previous.chart(withId: chartId) else {
+            return nil
+        }
+        return SetChartRectCommand(chartId: chartId, rect: chart.rect)
+    }
+
+    func serializeToPython() -> String {
+        "proj.chart(\(PythonLiteralEncoder.encodeString(chartId))).set_rect(\(PythonLiteralEncoder.encodeRect(rect)))"
+    }
+}
+
+struct SetChartPositionCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let chartId: String
+    let x: Double
+    let y: Double
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         chartId: String,
+         x: Double,
+         y: Double) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.chartId = chartId
+        self.x = x
+        self.y = y
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateChart(id: chartId) { chart in
+            chart.rect = Rect(x: x, y: y, width: chart.rect.width, height: chart.rect.height)
+        }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let chart = previous.chart(withId: chartId) else {
+            return nil
+        }
+        return SetChartPositionCommand(chartId: chartId, x: chart.rect.x, y: chart.rect.y)
+    }
+
+    func serializeToPython() -> String {
+        let xLiteral = PythonLiteralEncoder.encodeNumber(x)
+        let yLiteral = PythonLiteralEncoder.encodeNumber(y)
+        return "proj.chart(\(PythonLiteralEncoder.encodeString(chartId))).set_position(x=\(xLiteral), y=\(yLiteral))"
+    }
+}
+
+struct UpdateChartCommand: Command {
+    let commandId: String
+    let timestamp: Date
+    let chartId: String
+    let chartType: ChartType?
+    let tableId: String?
+    let valueRange: String?
+    let labelRange: ChartLabelRangeUpdate
+    let title: String?
+    let xAxisTitle: String?
+    let yAxisTitle: String?
+    let showLegend: Bool?
+
+    init(commandId: String = ModelID.make(),
+         timestamp: Date = Date(),
+         chartId: String,
+         chartType: ChartType? = nil,
+         tableId: String? = nil,
+         valueRange: String? = nil,
+         labelRange: ChartLabelRangeUpdate = .noChange,
+         title: String? = nil,
+         xAxisTitle: String? = nil,
+         yAxisTitle: String? = nil,
+         showLegend: Bool? = nil) {
+        self.commandId = commandId
+        self.timestamp = timestamp
+        self.chartId = chartId
+        self.chartType = chartType
+        self.tableId = tableId
+        self.valueRange = valueRange
+        self.labelRange = labelRange
+        self.title = title
+        self.xAxisTitle = xAxisTitle
+        self.yAxisTitle = yAxisTitle
+        self.showLegend = showLegend
+    }
+
+    func apply(to project: inout ProjectModel) {
+        project.updateChart(id: chartId) { chart in
+            if let chartType {
+                chart.chartType = chartType
+            }
+            if let tableId {
+                chart.tableId = tableId
+            }
+            if let valueRange {
+                chart.valueRange = valueRange
+            }
+            switch labelRange {
+            case .noChange:
+                break
+            case .set(let value):
+                chart.labelRange = value
+            case .clear:
+                chart.labelRange = nil
+            }
+            if let title {
+                chart.title = title
+            }
+            if let xAxisTitle {
+                chart.xAxisTitle = xAxisTitle
+            }
+            if let yAxisTitle {
+                chart.yAxisTitle = yAxisTitle
+            }
+            if let showLegend {
+                chart.showLegend = showLegend
+            }
+        }
+    }
+
+    func invert(previous: ProjectModel) -> (any Command)? {
+        guard let chart = previous.chart(withId: chartId) else {
+            return nil
+        }
+        let labelUpdate: ChartLabelRangeUpdate
+        switch labelRange {
+        case .noChange:
+            labelUpdate = .noChange
+        case .set, .clear:
+            if let labelRange = chart.labelRange {
+                labelUpdate = .set(labelRange)
+            } else {
+                labelUpdate = .clear
+            }
+        }
+        return UpdateChartCommand(chartId: chartId,
+                                  chartType: chartType != nil ? chart.chartType : nil,
+                                  tableId: tableId != nil ? chart.tableId : nil,
+                                  valueRange: valueRange != nil ? chart.valueRange : nil,
+                                  labelRange: labelUpdate,
+                                  title: title != nil ? chart.title : nil,
+                                  xAxisTitle: xAxisTitle != nil ? chart.xAxisTitle : nil,
+                                  yAxisTitle: yAxisTitle != nil ? chart.yAxisTitle : nil,
+                                  showLegend: showLegend != nil ? chart.showLegend : nil)
+    }
+
+    func serializeToPython() -> String {
+        var args: [String] = []
+        if let chartType {
+            args.append("chart_type=\(PythonLiteralEncoder.encodeString(chartType.rawValue))")
+        }
+        if let tableId {
+            args.append("table_id=\(PythonLiteralEncoder.encodeString(tableId))")
+        }
+        if let valueRange {
+            args.append("value_range=\(PythonLiteralEncoder.encodeString(valueRange))")
+        }
+        switch labelRange {
+        case .noChange:
+            break
+        case .set(let value):
+            args.append("label_range=\(PythonLiteralEncoder.encodeString(value))")
+        case .clear:
+            args.append("label_range=None")
+        }
+        if let title {
+            args.append("title=\(PythonLiteralEncoder.encodeString(title))")
+        }
+        if let xAxisTitle {
+            args.append("x_axis_title=\(PythonLiteralEncoder.encodeString(xAxisTitle))")
+        }
+        if let yAxisTitle {
+            args.append("y_axis_title=\(PythonLiteralEncoder.encodeString(yAxisTitle))")
+        }
+        if let showLegend {
+            args.append("show_legend=\(showLegend ? "True" : "False")")
+        }
+        return "proj.chart(\(PythonLiteralEncoder.encodeString(chartId))).set_spec(\(args.joined(separator: ", ")))"
+    }
+}
+
 struct SetTableRectCommand: Command {
     let commandId: String
     let timestamp: Date

@@ -42,4 +42,29 @@ final class CommandApplyTests: XCTestCase {
 
         XCTAssertEqual(project.sheets[0].tables[0].bodyColumnTypes[1], .currency)
     }
+
+    func testAddChartAppliesToSheet() {
+        let table = TableModel(
+            id: "table_1",
+            name: "Table",
+            rect: Rect(x: 0, y: 0, width: 200, height: 120),
+            rows: 4,
+            cols: 3
+        )
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet", tables: [table])
+        var project = ProjectModel(sheets: [sheet])
+
+        let command = AddChartCommand(sheetId: "sheet_1",
+                                      chartId: "chart_1",
+                                      name: "chart_1",
+                                      rect: Rect(x: 10, y: 20, width: 240, height: 180),
+                                      chartType: .line,
+                                      tableId: "table_1",
+                                      valueRange: "body[A0:A3]")
+        command.apply(to: &project)
+
+        XCTAssertEqual(project.sheets[0].charts.count, 1)
+        XCTAssertEqual(project.sheets[0].charts[0].id, "chart_1")
+        XCTAssertEqual(project.sheets[0].charts[0].tableId, "table_1")
+    }
 }

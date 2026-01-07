@@ -107,6 +107,30 @@ struct ContentView: View {
                     .cornerRadius(6)
                 }
 
+                if let selectedChart = viewModel.selectedChart() {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected Chart")
+                            .font(.headline)
+                        Text(selectedChart.id)
+                            .font(.subheadline)
+                        Picker("Chart Type", selection: chartTypeBinding(chart: selectedChart)) {
+                            ForEach(ChartType.allCases, id: \.self) { chartType in
+                                Text(chartType.displayName).tag(chartType)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        TextField("Value Range", text: chartValueRangeBinding(chart: selectedChart))
+                        TextField("Label Range", text: chartLabelRangeBinding(chart: selectedChart))
+                        TextField("Title", text: chartTitleBinding(chart: selectedChart))
+                        TextField("X Axis Title", text: chartXAxisTitleBinding(chart: selectedChart))
+                        TextField("Y Axis Title", text: chartYAxisTitleBinding(chart: selectedChart))
+                        Toggle("Show Legend", isOn: chartShowLegendBinding(chart: selectedChart))
+                    }
+                    .padding(8)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .cornerRadius(6)
+                }
+
                 Text("script.py")
                     .font(.headline)
                 ScriptEditor(text: $document.script, selectedRange: $scriptSelection)
@@ -157,6 +181,12 @@ struct ContentView: View {
                 } label: {
                     Label("Add Table", systemImage: "tablecells")
                 }
+                Button {
+                    addChart()
+                } label: {
+                    Label("Add Chart", systemImage: "chart.xyaxis.line")
+                }
+                .disabled(isRunningScript || viewModel.selectedTable() == nil)
                 Button {
                     openSummaryBuilder()
                 } label: {
@@ -249,6 +279,16 @@ struct ContentView: View {
             return
         }
         _ = viewModel.addTable(toSheetId: sheetId)
+    }
+
+    private func addChart() {
+        guard let sheetId = selectedSheetId ?? viewModel.project.sheets.first?.id else {
+            return
+        }
+        guard let table = viewModel.selectedTable() else {
+            return
+        }
+        _ = viewModel.addChart(toSheetId: sheetId, tableId: table.id)
     }
 
     private func openSummaryBuilder() {
@@ -504,6 +544,70 @@ struct ContentView: View {
             set: { newValue in
                 viewModel.setBodyCols(tableId: table.id,
                                       cols: max(CanvasGridSizing.minBodyCols, newValue))
+            }
+        )
+    }
+
+    private func chartTypeBinding(chart: ChartModel) -> Binding<ChartType> {
+        Binding(
+            get: { chart.chartType },
+            set: { newValue in
+                viewModel.setChartType(chartId: chart.id, chartType: newValue)
+            }
+        )
+    }
+
+    private func chartValueRangeBinding(chart: ChartModel) -> Binding<String> {
+        Binding(
+            get: { chart.valueRange },
+            set: { newValue in
+                viewModel.setChartValueRange(chartId: chart.id, valueRange: newValue)
+            }
+        )
+    }
+
+    private func chartLabelRangeBinding(chart: ChartModel) -> Binding<String> {
+        Binding(
+            get: { chart.labelRange ?? "" },
+            set: { newValue in
+                viewModel.setChartLabelRange(chartId: chart.id,
+                                             labelRange: newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : newValue)
+            }
+        )
+    }
+
+    private func chartTitleBinding(chart: ChartModel) -> Binding<String> {
+        Binding(
+            get: { chart.title },
+            set: { newValue in
+                viewModel.setChartTitle(chartId: chart.id, title: newValue)
+            }
+        )
+    }
+
+    private func chartXAxisTitleBinding(chart: ChartModel) -> Binding<String> {
+        Binding(
+            get: { chart.xAxisTitle },
+            set: { newValue in
+                viewModel.setChartXAxisTitle(chartId: chart.id, title: newValue)
+            }
+        )
+    }
+
+    private func chartYAxisTitleBinding(chart: ChartModel) -> Binding<String> {
+        Binding(
+            get: { chart.yAxisTitle },
+            set: { newValue in
+                viewModel.setChartYAxisTitle(chartId: chart.id, title: newValue)
+            }
+        )
+    }
+
+    private func chartShowLegendBinding(chart: ChartModel) -> Binding<Bool> {
+        Binding(
+            get: { chart.showLegend },
+            set: { newValue in
+                viewModel.setChartShowLegend(chartId: chart.id, showLegend: newValue)
             }
         )
     }

@@ -13,6 +13,10 @@ enum ModelID {
         nextSequentialId(prefix: "table", existingIDs: existingIDs)
     }
 
+    static func nextChartId(existingIDs: [String]) -> String {
+        nextSequentialId(prefix: "chart", existingIDs: existingIDs)
+    }
+
     private static func nextSequentialId(prefix: String, existingIDs: [String]) -> String {
         let normalizedPrefix = prefix.hasSuffix("_") ? prefix : "\(prefix)_"
         var maxValue = 0

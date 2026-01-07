@@ -195,3 +195,47 @@ def test_table_attribute_assignment_sets_cell():
     assert table.grid_spec.bodyRows == 3
     assert table.grid_spec.bodyCols == 3
     assert table.cell_values["body[C2]"] == 5
+
+
+def test_chart_roundtrip_and_updates():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=3,
+        cols=1,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    chart = project.add_chart(
+        "sheet_1",
+        chart_id="chart_1",
+        name="chart_1",
+        chart_type="line",
+        table_id="table_1",
+        value_range="body[A0:A2]",
+        label_range=None,
+        x=10,
+        y=20,
+        width=300,
+        height=200,
+        title="",
+        x_axis_title="",
+        y_axis_title="",
+        show_legend=True,
+    )
+    chart.set_position(40, 60)
+    chart.set_spec(chart_type="bar", label_range=None, title="Sales", show_legend=False)
+
+    data = project.to_dict()
+    chart_payload = data["sheets"][0]["charts"][0]
+    assert chart_payload["rect"]["x"] == 40
+    assert chart_payload["rect"]["y"] == 60
+    assert chart_payload["chartType"] == "bar"
+    assert chart_payload["labelRange"] is None
+    assert chart_payload["title"] == "Sales"
+    assert chart_payload["showLegend"] is False

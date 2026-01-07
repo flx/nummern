@@ -240,11 +240,14 @@ v1 scope:
 - Charts are canvas objects anchored to a sheet and bound to table data ranges.
 - Supported chart types: line, bar, pie.
 - Data binding:
-  - Line/bar: one or more series from body ranges; category labels from top or left labels.
-  - Pie: single series with category labels (top/left labels) and values (body range).
+  - Line/bar: a single series from `valueRange` (row-major if 2D); category labels come from `labelRange` when provided, otherwise use cell labels (e.g., `A0`).
+  - Pie: single series from `valueRange`, labels from `labelRange` or cell labels.
 - Charts update whenever the source table data changes (on script run or incremental updates).
-- Basic properties: title, legend, axis labels (line/bar), and value labels (pie).
-- Commands are logged to the script (e.g., `add_chart(...)`) and persisted in `project.json`.
+- Basic properties: title, legend toggle, axis labels (line/bar).
+- Commands are logged to the script (e.g., `add_chart(...)`, `chart(...).set_spec(...)`) and persisted in `project.json`.
+- Chart spec stored in `project.json`:
+  - `id`, `name`, `rect`, `chartType`, `tableId`, `valueRange`, `labelRange` (optional)
+  - `title`, `xAxisTitle`, `yAxisTitle`, `showLegend`
 
 ---
 

@@ -1,6 +1,7 @@
+import Charts
 import SwiftUI
 
-private enum CanvasCoordinateSpace {
+enum CanvasCoordinateSpace {
     static let name = "canvas"
 }
 
@@ -10,7 +11,9 @@ struct CanvasView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let contentSize = canvasContentSize(containerSize: proxy.size, tables: sheet.tables)
+            let contentSize = canvasContentSize(containerSize: proxy.size,
+                                               tables: sheet.tables,
+                                               charts: sheet.charts)
 
             ScrollView([.horizontal, .vertical]) {
                 ZStack(alignment: .topLeading) {
@@ -23,6 +26,12 @@ struct CanvasView: View {
                     ForEach(sheet.tables, id: \.id) { table in
                         TableCanvasItem(table: table, viewModel: viewModel)
                     }
+
+                    ForEach(sheet.charts, id: \.id) { chart in
+                        ChartCanvasItem(chart: chart,
+                                        table: sheet.tables.first(where: { $0.id == chart.tableId }),
+                                        viewModel: viewModel)
+                    }
                 }
                 .frame(width: contentSize.width, height: contentSize.height)
                 .background(Color(nsColor: .windowBackgroundColor))
@@ -32,9 +41,13 @@ struct CanvasView: View {
     }
 }
 
-private func canvasContentSize(containerSize: CGSize, tables: [TableModel]) -> CGSize {
-    let maxX = tables.map { $0.rect.x + $0.rect.width }.max() ?? 0
-    let maxY = tables.map { $0.rect.y + $0.rect.height }.max() ?? 0
+private func canvasContentSize(containerSize: CGSize, tables: [TableModel], charts: [ChartModel]) -> CGSize {
+    let tableMaxX = tables.map { $0.rect.x + $0.rect.width }.max() ?? 0
+    let tableMaxY = tables.map { $0.rect.y + $0.rect.height }.max() ?? 0
+    let chartMaxX = charts.map { $0.rect.x + $0.rect.width }.max() ?? 0
+    let chartMaxY = charts.map { $0.rect.y + $0.rect.height }.max() ?? 0
+    let maxX = max(tableMaxX, chartMaxX)
+    let maxY = max(tableMaxY, chartMaxY)
     let width = max(containerSize.width, CGFloat(maxX))
     let height = max(containerSize.height, CGFloat(maxY))
     return CGSize(width: width, height: height)
@@ -263,4 +276,213 @@ struct TableCanvasItem: View {
         let rows = max(minRows, Int(floor(bodyHeight / CanvasGridSizing.cellSize.height)))
         return (rows, cols)
     }
+}
+
+struct ChartCanvasItem: View {
+    let chart: ChartModel
+    let table: TableModel?
+    @ObservedObject var viewModel: CanvasViewModel
+
+    @State private var dragOffset: CGSize = .zero
+    @State private var isResizing = false
+    @State private var previewSize: CGSize?
+
+    var body: some View {
+        let baseSize = CGSize(width: chart.rect.width, height: chart.rect.height)
+        let size = previewSize ?? baseSize
+        let originX = chart.rect.x + Double(dragOffset.width)
+        let originY = chart.rect.y + Double(dragOffset.height)
+        let centerX = originX + Double(size.width) / 2.0
+        let centerY = originY + Double(size.height) / 2.0
+        let isSelected = viewModel.selectedChartId == chart.id
+
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .textBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelected ? Color.accentColor : Color.secondary,
+                                lineWidth: isSelected ? 2 : 1)
+                )
+
+            chartContent()
+                .padding(12)
+
+            if !chartTitle.isEmpty {
+                Text(chartTitle)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .cornerRadius(4)
+                    .padding(.leading, 8)
+                    .padding(.top, 8)
+            }
+        }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .overlay(alignment: .bottomTrailing) {
+            Rectangle()
+                .fill(Color.secondary)
+                .frame(width: 10, height: 10)
+                .cornerRadius(2)
+                .padding(6)
+                .gesture(resizeGesture(baseSize: baseSize))
+        }
+        .position(x: centerX, y: centerY)
+        .gesture(moveGesture())
+        .onTapGesture {
+            viewModel.selectChart(chart.id)
+        }
+    }
+
+    private var chartTitle: String {
+        chart.title.isEmpty ? chart.name : chart.title
+    }
+
+    @ViewBuilder
+    private func chartContent() -> some View {
+        if let table {
+            let points = chartPoints(table: table)
+            if points.isEmpty {
+                Text("No data")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                Chart(points) { point in
+                    switch chart.chartType {
+                    case .line:
+                        LineMark(x: .value("Label", point.label),
+                                 y: .value("Value", point.value))
+                        .foregroundStyle(by: .value("Series", chart.name))
+                    case .bar:
+                        BarMark(x: .value("Label", point.label),
+                                y: .value("Value", point.value))
+                        .foregroundStyle(by: .value("Series", chart.name))
+                    case .pie:
+                        SectorMark(angle: .value("Value", point.value),
+                                   innerRadius: .ratio(0.4))
+                        .foregroundStyle(by: .value("Label", point.label))
+                    }
+                }
+                .chartLegend(chart.showLegend ? .visible : .hidden)
+                .chartXAxis(chart.chartType == .pie ? .hidden : .automatic)
+                .chartYAxis(chart.chartType == .pie ? .hidden : .automatic)
+                .chartXAxisLabel(chart.xAxisTitle)
+                .chartYAxisLabel(chart.yAxisTitle)
+            }
+        } else {
+            Text("Missing table")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    private func moveGesture() -> some Gesture {
+        DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+            .onChanged { value in
+                guard !isResizing else { return }
+                dragOffset = value.translation
+            }
+            .onEnded { value in
+                guard !isResizing else { return }
+                let newRect = Rect(x: chart.rect.x + Double(value.translation.width),
+                                   y: chart.rect.y + Double(value.translation.height),
+                                   width: chart.rect.width,
+                                   height: chart.rect.height)
+                dragOffset = .zero
+                viewModel.moveChart(chartId: chart.id, to: newRect)
+            }
+    }
+
+    private func resizeGesture(baseSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(CanvasCoordinateSpace.name))
+            .onChanged { value in
+                isResizing = true
+                dragOffset = .zero
+                let width = max(CanvasChartSizing.minSize.width, baseSize.width + value.translation.width)
+                let height = max(CanvasChartSizing.minSize.height, baseSize.height + value.translation.height)
+                previewSize = CGSize(width: width, height: height)
+            }
+            .onEnded { value in
+                let width = max(CanvasChartSizing.minSize.width, baseSize.width + value.translation.width)
+                let height = max(CanvasChartSizing.minSize.height, baseSize.height + value.translation.height)
+                previewSize = nil
+                isResizing = false
+                let newRect = Rect(x: chart.rect.x, y: chart.rect.y, width: Double(width), height: Double(height))
+                viewModel.updateChartRect(chartId: chart.id, rect: newRect)
+            }
+    }
+
+    private func chartPoints(table: TableModel) -> [ChartPoint] {
+        guard let valueRange = try? RangeParser.parse(chart.valueRange) else {
+            return []
+        }
+        let valueCells = cells(in: valueRange)
+        let labelStrings: [String]
+        if let labelRange = chart.labelRange,
+           let parsedLabelRange = try? RangeParser.parse(labelRange) {
+            labelStrings = cells(in: parsedLabelRange).map { cell in
+                let key = RangeParser.address(region: parsedLabelRange.region, row: cell.row, col: cell.col)
+                let value = table.cellValues[key] ?? .empty
+                return value.displayString
+            }
+        } else {
+            labelStrings = []
+        }
+
+        var points: [ChartPoint] = []
+        for (index, cell) in valueCells.enumerated() {
+            let key = RangeParser.address(region: valueRange.region, row: cell.row, col: cell.col)
+            let value = table.cellValues[key] ?? .empty
+            guard let number = chartNumber(from: value) else {
+                continue
+            }
+            var label = RangeParser.cellLabel(row: cell.row, col: cell.col)
+            if index < labelStrings.count {
+                let candidate = labelStrings[index]
+                if !candidate.isEmpty {
+                    label = candidate
+                }
+            }
+            points.append(ChartPoint(id: index, label: label, value: number))
+        }
+        return points
+    }
+
+    private func cells(in range: RangeAddress) -> [CellAddress] {
+        let rowStart = min(range.start.row, range.end.row)
+        let rowEnd = max(range.start.row, range.end.row)
+        let colStart = min(range.start.col, range.end.col)
+        let colEnd = max(range.start.col, range.end.col)
+        var cells: [CellAddress] = []
+        for row in rowStart...rowEnd {
+            for col in colStart...colEnd {
+                cells.append(CellAddress(row: row, col: col))
+            }
+        }
+        return cells
+    }
+
+    private func chartNumber(from value: CellValue) -> Double? {
+        switch value {
+        case .number(let number):
+            return number
+        case .bool(let flag):
+            return flag ? 1.0 : 0.0
+        case .date(let date):
+            return date.timeIntervalSinceReferenceDate
+        case .time(let seconds):
+            return seconds
+        case .string, .empty:
+            return nil
+        }
+    }
+}
+
+private struct ChartPoint: Identifiable {
+    let id: Int
+    let label: String
+    let value: Double
 }

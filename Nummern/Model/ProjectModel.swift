@@ -22,6 +22,15 @@ struct ProjectModel: Codable, Equatable {
             }
         }
     }
+
+    mutating func updateChart(id: String, _ mutate: (inout ChartModel) -> Void) {
+        for sheetIndex in sheets.indices {
+            if let chartIndex = sheets[sheetIndex].charts.firstIndex(where: { $0.id == id }) {
+                mutate(&sheets[sheetIndex].charts[chartIndex])
+                return
+            }
+        }
+    }
 }
 
 extension ProjectModel {
@@ -34,10 +43,24 @@ extension ProjectModel {
         return ModelID.nextTableId(existingIDs: ids)
     }
 
+    func nextChartId() -> String {
+        let ids = sheets.flatMap { $0.charts.map(\.id) }
+        return ModelID.nextChartId(existingIDs: ids)
+    }
+
     func table(withId tableId: String) -> TableModel? {
         for sheet in sheets {
             if let table = sheet.tables.first(where: { $0.id == tableId }) {
                 return table
+            }
+        }
+        return nil
+    }
+
+    func chart(withId chartId: String) -> ChartModel? {
+        for sheet in sheets {
+            if let chart = sheet.charts.first(where: { $0.id == chartId }) {
+                return chart
             }
         }
         return nil

@@ -13,6 +13,7 @@ final class CanvasViewModel: ObservableObject {
     @Published private(set) var pythonLog: String
     @Published private(set) var historyJSON: String
     @Published var selectedTableId: String?
+    @Published var selectedChartId: String?
     @Published var selectedCell: CellSelection?
     @Published var formulaHighlightState: FormulaHighlightState?
     @Published var activeFormulaEdit: CellSelection?
@@ -28,6 +29,7 @@ final class CanvasViewModel: ObservableObject {
         self.pythonLog = ""
         self.historyJSON = ""
         self.selectedTableId = nil
+        self.selectedChartId = nil
         self.selectedCell = nil
         self.formulaHighlightState = nil
         self.activeFormulaEdit = nil
@@ -45,6 +47,7 @@ final class CanvasViewModel: ObservableObject {
         seedCommands = decodeHistoryCommands(from: historyJSON)
         self.project = Self.normalizeTableRects(project)
         selectedTableId = nil
+        selectedChartId = nil
         selectedCell = nil
         formulaHighlightState = nil
         activeFormulaEdit = nil
@@ -86,6 +89,44 @@ final class CanvasViewModel: ObservableObject {
     }
 
     @discardableResult
+    func addChart(toSheetId sheetId: String,
+                  tableId: String,
+                  chartType: ChartType = .line,
+                  valueRange: String? = nil) -> ChartModel? {
+        guard let table = table(withId: tableId) else {
+            return nil
+        }
+        let chartId = project.nextChartId()
+        let chartName = chartId
+        let resolvedRange: String
+        if let valueRange {
+            resolvedRange = valueRange
+        } else {
+            let endRow = max(0, min(table.gridSpec.bodyRows - 1, 4))
+            resolvedRange = RangeParser.rangeString(region: .body,
+                                                    startRow: 0,
+                                                    startCol: 0,
+                                                    endRow: endRow,
+                                                    endCol: 0)
+        }
+        let rect = defaultChartRect()
+        let command = AddChartCommand(sheetId: sheetId,
+                                      chartId: chartId,
+                                      name: chartName,
+                                      rect: rect,
+                                      chartType: chartType,
+                                      tableId: tableId,
+                                      valueRange: resolvedRange,
+                                      labelRange: nil,
+                                      title: "",
+                                      xAxisTitle: "",
+                                      yAxisTitle: "",
+                                      showLegend: true)
+        apply(command)
+        return chart(withId: chartId)
+    }
+
+    @discardableResult
     func createSummaryTable(sourceTableId: String,
                             groupBy: [Int],
                             values: [SummaryValueSpec]) -> TableModel? {
@@ -122,8 +163,50 @@ final class CanvasViewModel: ObservableObject {
         apply(SetTablePositionCommand(tableId: tableId, x: rect.x, y: rect.y))
     }
 
+    func moveChart(chartId: String, to rect: Rect) {
+        apply(SetChartPositionCommand(chartId: chartId, x: rect.x, y: rect.y))
+    }
+
     func updateTableRect(tableId: String, rect: Rect) {
         apply(SetTableRectCommand(tableId: tableId, rect: rect))
+    }
+
+    func updateChartRect(chartId: String, rect: Rect) {
+        apply(SetChartRectCommand(chartId: chartId, rect: rect))
+    }
+
+    func setChartType(chartId: String, chartType: ChartType) {
+        apply(UpdateChartCommand(chartId: chartId, chartType: chartType))
+    }
+
+    func setChartValueRange(chartId: String, valueRange: String) {
+        apply(UpdateChartCommand(chartId: chartId, valueRange: valueRange))
+    }
+
+    func setChartLabelRange(chartId: String, labelRange: String?) {
+        let update: ChartLabelRangeUpdate = {
+            if let labelRange, !labelRange.isEmpty {
+                return .set(labelRange)
+            }
+            return .clear
+        }()
+        apply(UpdateChartCommand(chartId: chartId, labelRange: update))
+    }
+
+    func setChartTitle(chartId: String, title: String) {
+        apply(UpdateChartCommand(chartId: chartId, title: title))
+    }
+
+    func setChartXAxisTitle(chartId: String, title: String) {
+        apply(UpdateChartCommand(chartId: chartId, xAxisTitle: title))
+    }
+
+    func setChartYAxisTitle(chartId: String, title: String) {
+        apply(UpdateChartCommand(chartId: chartId, yAxisTitle: title))
+    }
+
+    func setChartShowLegend(chartId: String, showLegend: Bool) {
+        apply(UpdateChartCommand(chartId: chartId, showLegend: showLegend))
     }
 
     func setLabelBands(tableId: String, labelBands: LabelBands) {
@@ -167,10 +250,19 @@ final class CanvasViewModel: ObservableObject {
 
     func selectTable(_ tableId: String) {
         selectedTableId = tableId
+        selectedChartId = nil
+    }
+
+    func selectChart(_ chartId: String) {
+        selectedChartId = chartId
+        selectedTableId = nil
+        selectedCell = nil
+        formulaHighlightState = nil
     }
 
     func selectCell(_ selection: CellSelection) {
         selectedTableId = selection.tableId
+        selectedChartId = nil
         selectedCell = selection
     }
 
@@ -181,6 +273,7 @@ final class CanvasViewModel: ObservableObject {
     func clearSelection() {
         selectedCell = nil
         selectedTableId = nil
+        selectedChartId = nil
         formulaHighlightState = nil
     }
 
@@ -380,7 +473,7 @@ final class CanvasViewModel: ObservableObject {
     private func normalizedPreludeCommands(for project: ProjectModel, commands: [String]) -> [String] {
         let filtered = commands.filter { command in
             let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-            return !isAddSheetCommand(trimmed) && !isAddTableCommand(trimmed)
+            return !isAddSheetCommand(trimmed) && !isAddTableCommand(trimmed) && !isAddChartCommand(trimmed)
         }
         let prelude = projectPreludeCommands(project)
         return prelude + filtered
@@ -413,6 +506,21 @@ final class CanvasViewModel: ObservableObject {
                     prelude.append(command.serializeToPython())
                 }
             }
+            for chart in sheet.charts {
+                let command = AddChartCommand(sheetId: sheet.id,
+                                              chartId: chart.id,
+                                              name: chart.name,
+                                              rect: chart.rect,
+                                              chartType: chart.chartType,
+                                              tableId: chart.tableId,
+                                              valueRange: chart.valueRange,
+                                              labelRange: chart.labelRange,
+                                              title: chart.title,
+                                              xAxisTitle: chart.xAxisTitle,
+                                              yAxisTitle: chart.yAxisTitle,
+                                              showLegend: chart.showLegend)
+                prelude.append(command.serializeToPython())
+            }
         }
         return prelude
     }
@@ -423,6 +531,10 @@ final class CanvasViewModel: ObservableObject {
 
     private func isAddTableCommand(_ line: String) -> Bool {
         line.contains("proj.add_table(") || line.contains("proj.add_summary_table(")
+    }
+
+    private func isAddChartCommand(_ line: String) -> Bool {
+        line.contains("proj.add_chart(")
     }
 
     private func nextSheetName() -> String {
@@ -437,6 +549,15 @@ final class CanvasViewModel: ObservableObject {
                     y: 80 + offset,
                     width: Double(size.width),
                     height: Double(size.height))
+    }
+
+    private func defaultChartRect() -> Rect {
+        let count = project.sheets.reduce(0) { $0 + $1.tables.count + $1.charts.count }
+        let offset = Double(count) * 24.0
+        return Rect(x: 80 + offset,
+                    y: 80 + offset,
+                    width: Double(CanvasChartSizing.defaultSize.width),
+                    height: Double(CanvasChartSizing.defaultSize.height))
     }
 
     private func rectWithGridSize(_ rect: Rect, rows: Int, cols: Int, labelBands: LabelBands) -> Rect {
@@ -500,6 +621,15 @@ final class CanvasViewModel: ObservableObject {
         for sheet in project.sheets {
             if let table = sheet.tables.first(where: { $0.id == id }) {
                 return table
+            }
+        }
+        return nil
+    }
+
+    private func chart(withId id: String) -> ChartModel? {
+        for sheet in project.sheets {
+            if let chart = sheet.charts.first(where: { $0.id == id }) {
+                return chart
             }
         }
         return nil
@@ -606,6 +736,13 @@ final class CanvasViewModel: ObservableObject {
             return nil
         }
         return table(withId: selectedTableId)
+    }
+
+    func selectedChart() -> ChartModel? {
+        guard let selectedChartId else {
+            return nil
+        }
+        return chart(withId: selectedChartId)
     }
 
     func setBodyColumnType(tableId: String, col: Int, type: ColumnDataType) {

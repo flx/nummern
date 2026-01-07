@@ -451,19 +451,21 @@ Status:
 Deliverable:
 - Add chart models (`ChartSpec`) stored in `project.json` and surfaced in the canvas.
 - Implement chart commands and Python log serialization (e.g., `add_chart(...)`), tied to table ranges and labels.
-- Build chart UI (line, bar, pie) with basic inspector controls (title, legend, axis labels).
+- Build chart UI (line, bar, pie) with basic inspector controls (title, legend, axis labels, ranges).
 - Charts update when source tables change (after script run or incremental edits).
 
 Testable increment:
-- Create a chart from a table range, move/resize it, and see it update when source data changes.
+- Create a chart from a selected table, move/resize it, edit ranges/type/labels, and see it update when source data changes.
 
 Unit tests to add/run:
-- Swift: `ChartModelTests` for range binding + serialization.
-- Swift: `CommandSerializationTests` for chart command logging.
-- Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ChartModelTests`
+- Swift: `ChartModelTests` for chart persistence defaults/round-trip.
+- Swift: `CommandSerializationTests` chart logging cases.
+- Swift: `CommandApplyTests` chart apply case.
+- Python: `test_project_api.py::test_chart_roundtrip_and_updates`.
+- Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`
 
 Status:
-- [ ] Pending
+- [x] Completed
 
 ---
 
