@@ -340,7 +340,9 @@ final class CanvasViewModel: ObservableObject {
         selectedCell = activeCell
         selectedRanges = [range.normalized]
         selectionAnchor = anchor ?? activeCell
-        requestCanvasKeyFocus()
+        if !isEditing() {
+            requestCanvasKeyFocus()
+        }
     }
 
     func addSelection(range: TableRangeSelection, activeCell: CellSelection) {

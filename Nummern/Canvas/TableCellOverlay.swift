@@ -168,10 +168,10 @@ struct TableCellOverlay: View {
             editingText = initialText
         }
         editingRange = applyRange
+        onBeginEditing(selection)
         if replaceSelection {
             onReplaceSelection(TableRangeSelection(cell: selection), selection, anchor)
         }
-        onBeginEditing(selection)
         isEditingFocused = true
         updateHighlightState()
     }

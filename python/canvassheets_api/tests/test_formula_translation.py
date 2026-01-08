@@ -70,6 +70,23 @@ def test_cross_table_reference():
     assert table_2.cell_values["body[B0]"] == 10
 
 
+def test_empty_cell_treated_as_zero_in_arithmetic():
+    project = Project()
+    table = _make_table(project, "table_1", rows=1, cols=2)
+    table.set_formula("body[B0]", "=A0+5")
+    project.apply_formulas()
+    assert table.cell_values["body[B0]"] == 5
+
+
+def test_count_ignores_empty_cells():
+    project = Project()
+    table = _make_table(project, "table_1", rows=3, cols=1)
+    table.set_cells({"body[A1]": 2})
+    table.set_formula("body[A2]", "=COUNT(A0:A2)")
+    project.apply_formulas()
+    assert table.cell_values["body[A2]"] == 1
+
+
 def test_absolute_reference():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)

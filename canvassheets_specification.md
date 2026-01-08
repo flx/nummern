@@ -167,6 +167,7 @@ Support two formula modes:
   - Same table ranges
   - Other tables (via `table_id` only in MVP)
 - Formulas can target label-band cells (top/left/bottom/right) for summary rows or columns.
+- Empty cells are treated as `0` for numeric arithmetic; `COUNT/COUNTA` ignore empty cells.
 - Relative/absolute references:
 - `A0`, `$A$0`, `A$0`, `$A0`
 

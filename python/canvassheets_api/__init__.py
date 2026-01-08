@@ -913,7 +913,19 @@ def _coerce_number(value: Any) -> Optional[float]:
     return None
 
 
+def _is_empty_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, dict) and value.get("type") == "empty":
+        return True
+    if isinstance(value, str) and value == "":
+        return True
+    return False
+
+
 def _require_number(value: Any) -> float:
+    if _is_empty_value(value):
+        return 0.0
     number = _coerce_number(value)
     if number is None:
         raise FormulaError("Expected numeric value")
