@@ -7,12 +7,20 @@ struct FormulaTextHighlight: Hashable {
     let color: NSColor
 }
 
+enum EditorMoveDirection: Equatable {
+    case none
+    case up
+    case down
+    case left
+    case right
+}
+
 struct FormulaTextEditor: NSViewRepresentable {
     @Binding var text: String
     let highlights: [FormulaTextHighlight]
     let font: NSFont
     let isFirstResponder: Bool
-    let onSubmit: () -> Void
+    let onSubmit: (EditorMoveDirection) -> Void
     let onCancel: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -97,13 +105,17 @@ struct FormulaTextEditor: NSViewRepresentable {
 }
 
 final class FormulaNSTextView: NSTextView {
-    var onSubmit: (() -> Void)?
+    var onSubmit: ((EditorMoveDirection) -> Void)?
     var onCancel: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 36, 76: // Return, Enter
-            onSubmit?()
+            let move: EditorMoveDirection = event.modifierFlags.contains(.shift) ? .up : .down
+            onSubmit?(move)
+        case 48: // Tab
+            let move: EditorMoveDirection = event.modifierFlags.contains(.shift) ? .left : .right
+            onSubmit?(move)
         case 53: // Escape
             onCancel?()
         default:

@@ -166,4 +166,111 @@ final class CanvasViewModelTests: XCTestCase {
         XCTAssertTrue(log.contains("table_1 = proj.add_table('sheet_1', table_id='table_1'"))
         XCTAssertTrue(log.contains("with table_context(table_1):"))
     }
+
+    func testSelectCellCreatesRangeSelection() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 3,
+                               cols: 3,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        let cell = CellSelection(tableId: "table_1", region: .body, row: 0, col: 1)
+        viewModel.selectCell(cell)
+
+        XCTAssertEqual(viewModel.selectedRanges.count, 1)
+        XCTAssertEqual(viewModel.selectedRanges[0].normalized.startCol, 1)
+        XCTAssertEqual(viewModel.selectedRanges[0].normalized.endCol, 1)
+    }
+
+    func testExtendSelectionCreatesRange() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 4,
+                               cols: 4,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        let start = CellSelection(tableId: "table_1", region: .body, row: 0, col: 0)
+        let end = CellSelection(tableId: "table_1", region: .body, row: 2, col: 2)
+        viewModel.selectCell(start)
+        viewModel.extendSelection(to: end, addRange: false)
+
+        guard let range = viewModel.selectedRanges.first?.normalized else {
+            XCTFail("Missing range")
+            return
+        }
+        XCTAssertEqual(range.startRow, 0)
+        XCTAssertEqual(range.endRow, 2)
+        XCTAssertEqual(range.startCol, 0)
+        XCTAssertEqual(range.endCol, 2)
+    }
+
+    func testAddSelectionAddsMultiRange() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 4,
+                               cols: 4,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        let cell = CellSelection(tableId: "table_1", region: .body, row: 0, col: 0)
+        viewModel.selectCell(cell)
+
+        let range = TableRangeSelection(tableId: "table_1",
+                                        region: .body,
+                                        startRow: 1,
+                                        startCol: 1,
+                                        endRow: 2,
+                                        endCol: 2)
+        viewModel.addSelection(range: range, activeCell: range.endCell)
+
+        XCTAssertEqual(viewModel.selectedRanges.count, 2)
+    }
+
+    func testAddChartForSelectionUsesActiveRange() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 5,
+                               cols: 3,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        let start = CellSelection(tableId: "table_1", region: .body, row: 0, col: 0)
+        let end = CellSelection(tableId: "table_1", region: .body, row: 2, col: 2)
+        viewModel.selectCell(start)
+        viewModel.extendSelection(to: end, addRange: false)
+
+        let chart = viewModel.addChartForSelection(toSheetId: "sheet_1")
+        XCTAssertEqual(chart?.valueRange, "body[B0:C2]")
+        XCTAssertEqual(chart?.labelRange, "body[A0:A2]")
+    }
+
+    func testCreateSummaryTableStoresSourceRange() {
+        let table = TableModel(id: "table_1",
+                               name: "table_1",
+                               rect: Rect(x: 0, y: 0, width: 120, height: 80),
+                               rows: 5,
+                               cols: 3,
+                               labelBands: .zero)
+        let sheet = SheetModel(id: "sheet_1", name: "Sheet 1", tables: [table])
+        let viewModel = CanvasViewModel(project: ProjectModel(sheets: [sheet]))
+
+        let sourceRange = "body[A0:B2]"
+        let valueSpec = SummaryValueSpec(column: 1, aggregation: .sum)
+        let summary = viewModel.createSummaryTable(sourceTableId: "table_1",
+                                                   sourceRange: sourceRange,
+                                                   groupBy: [0],
+                                                   values: [valueSpec])
+
+        XCTAssertEqual(summary?.summarySpec?.sourceRange, sourceRange)
+    }
 }

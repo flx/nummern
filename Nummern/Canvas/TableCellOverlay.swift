@@ -65,29 +65,40 @@ struct TableCellOverlay: View {
     let table: TableModel
     let metrics: TableGridMetrics
     let selectedCell: CellSelection?
+    let selectedRanges: [TableRangeSelection]
+    let activeRange: TableRangeSelection?
     let activeEdit: CellSelection?
     let pendingReferenceInsert: ReferenceInsertRequest?
+    let pendingEditRequest: EditRequest?
     let highlightState: FormulaHighlightState?
-    let onSelect: (CellSelection) -> Void
+    let onReplaceSelection: (TableRangeSelection, CellSelection, CellSelection?) -> Void
+    let onAddSelection: (TableRangeSelection, CellSelection) -> Void
+    let onToggleSelection: (CellSelection) -> Void
+    let onExtendSelection: (CellSelection, Bool) -> Void
     let onBeginEditing: (CellSelection) -> Void
     let onCommit: (CellSelection, String) -> Void
+    let onCommitRange: (TableRangeSelection, String) -> Void
     let onHighlightChange: (FormulaHighlightState?) -> Void
+    let onCancelEditing: () -> Void
     let onEndEditing: () -> Void
     let onRequestReferenceInsert: (CellSelection, CellSelection) -> Void
     let onConsumeReferenceInsert: (ReferenceInsertRequest) -> Void
+    let onConsumeEditRequest: (EditRequest) -> Void
 
     @State private var editingCell: CellSelection?
     @State private var editingText: String = ""
     @State private var originalEditingText: String = ""
     @State private var isEditingFocused = false
+    @State private var editingRange: TableRangeSelection?
     @State private var dragStartSelection: CellSelection?
     @State private var dragCurrentSelection: CellSelection?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(selectionGesture)
+            TableMouseCaptureView(onMouseDown: handleMouseDown,
+                                  onMouseDragged: handleMouseDragged,
+                                  onMouseUp: handleMouseUp)
+                .frame(width: metrics.totalWidth, height: metrics.totalHeight)
 
             cellRegion(region: .topLabels, rows: metrics.topRows, cols: metrics.bodyCols)
             cellRegion(region: .leftLabels, rows: metrics.bodyRows, cols: metrics.leftCols)
@@ -103,6 +114,9 @@ struct TableCellOverlay: View {
         }
         .onChange(of: pendingReferenceInsert) { _, _ in
             handlePendingReferenceInsert()
+        }
+        .onChange(of: pendingEditRequest) { _, _ in
+            handlePendingEditRequest()
         }
     }
 
@@ -133,40 +147,66 @@ struct TableCellOverlay: View {
             .allowsHitTesting(false)
     }
 
-    private func beginEditing(_ selection: CellSelection) {
+    private func beginEditing(_ selection: CellSelection,
+                              initialText: String? = nil,
+                              applyRange: TableRangeSelection? = nil,
+                              replaceSelection: Bool = true,
+                              anchor: CellSelection? = nil) {
         guard table.summarySpec == nil else {
-            onSelect(selection)
+            onReplaceSelection(TableRangeSelection(cell: selection), selection, anchor)
             return
         }
         if editingCell != selection {
             editingCell = selection
-            editingText = editingValue(for: selection)
-            originalEditingText = editingText
+            originalEditingText = editingValue(for: selection)
+            if let initialText {
+                editingText = initialText
+            } else {
+                editingText = originalEditingText
+            }
+        } else if let initialText {
+            editingText = initialText
         }
-        onSelect(selection)
+        editingRange = applyRange
+        if replaceSelection {
+            onReplaceSelection(TableRangeSelection(cell: selection), selection, anchor)
+        }
         onBeginEditing(selection)
         isEditingFocused = true
         updateHighlightState()
     }
 
-    private func commitEdit() {
+    private func commitEdit(move: EditorMoveDirection = .none) {
         guard let editingCell else {
             return
         }
         let committedCell = editingCell
+        let committedRange = editingRange
         let committedText = editingText
+        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isFormula = trimmed.hasPrefix("=")
         self.editingCell = nil
+        self.editingRange = nil
         isEditingFocused = false
         onHighlightChange(nil)
         onEndEditing()
-        onCommit(committedCell, committedText)
+        if let committedRange, !isFormula {
+            onCommitRange(committedRange, committedText)
+        } else {
+            onCommit(committedCell, committedText)
+        }
+        if !isFormula, let next = nextSelection(from: committedCell, move: move) {
+            beginEditing(next, replaceSelection: true, anchor: next)
+        }
     }
 
     private func cancelEdit() {
         editingText = originalEditingText
         editingCell = nil
+        editingRange = nil
         isEditingFocused = false
         onHighlightChange(nil)
+        onCancelEditing()
         onEndEditing()
     }
 
@@ -218,6 +258,20 @@ struct TableCellOverlay: View {
                         .allowsHitTesting(false)
                 }
 
+                ForEach(selectionHighlights()) { highlight in
+                    Rectangle()
+                        .fill(Color.accentColor.opacity(highlight.isActive ? 0.14 : 0.08))
+                        .frame(width: highlight.rect.width, height: highlight.rect.height)
+                        .position(x: highlight.rect.midX, y: highlight.rect.midY)
+                        .allowsHitTesting(false)
+                    Rectangle()
+                        .stroke(Color.accentColor.opacity(highlight.isActive ? 0.9 : 0.45),
+                                lineWidth: highlight.isActive ? 1.4 : 1.0)
+                        .frame(width: highlight.rect.width, height: highlight.rect.height)
+                        .position(x: highlight.rect.midX, y: highlight.rect.midY)
+                        .allowsHitTesting(false)
+                }
+
                 if let dragRect = dragSelectionRect() {
                     Rectangle()
                         .fill(Color.accentColor.opacity(0.12))
@@ -246,7 +300,9 @@ struct TableCellOverlay: View {
                                           highlights: textHighlights(from: highlightState),
                                           font: NSFont.systemFont(ofSize: 12),
                                           isFirstResponder: isEditingFocused,
-                                          onSubmit: commitEdit,
+                                          onSubmit: { move in
+                                              commitEdit(move: move)
+                                          },
                                           onCancel: cancelEdit)
                             .frame(width: editorWidth, height: frame.height, alignment: .leading)
                             .position(x: editorPosition.x, y: editorPosition.y)
@@ -256,96 +312,121 @@ struct TableCellOverlay: View {
         }
     }
 
-    private var selectionGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                if editingCell != nil {
-                    if dragStartSelection == nil {
-                        dragStartSelection = selection(at: value.location)
-                    }
-                    if let selection = selection(at: value.location) {
-                        dragCurrentSelection = selection
-                    }
-                    return
-                }
-                if shouldRouteSelectionToActiveEdit {
-                    if dragStartSelection == nil {
-                        dragStartSelection = selection(at: value.location)
-                    }
-                    if let selection = selection(at: value.location) {
-                        dragCurrentSelection = selection
-                    }
-                }
-            }
-            .onEnded { value in
-                let selectionAtEnd = selection(at: value.location)
-                if let editingCell {
-                    let start = dragStartSelection ?? selectionAtEnd
-                    let end = dragCurrentSelection ?? selectionAtEnd
-                    dragStartSelection = nil
-                    dragCurrentSelection = nil
-                    guard let start, let end else {
-                        return
-                    }
-                    if start == editingCell, end == editingCell {
-                        isEditingFocused = true
-                        return
-                    }
-                    if Self.shouldCommitOnSelectionChange(editingText: editingText) {
-                        commitEdit()
-                        beginEditing(end)
-                        return
-                    }
-                    handleReferenceInsertRange(start: start, end: end, editingCell: editingCell)
-                    return
-                }
-                if shouldRouteSelectionToActiveEdit {
-                    let start = dragStartSelection ?? selectionAtEnd
-                    let end = dragCurrentSelection ?? selectionAtEnd
-                    dragStartSelection = nil
-                    dragCurrentSelection = nil
-                    guard let start, let end else {
-                        return
-                    }
-                    onRequestReferenceInsert(start, end)
-                    return
-                }
-                guard let selection = selectionAtEnd else {
-                    return
-                }
-                beginEditing(selection)
-            }
+    private func handleMouseDown(location: CGPoint,
+                                 modifiers: NSEvent.ModifierFlags,
+                                 clickCount: Int) {
+        dragStartSelection = selection(at: location)
+        dragCurrentSelection = dragStartSelection
     }
 
-    static func shouldCommitOnSelectionChange(editingText: String) -> Bool {
-        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.hasPrefix("=")
+    private func handleMouseDragged(location: CGPoint,
+                                    modifiers: NSEvent.ModifierFlags) {
+        if let selection = selection(at: location) {
+            dragCurrentSelection = selection
+        }
     }
 
-    private func handleReferenceInsert(from selection: CellSelection, editingCell: CellSelection) {
-        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("=") else {
-            onSelect(selection)
+    private func handleMouseUp(location: CGPoint,
+                               modifiers: NSEvent.ModifierFlags,
+                               clickCount: Int) {
+        let selectionAtEnd = selection(at: location)
+        let start = dragStartSelection ?? selectionAtEnd
+        let end = dragCurrentSelection ?? selectionAtEnd
+        dragStartSelection = nil
+        dragCurrentSelection = nil
+
+        guard let start, let end else {
             return
         }
-        let reference = formulaReference(for: selection, editingCell: editingCell)
-        editingText += reference
-        onSelect(selection)
-        isEditingFocused = true
+
+        if let editingCell {
+            if start == editingCell, end == editingCell {
+                isEditingFocused = true
+                return
+            }
+            handleReferenceInsertRange(start: start, end: end, editingCell: editingCell)
+            return
+        }
+
+        if shouldRouteSelectionToActiveEdit {
+            onRequestReferenceInsert(start, end)
+            return
+        }
+
+        let isCommand = modifiers.contains(.command)
+        let isShift = modifiers.contains(.shift)
+        let isDrag = start != end
+
+        if clickCount >= 2 {
+            beginEditing(end, replaceSelection: true, anchor: end)
+            return
+        }
+
+        if isDrag {
+            if start.region != end.region {
+                onReplaceSelection(TableRangeSelection(cell: end), end, end)
+                return
+            }
+            let range = TableRangeSelection(tableId: table.id,
+                                            region: start.region,
+                                            startRow: start.row,
+                                            startCol: start.col,
+                                            endRow: end.row,
+                                            endCol: end.col)
+            if isCommand {
+                onAddSelection(range, end)
+            } else if isShift {
+                onExtendSelection(end, isCommand)
+            } else {
+                onReplaceSelection(range, end, start)
+            }
+            return
+        }
+
+        if isCommand {
+            onToggleSelection(end)
+            return
+        }
+        if isShift {
+            onExtendSelection(end, isCommand)
+            return
+        }
+        onReplaceSelection(TableRangeSelection(cell: end), end, end)
+    }
+
+    private func handlePendingEditRequest() {
+        guard let request = pendingEditRequest,
+              request.tableId == table.id else {
+            return
+        }
+        let shouldReplace = request.applyRange == nil
+        beginEditing(request.selection,
+                     initialText: request.initialText,
+                     applyRange: request.applyRange,
+                     replaceSelection: shouldReplace,
+                     anchor: request.selection)
+        onConsumeEditRequest(request)
     }
 
     private func handleReferenceInsertRange(start: CellSelection,
                                             end: CellSelection,
                                             editingCell: CellSelection) {
-        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("=") else {
-            onSelect(end)
-            return
-        }
+        ensureFormulaMode()
         let reference = formulaReferenceRange(start: start, end: end, editingCell: editingCell)
         editingText += reference
-        onSelect(end)
         isEditingFocused = true
+    }
+
+    private func ensureFormulaMode() {
+        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("=") else {
+            return
+        }
+        if trimmed.isEmpty {
+            editingText = "="
+        } else {
+            editingText = "=\(trimmed)"
+        }
     }
 
     private func formulaReference(for selection: CellSelection, editingCell: CellSelection) -> String {
@@ -396,8 +477,7 @@ struct TableCellOverlay: View {
     }
 
     private func dragSelectionRect() -> CGRect? {
-        guard editingCell != nil,
-              let start = dragStartSelection,
+        guard let start = dragStartSelection,
               let end = dragCurrentSelection else {
             return nil
         }
@@ -422,6 +502,38 @@ struct TableCellOverlay: View {
         return max(frame.width, maxWidth)
     }
 
+    private func nextSelection(from selection: CellSelection,
+                               move: EditorMoveDirection) -> CellSelection? {
+        guard move != .none else {
+            return nil
+        }
+        let (rows, cols) = regionDimensions(for: selection.region)
+        guard rows > 0, cols > 0 else {
+            return nil
+        }
+        var row = selection.row
+        var col = selection.col
+        switch move {
+        case .down:
+            row += 1
+        case .up:
+            row -= 1
+        case .right:
+            col += 1
+        case .left:
+            col -= 1
+        case .none:
+            break
+        }
+        guard row >= 0, row < rows, col >= 0, col < cols else {
+            return nil
+        }
+        return CellSelection(tableId: selection.tableId,
+                             region: selection.region,
+                             row: row,
+                             col: col)
+    }
+
     private var shouldRouteSelectionToActiveEdit: Bool {
         guard let activeEdit else {
             return false
@@ -433,6 +545,26 @@ struct TableCellOverlay: View {
         let id = UUID()
         let rect: CGRect
         let color: Color
+    }
+
+    private struct SelectionHighlight: Identifiable {
+        let id = UUID()
+        let rect: CGRect
+        let isActive: Bool
+    }
+
+    private func selectionHighlights() -> [SelectionHighlight] {
+        guard !selectedRanges.isEmpty else {
+            return []
+        }
+        let activeKey = activeRange?.normalized
+        return selectedRanges.compactMap { range in
+            guard let rect = selectionRect(for: range) else {
+                return nil
+            }
+            let isActive = activeKey == range.normalized
+            return SelectionHighlight(rect: rect, isActive: isActive)
+        }
     }
 
     private func updateHighlightState() {
@@ -532,6 +664,24 @@ struct TableCellOverlay: View {
         let colEnd = max(reference.startCol, reference.endCol)
         let startFrame = metrics.cellFrame(region: reference.region, row: rowStart, col: colStart)
         let endFrame = metrics.cellFrame(region: reference.region, row: rowEnd, col: colEnd)
+        return startFrame.union(endFrame)
+    }
+
+    private func selectionRect(for range: TableRangeSelection) -> CGRect? {
+        let normalized = range.normalized
+        let (rows, cols) = regionDimensions(for: normalized.region)
+        guard normalized.startRow >= 0, normalized.startCol >= 0,
+              normalized.endRow >= 0, normalized.endCol >= 0,
+              normalized.startRow < rows, normalized.endRow < rows,
+              normalized.startCol < cols, normalized.endCol < cols else {
+            return nil
+        }
+        let startFrame = metrics.cellFrame(region: normalized.region,
+                                           row: normalized.startRow,
+                                           col: normalized.startCol)
+        let endFrame = metrics.cellFrame(region: normalized.region,
+                                         row: normalized.endRow,
+                                         col: normalized.endCol)
         return startFrame.union(endFrame)
     }
 
@@ -775,5 +925,48 @@ struct TableCellOverlay: View {
         }
 
         return nil
+    }
+}
+
+private struct TableMouseCaptureView: NSViewRepresentable {
+    let onMouseDown: (CGPoint, NSEvent.ModifierFlags, Int) -> Void
+    let onMouseDragged: (CGPoint, NSEvent.ModifierFlags) -> Void
+    let onMouseUp: (CGPoint, NSEvent.ModifierFlags, Int) -> Void
+
+    func makeNSView(context: Context) -> MouseCaptureNSView {
+        let view = MouseCaptureNSView()
+        view.onMouseDown = onMouseDown
+        view.onMouseDragged = onMouseDragged
+        view.onMouseUp = onMouseUp
+        return view
+    }
+
+    func updateNSView(_ nsView: MouseCaptureNSView, context: Context) {
+        nsView.onMouseDown = onMouseDown
+        nsView.onMouseDragged = onMouseDragged
+        nsView.onMouseUp = onMouseUp
+    }
+
+    final class MouseCaptureNSView: NSView {
+        var onMouseDown: ((CGPoint, NSEvent.ModifierFlags, Int) -> Void)?
+        var onMouseDragged: ((CGPoint, NSEvent.ModifierFlags) -> Void)?
+        var onMouseUp: ((CGPoint, NSEvent.ModifierFlags, Int) -> Void)?
+
+        override var isFlipped: Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            let location = convert(event.locationInWindow, from: nil)
+            onMouseDown?(location, event.modifierFlags, event.clickCount)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            let location = convert(event.locationInWindow, from: nil)
+            onMouseDragged?(location, event.modifierFlags)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            let location = convert(event.locationInWindow, from: nil)
+            onMouseUp?(location, event.modifierFlags, event.clickCount)
+        }
     }
 }

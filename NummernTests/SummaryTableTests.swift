@@ -8,13 +8,14 @@ final class SummaryTableTests: XCTestCase {
                                                 name: "summary_1",
                                                 rect: Rect(x: 80, y: 80, width: 160, height: 24),
                                                 sourceTableId: "table_1",
+                                                sourceRange: "body[A0:B2]",
                                                 groupBy: [0],
                                                 values: [SummaryValueSpec(column: 1, aggregation: .sum)],
                                                 rows: 1,
                                                 cols: 2)
 
         let expected = "proj.add_summary_table('sheet_1', table_id='summary_1', name='summary_1', " +
-        "source_table_id='table_1', group_by=['A'], values=[dict(col='B', agg='sum')], x=80, y=80)"
+        "source_table_id='table_1', source_range='body[A0:B2]', group_by=['A'], values=[dict(col='B', agg='sum')], x=80, y=80)"
         XCTAssertEqual(command.serializeToPython(), expected)
     }
 
@@ -25,6 +26,7 @@ final class SummaryTableTests: XCTestCase {
                                                 name: "summary_1",
                                                 rect: Rect(x: 80, y: 80, width: 160, height: 24),
                                                 sourceTableId: "table_1",
+                                                sourceRange: "body[A0:B2]",
                                                 groupBy: [0],
                                                 values: [SummaryValueSpec(column: 1, aggregation: .sum)],
                                                 rows: 1,
@@ -33,6 +35,7 @@ final class SummaryTableTests: XCTestCase {
         command.apply(to: &project)
         let table = project.sheets[0].tables[0]
         XCTAssertEqual(table.summarySpec?.sourceTableId, "table_1")
+        XCTAssertEqual(table.summarySpec?.sourceRange, "body[A0:B2]")
         XCTAssertEqual(table.summarySpec?.groupBy, [0])
         XCTAssertEqual(table.summarySpec?.values, [SummaryValueSpec(column: 1, aggregation: .sum)])
         XCTAssertEqual(table.gridSpec.bodyRows, 1)

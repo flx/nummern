@@ -1,3 +1,4 @@
+import AppKit
 import Charts
 import SwiftUI
 
@@ -20,8 +21,15 @@ struct CanvasView: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            viewModel.clearSelection()
+                            if !viewModel.isEditing() {
+                                viewModel.clearSelection()
+                            }
                         }
+
+                    CanvasKeyCaptureView(viewModel: viewModel)
+                        .frame(width: 1, height: 1)
+                        .opacity(0.01)
+                        .allowsHitTesting(false)
 
                     ForEach(sheet.tables, id: \.id) { table in
                         TableCanvasItem(table: table, viewModel: viewModel)
@@ -76,6 +84,8 @@ struct TableCanvasItem: View {
         let centerX = originX + width / 2.0
         let centerY = originY + height / 2.0
         let selectedCell = viewModel.selectedCell?.tableId == table.id ? viewModel.selectedCell : nil
+        let selectedRanges = viewModel.selectionRanges(for: table.id)
+        let activeRange = viewModel.activeRange(for: table.id)
 
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 6)
@@ -155,11 +165,25 @@ struct TableCanvasItem: View {
                 TableCellOverlay(table: table,
                                  metrics: metrics,
                                  selectedCell: selectedCell,
+                                 selectedRanges: selectedRanges,
+                                 activeRange: activeRange,
                                  activeEdit: viewModel.activeFormulaEdit,
                                  pendingReferenceInsert: viewModel.pendingReferenceInsert,
+                                 pendingEditRequest: viewModel.pendingEditRequest,
                                  highlightState: viewModel.formulaHighlightState,
-                                 onSelect: { selection in
-                                     viewModel.selectCell(selection)
+                                 onReplaceSelection: { range, activeCell, anchor in
+                                     viewModel.replaceSelection(with: range,
+                                                                activeCell: activeCell,
+                                                                anchor: anchor)
+                                 },
+                                 onAddSelection: { range, activeCell in
+                                     viewModel.addSelection(range: range, activeCell: activeCell)
+                                 },
+                                 onToggleSelection: { cell in
+                                     viewModel.toggleSelection(cell: cell)
+                                 },
+                                 onExtendSelection: { cell, addRange in
+                                     viewModel.extendSelection(to: cell, addRange: addRange)
                                  },
                                  onBeginEditing: { selection in
                                      viewModel.beginFormulaEdit(selection)
@@ -171,8 +195,14 @@ struct TableCanvasItem: View {
                                                             col: selection.col,
                                                             rawValue: value)
                                  },
+                                 onCommitRange: { range, value in
+                                     viewModel.setRangeValue(range: range, rawValue: value)
+                                 },
                                  onHighlightChange: { state in
                                      viewModel.setFormulaHighlights(state)
+                                 },
+                                 onCancelEditing: {
+                                     viewModel.clearSelection()
                                  },
                                  onEndEditing: {
                                      viewModel.endFormulaEdit()
@@ -182,6 +212,9 @@ struct TableCanvasItem: View {
                                  },
                                  onConsumeReferenceInsert: { request in
                                      viewModel.consumeReferenceInsert(request)
+                                 },
+                                 onConsumeEditRequest: { request in
+                                     viewModel.consumeEditRequest(request)
                                  })
                     .frame(width: metrics.totalWidth, height: metrics.totalHeight, alignment: .topLeading)
             }
@@ -342,34 +375,43 @@ struct ChartCanvasItem: View {
     @ViewBuilder
     private func chartContent() -> some View {
         if let table {
-            let points = chartPoints(table: table)
-            if points.isEmpty {
-                Text("No data")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                Chart(points) { point in
-                    switch chart.chartType {
-                    case .line:
-                        LineMark(x: .value("Label", point.label),
-                                 y: .value("Value", point.value))
-                        .foregroundStyle(by: .value("Series", chart.name))
-                    case .bar:
-                        BarMark(x: .value("Label", point.label),
-                                y: .value("Value", point.value))
-                        .foregroundStyle(by: .value("Series", chart.name))
-                    case .pie:
+            switch chart.chartType {
+            case .pie:
+                let points = piePoints(table: table)
+                if points.isEmpty {
+                    noDataView()
+                } else {
+                    Chart(points) { point in
                         SectorMark(angle: .value("Value", point.value),
                                    innerRadius: .ratio(0.4))
                         .foregroundStyle(by: .value("Label", point.label))
                     }
+                    .chartLegend(chart.showLegend ? .visible : .hidden)
+                    .chartXAxis(.hidden)
+                    .chartYAxis(.hidden)
                 }
-                .chartLegend(chart.showLegend ? .visible : .hidden)
-                .chartXAxis(chart.chartType == .pie ? .hidden : .automatic)
-                .chartYAxis(chart.chartType == .pie ? .hidden : .automatic)
-                .chartXAxisLabel(chart.xAxisTitle)
-                .chartYAxisLabel(chart.yAxisTitle)
+            case .line, .bar:
+                let points = chartDataPoints(table: table)
+                if points.isEmpty {
+                    noDataView()
+                } else {
+                    Chart(points) { point in
+                        if chart.chartType == .line {
+                            LineMark(x: .value("Label", point.label),
+                                     y: .value("Value", point.value))
+                            .foregroundStyle(by: .value("Series", point.series))
+                        } else {
+                            BarMark(x: .value("Label", point.label),
+                                    y: .value("Value", point.value))
+                            .foregroundStyle(by: .value("Series", point.series))
+                        }
+                    }
+                    .chartLegend(chart.showLegend ? .visible : .hidden)
+                    .chartXAxis(.automatic)
+                    .chartYAxis(.automatic)
+                    .chartXAxisLabel(chart.xAxisTitle)
+                    .chartYAxisLabel(chart.yAxisTitle)
+                }
             }
         } else {
             Text("Missing table")
@@ -377,6 +419,13 @@ struct ChartCanvasItem: View {
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+    }
+
+    private func noDataView() -> some View {
+        Text("No data")
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private func moveGesture() -> some Gesture {
@@ -415,54 +464,119 @@ struct ChartCanvasItem: View {
             }
     }
 
-    private func chartPoints(table: TableModel) -> [ChartPoint] {
+    private func chartDataPoints(table: TableModel) -> [ChartDataPoint] {
+        let series = chartSeries(table: table)
+        return series.flatMap { series in
+            series.points.map { point in
+                ChartDataPoint(id: "\(series.name)-\(point.id)",
+                               label: point.label,
+                               value: point.value,
+                               series: series.name)
+            }
+        }
+    }
+
+    private func piePoints(table: TableModel) -> [ChartPoint] {
+        guard let first = chartSeries(table: table).first else {
+            return []
+        }
+        return first.points
+    }
+
+    private func chartSeries(table: TableModel) -> [ChartSeries] {
         guard let valueRange = try? RangeParser.parse(chart.valueRange) else {
             return []
         }
-        let valueCells = cells(in: valueRange)
-        let labelStrings: [String]
-        if let labelRange = chart.labelRange,
-           let parsedLabelRange = try? RangeParser.parse(labelRange) {
-            labelStrings = cells(in: parsedLabelRange).map { cell in
-                let key = RangeParser.address(region: parsedLabelRange.region, row: cell.row, col: cell.col)
-                let value = table.cellValues[key] ?? .empty
-                return value.displayString
-            }
-        } else {
-            labelStrings = []
+        let rowStart = min(valueRange.start.row, valueRange.end.row)
+        let rowEnd = max(valueRange.start.row, valueRange.end.row)
+        let colStart = min(valueRange.start.col, valueRange.end.col)
+        let colEnd = max(valueRange.start.col, valueRange.end.col)
+        guard rowStart <= rowEnd, colStart <= colEnd else {
+            return []
         }
 
-        var points: [ChartPoint] = []
-        for (index, cell) in valueCells.enumerated() {
-            let key = RangeParser.address(region: valueRange.region, row: cell.row, col: cell.col)
-            let value = table.cellValues[key] ?? .empty
-            guard let number = chartNumber(from: value) else {
-                continue
-            }
-            var label = RangeParser.cellLabel(row: cell.row, col: cell.col)
-            if index < labelStrings.count {
-                let candidate = labelStrings[index]
-                if !candidate.isEmpty {
-                    label = candidate
+        let labelsByRow = labelStringsByRow(table: table,
+                                            valueRange: valueRange,
+                                            rowStart: rowStart,
+                                            rowEnd: rowEnd)
+        let seriesNames = seriesNamesForColumns(table: table,
+                                                 colStart: colStart,
+                                                 colEnd: colEnd)
+
+        var seriesList: [ChartSeries] = []
+        for (offset, col) in (colStart...colEnd).enumerated() {
+            let seriesName = seriesNames.indices.contains(offset)
+                ? seriesNames[offset]
+                : RangeParser.columnLabel(from: col)
+            var points: [ChartPoint] = []
+            for (rowOffset, row) in (rowStart...rowEnd).enumerated() {
+                let key = RangeParser.address(region: valueRange.region, row: row, col: col)
+                let value = table.cellValues[key] ?? .empty
+                guard let number = chartNumber(from: value) else {
+                    continue
                 }
+                let label = labelForRow(row: row,
+                                        rowOffset: rowOffset,
+                                        fallbackColumn: col,
+                                        labelsByRow: labelsByRow)
+                points.append(ChartPoint(id: rowOffset, label: label, value: number))
             }
-            points.append(ChartPoint(id: index, label: label, value: number))
+            seriesList.append(ChartSeries(id: offset, name: seriesName, points: points))
         }
-        return points
+        return seriesList
     }
 
-    private func cells(in range: RangeAddress) -> [CellAddress] {
-        let rowStart = min(range.start.row, range.end.row)
-        let rowEnd = max(range.start.row, range.end.row)
-        let colStart = min(range.start.col, range.end.col)
-        let colEnd = max(range.start.col, range.end.col)
-        var cells: [CellAddress] = []
+    private func labelStringsByRow(table: TableModel,
+                                   valueRange: RangeAddress,
+                                   rowStart: Int,
+                                   rowEnd: Int) -> [String] {
+        guard let labelRange = chart.labelRange,
+              let parsedLabelRange = try? RangeParser.parse(labelRange) else {
+            return []
+        }
+        let labelRowStart = min(parsedLabelRange.start.row, parsedLabelRange.end.row)
+        let labelRowEnd = max(parsedLabelRange.start.row, parsedLabelRange.end.row)
+        let labelCol = min(parsedLabelRange.start.col, parsedLabelRange.end.col)
+        var labels: [String] = []
         for row in rowStart...rowEnd {
-            for col in colStart...colEnd {
-                cells.append(CellAddress(row: row, col: col))
+            if row < labelRowStart || row > labelRowEnd {
+                labels.append("")
+                continue
+            }
+            let key = RangeParser.address(region: parsedLabelRange.region, row: row, col: labelCol)
+            let value = table.cellValues[key] ?? .empty
+            labels.append(value.displayString)
+        }
+        return labels
+    }
+
+    private func seriesNamesForColumns(table: TableModel,
+                                       colStart: Int,
+                                       colEnd: Int) -> [String] {
+        guard table.gridSpec.labelBands.topRows > 0 else {
+            return (colStart...colEnd).map { RangeParser.columnLabel(from: $0) }
+        }
+        var names: [String] = []
+        for col in colStart...colEnd {
+            let key = RangeParser.address(region: .topLabels, row: 0, col: col)
+            let value = table.cellValues[key] ?? .empty
+            let name = value.displayString
+            names.append(name.isEmpty ? RangeParser.columnLabel(from: col) : name)
+        }
+        return names
+    }
+
+    private func labelForRow(row: Int,
+                             rowOffset: Int,
+                             fallbackColumn: Int,
+                             labelsByRow: [String]) -> String {
+        if labelsByRow.indices.contains(rowOffset) {
+            let candidate = labelsByRow[rowOffset]
+            if !candidate.isEmpty {
+                return candidate
             }
         }
-        return cells
+        return RangeParser.cellLabel(row: row, col: fallbackColumn)
     }
 
     private func chartNumber(from value: CellValue) -> Double? {
@@ -485,4 +599,53 @@ private struct ChartPoint: Identifiable {
     let id: Int
     let label: String
     let value: Double
+}
+
+private struct ChartSeries: Identifiable {
+    let id: Int
+    let name: String
+    let points: [ChartPoint]
+}
+
+private struct ChartDataPoint: Identifiable {
+    let id: String
+    let label: String
+    let value: Double
+    let series: String
+}
+
+private struct CanvasKeyCaptureView: NSViewRepresentable {
+    @ObservedObject var viewModel: CanvasViewModel
+
+    func makeNSView(context: Context) -> KeyCaptureNSView {
+        let view = KeyCaptureNSView()
+        view.viewModel = viewModel
+        return view
+    }
+
+    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
+        nsView.viewModel = viewModel
+        if viewModel.needsCanvasKeyFocus,
+           nsView.window?.firstResponder != nsView {
+            nsView.window?.makeFirstResponder(nsView)
+            viewModel.consumeCanvasKeyFocus()
+        }
+    }
+
+    final class KeyCaptureNSView: NSView {
+        weak var viewModel: CanvasViewModel?
+
+        override var acceptsFirstResponder: Bool { true }
+
+        override func keyDown(with event: NSEvent) {
+            if viewModel?.handleKeyDown(event) == true {
+                return
+            }
+            if let next = nextResponder {
+                next.keyDown(with: event)
+            } else {
+                super.keyDown(with: event)
+            }
+        }
+    }
 }

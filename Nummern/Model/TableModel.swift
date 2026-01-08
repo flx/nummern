@@ -35,6 +35,7 @@ struct SummaryValueSpec: Codable, Equatable, Hashable {
 
 struct SummarySpec: Codable, Equatable, Hashable {
     let sourceTableId: String
+    let sourceRange: String?
     let groupBy: [Int]
     let values: [SummaryValueSpec]
 }

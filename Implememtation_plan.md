@@ -469,6 +469,43 @@ Status:
 
 ---
 
+## Step 14c: UI interaction model alignment (mouse + keyboard)
+
+Deliverable:
+- Audit the current interaction model against §5.10 of the spec and document gaps in behavior (selection, editing, chart/summary creation).
+- Implement the specified mouse and keyboard behaviors, including multi-range selection, edit commit/cancel rules, and range-aware chart/summary creation.
+- Update interaction-related documentation/comments as needed to keep behavior discoverable.
+
+Analysis (current vs target):
+- **Selection**: Current model supports single-cell selection and formula-edit insertion on click; multi-range selection and command-modified range selection are not fully implemented.
+- **Editing**: Enter/Return currently commits edits but does not consistently advance to the next row for data entry, and Escape does not fully reset selection state.
+- **Drag selection**: Range drag is present but does not add to multi-range selection or map to chart/summary creation logic.
+- **Chart creation**: Charts currently default to a fixed value range and do not infer categories/series from active selection or table label bands.
+- **Summary creation**: Summary builder uses entire table body; range-scoped summaries are not implemented.
+
+Implementation steps:
+1) Model: extend selection state to support multi-range sets and a defined "active range" across interactions.
+2) Mouse input: add command-click/drag behavior to toggle/add to selection, and ensure selection replacement rules match §5.10.
+3) Keyboard input: implement Enter/Shift+Enter/Tab/Escape behaviors for commit/move/cancel; add range expansion with Shift+Arrow and multi-range add with Command+Shift+Arrow.
+4) Chart creation: if a range is selected, derive category + series from that range; if a table is selected, use label bands and body columns per spec.
+5) Summary creation: if a range is selected, scope summary to that range and persist `sourceRange` (label-band column naming deferred).
+6) QA pass: verify formula-edit reference insertion still works across tables/ranges under the new selection model.
+
+Testable increment:
+- Users can select multi-ranges, commit/cancel edits with keyboard rules, and create charts/summaries based on selection context with predictable results.
+
+Unit tests to add/run:
+- Swift: `CanvasViewModelTests` for selection state transitions, multi-range add, chart range derivation, summary source ranges.
+- Swift: `TableCellOverlayTests` for range normalization.
+- Swift: `SummaryTableTests` for `sourceRange` serialization/persistence.
+- Python: `python/canvassheets_api/tests/test_summary_range.py` for `source_range` filtering behavior.
+- Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`
+
+Status:
+- [x] Completed
+
+---
+
 ## Step 15: Snapshot caching (optional but recommended)
 
 Deliverable:

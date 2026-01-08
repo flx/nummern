@@ -240,14 +240,177 @@ v1 scope:
 - Charts are canvas objects anchored to a sheet and bound to table data ranges.
 - Supported chart types: line, bar, pie.
 - Data binding:
-  - Line/bar: a single series from `valueRange` (row-major if 2D); category labels come from `labelRange` when provided, otherwise use cell labels (e.g., `A0`).
-  - Pie: single series from `valueRange`, labels from `labelRange` or cell labels.
+  - Line/bar: multi-series supported; see §5.10 for how the selected range maps to categories and series.
+  - Pie: single series derived from the selection; labels from the category column or label range.
 - Charts update whenever the source table data changes (on script run or incremental updates).
 - Basic properties: title, legend toggle, axis labels (line/bar).
 - Commands are logged to the script (e.g., `add_chart(...)`, `chart(...).set_spec(...)`) and persisted in `project.json`.
 - Chart spec stored in `project.json`:
   - `id`, `name`, `rect`, `chartType`, `tableId`, `valueRange`, `labelRange` (optional)
   - `title`, `xAxisTitle`, `yAxisTitle`, `showLegend`
+
+### 5.10 UI interaction model (selection, editing, creation)
+
+This section defines the complete mouse and button behavior for selection, editing, and creation of summaries/charts. The design prioritizes predictable selection semantics and formula editing workflow.
+
+#### 5.10.1 State model
+- **Selection state** (mutually exclusive for primary selection, with optional multi-range set):
+  - `none`
+  - `cell` (single cell selection)
+  - `range` (single rectangular range)
+  - `multi-range` (collection of rectangular ranges, same table)
+  - `table` (table object selected)
+  - `chart` (chart object selected)
+- **Edit state**:
+  - `none`
+  - `editing` (inline cell editor active, caret position tracked)
+- **Active objects**:
+  - `selectedTableId` (set when any cell/range/table is selected)
+  - `selectedChartId` (set when a chart is selected)
+
+The last touched cell/range is the **active range** and is used by actions such as Add Chart / Create Summary when multi-range selection is present.
+
+#### 5.10.2 Mouse click interactions (cells, tables, charts)
+
+**Click on a cell (body or label band)**
+- If not editing and no selection: select the clicked cell.
+- If not editing and a different cell is selected: replace selection with the clicked cell.
+- If not editing and a range is selected: replace selection with the clicked cell.
+- Command-click:
+  - If the click is in the same table: toggle that cell into/out of the multi-range selection set.
+  - If the click is in a different table: clear selection and select the clicked cell in the new table.
+- Double-click: enter edit mode for the clicked cell.
+
+**Click on table frame or title**
+- Selects the table (clears any cell/range selection).
+- If a chart is selected, it is deselected.
+
+**Click on a chart**
+- Selects the chart (clears table/cell/range selection).
+- Click does not modify the chart data binding; it only changes selection.
+
+**Click on blank canvas**
+- If not editing: clear all selections.
+- If editing: no commit is triggered (Enter/Escape govern commit/cancel).
+
+**While editing a cell**
+- Clicking any cell inserts its reference at the caret.
+  - If the click is in another table, insert `table_id.A0` form.
+  - If the editor is not yet a formula, the insertion switches the editor into formula mode by prefixing `=`.
+- Clicking non-cell UI (table frame, chart, canvas) does not commit or cancel the edit.
+
+#### 5.10.3 Mouse drag interactions (range selection)
+
+**Drag over cells (not editing)**
+- Drag creates a rectangular range selection, highlighted during drag.
+- If a range was already selected, it is replaced by the new range.
+- Command-drag adds the dragged range to the multi-range selection set (same table only).
+- Shift-drag extends the selection from the anchor cell (same behavior as Shift-click).
+- Dragging in a different table replaces the selection set to that table.
+- If a drag crosses regions (e.g., body → top labels), the selection collapses to the end cell.
+
+**Drag over cells (while editing)**
+- Drag inserts a range reference at the caret (`A0:B3`).
+- During drag, the hovered range is highlighted; no selection commit occurs.
+- If dragging in another table, the inserted reference is table-qualified (`table_id.A0:table_id.B3`).
+
+**Drag on blank canvas**
+- No selection (reserved for future lasso selection of canvas objects).
+
+#### 5.10.4 Selection set semantics
+- Multi-range selection exists only within a single table (command-click/drag).
+- The **active range** is the most recent range in the set; all range-based actions use it.
+- Copy/paste uses the active range (unless explicitly extended in future).
+
+#### 5.10.5 Summary table creation (button action)
+
+The **Create Summary** action uses the current selection context:
+- If a range is selected:
+  - The summary is scoped to that rectangular range only.
+  - Only body ranges are eligible; non-body ranges fall back to table selection behavior.
+  - Column labels in the summary builder use column letters (top/left label inference is deferred).
+- If a table is selected:
+  - The entire **body region** is the source range.
+  - Column labels in the summary builder use column letters (top/left label inference is deferred).
+- If no range or table is selected: the action is disabled.
+- If multiple ranges are selected: the active range is used.
+
+#### 5.10.6 Chart creation (button action)
+
+The **Add Chart** action uses the current selection context:
+- If a range is selected:
+  - Use that rectangle as the source range.
+  - Only body ranges are eligible; non-body ranges fall back to table selection behavior.
+  - **Line/Bar**: first column is the category (x-axis); remaining columns are value series.
+  - **Series names**: if the table has top label rows, their first row values label the series columns; otherwise default to column labels.
+  - **Pie**: use the first value column (after the category column) as values; categories come from the category column.
+- If a table is selected:
+  - Use the entire body region.
+  - If left label columns exist and are populated, they are used as the category axis; otherwise the first body column is the category axis.
+  - Remaining body columns become value series (line/bar) or the first available value column (pie).
+- If no range or table is selected: the action is disabled.
+- If multiple ranges are selected: the active range is used.
+
+#### 5.10.7 Chart edits via inspector
+- Editing `valueRange` or `labelRange` in the inspector directly updates the chart binding.
+- Invalid ranges render the chart in a "no data" state and show placeholder UI.
+
+#### 5.10.8 Keyboard interactions
+
+Keyboard behavior depends on **selection state** (cell/range/table/chart) and **edit state** (editing vs not editing).
+
+**Escape**
+- If editing: cancel the edit, revert to the previous cell value, and clear all selection (nothing selected).
+- If not editing: clear all selection (cell/range/table/chart).
+
+**Enter/Return**
+- If editing a **data value** (non-formula): commit the value and begin editing the next cell **below** (same column).
+- If editing a **formula**: commit the formula and stop editing; keep the cell selected (do not move or enter edit).
+- If not editing and a cell is selected: begin editing that cell (caret at end of existing content).
+- If a range is selected: begin editing the **active cell** (last clicked cell in the range) and collapse selection to that cell.
+
+**Shift+Enter**
+- If editing a **data value**: commit and begin editing the cell **above** (same column).
+- If editing a **formula**: commit and keep the cell selected (no movement).
+- If not editing: move selection one cell up (within the same table), without entering edit.
+
+**Tab / Shift+Tab**
+- If editing a **data value**: commit and begin editing the next cell **to the right** (Shift+Tab = left).
+- If editing a **formula**: commit and keep the cell selected (no movement).
+- If not editing: move selection one cell right (Shift+Tab = left), without entering edit.
+
+**Arrow keys**
+- If not editing:
+  - Moves the cell selection one step in the arrow direction.
+  - If a range is selected, the active cell moves within the range; if the active cell moves outside, the selection collapses to the new single cell.
+- If editing:
+  - Moves the caret inside the editor (does not change selection).
+
+**Shift + Arrow keys**
+- Extends the current selection to a rectangular range from the active cell to the new cell.
+- If a range is already selected, extends from the active cell, replacing the previous range (Command+Shift+Arrow adds as a new range; see below).
+
+**Command + Click/Drag**
+- Adds to the multi-range selection set (same table only).
+- If the command-modified selection is in a different table, clear the selection and select in that table.
+
+**Command + Shift + Arrow keys**
+- Adds a new range to the multi-range selection (same table only), extending from the active cell to the new target cell.
+
+**Typing alphanumerics when not editing**
+- Starts editing the active cell and replaces its contents with the typed character(s).
+- If a range is selected, typing replaces all cells in the range with the typed value.
+
+**Backspace/Delete when not editing**
+- If a cell or range is selected: clears values/formulas in the selection.
+- If a table or chart is selected: no-op (deletion is explicit via future menu actions).
+
+**Copy/Paste (Cmd+C / Cmd+V)**
+- If a cell or range is selected: copy/paste operates on that selection.
+- If a table/chart is selected: no-op.
+
+**Undo/Redo (Cmd+Z / Shift+Cmd+Z)**
+- Applies to the last committed action (cell edit, range edit, resize, move, chart/summary creation).
 
 ---
 

@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var isExportingCSV = false
     @State private var isShowingSummaryBuilder = false
     @State private var summaryBuilderState = SummaryBuilderState(sourceTableId: "",
+                                                                 sourceRange: nil,
                                                                  columns: [],
                                                                  groupBy: [],
                                                                  valueColumn: 0,
@@ -285,23 +286,31 @@ struct ContentView: View {
         guard let sheetId = selectedSheetId ?? viewModel.project.sheets.first?.id else {
             return
         }
-        guard let table = viewModel.selectedTable() else {
-            return
-        }
-        _ = viewModel.addChart(toSheetId: sheetId, tableId: table.id)
+        _ = viewModel.addChartForSelection(toSheetId: sheetId)
     }
 
     private func openSummaryBuilder() {
         guard let table = viewModel.selectedTable() else {
             return
         }
-        let columns = Array(0..<table.gridSpec.bodyCols)
+        var columns = Array(0..<table.gridSpec.bodyCols)
+        var sourceRange: String? = nil
+        if let range = viewModel.activeSelectionRange(),
+           range.tableId == table.id,
+           range.region == .body {
+            let normalized = range.normalized
+            if normalized.startCol <= normalized.endCol {
+                columns = Array(normalized.startCol...normalized.endCol)
+                sourceRange = normalized.rangeString()
+            }
+        }
         guard !columns.isEmpty else {
             return
         }
         let defaultGroup = Set([columns.first].compactMap { $0 })
         let valueColumn = columns.count > 1 ? columns[1] : columns[0]
         summaryBuilderState = SummaryBuilderState(sourceTableId: table.id,
+                                                  sourceRange: sourceRange,
                                                   columns: columns,
                                                   groupBy: defaultGroup,
                                                   valueColumn: valueColumn,
@@ -314,6 +323,7 @@ struct ContentView: View {
         let valueSpec = SummaryValueSpec(column: summaryBuilderState.valueColumn,
                                          aggregation: summaryBuilderState.aggregation)
         if let table = viewModel.createSummaryTable(sourceTableId: summaryBuilderState.sourceTableId,
+                                                    sourceRange: summaryBuilderState.sourceRange,
                                                     groupBy: groupBy,
                                                     values: [valueSpec]) {
             viewModel.selectTable(table.id)
@@ -748,6 +758,7 @@ struct ScriptEditor: NSViewRepresentable {
 
 struct SummaryBuilderState: Equatable {
     var sourceTableId: String
+    var sourceRange: String?
     var columns: [Int]
     var groupBy: Set<Int>
     var valueColumn: Int

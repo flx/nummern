@@ -105,6 +105,7 @@ struct CreateSummaryTableCommand: Command {
     let name: String
     let rect: Rect
     let sourceTableId: String
+    let sourceRange: String?
     let groupBy: [Int]
     let values: [SummaryValueSpec]
     let rows: Int
@@ -117,6 +118,7 @@ struct CreateSummaryTableCommand: Command {
          name: String,
          rect: Rect,
          sourceTableId: String,
+         sourceRange: String? = nil,
          groupBy: [Int],
          values: [SummaryValueSpec],
          rows: Int,
@@ -128,6 +130,7 @@ struct CreateSummaryTableCommand: Command {
         self.name = name
         self.rect = rect
         self.sourceTableId = sourceTableId
+        self.sourceRange = sourceRange
         self.groupBy = groupBy
         self.values = values
         self.rows = rows
@@ -135,7 +138,10 @@ struct CreateSummaryTableCommand: Command {
     }
 
     func apply(to project: inout ProjectModel) {
-        let spec = SummarySpec(sourceTableId: sourceTableId, groupBy: groupBy, values: values)
+        let spec = SummarySpec(sourceTableId: sourceTableId,
+                               sourceRange: sourceRange,
+                               groupBy: groupBy,
+                               values: values)
         project.updateSheet(id: sheetId) { sheet in
             let table = TableModel(id: tableId,
                                    name: name,
@@ -153,7 +159,12 @@ struct CreateSummaryTableCommand: Command {
         let y = PythonLiteralEncoder.encodeNumber(rect.y)
         let groupLiteral = pythonColumnList(groupBy)
         let valuesLiteral = pythonValuesList(values)
-        return "proj.add_summary_table(\(PythonLiteralEncoder.encodeString(sheetId)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), name=\(PythonLiteralEncoder.encodeString(name)), source_table_id=\(PythonLiteralEncoder.encodeString(sourceTableId)), group_by=\(groupLiteral), values=\(valuesLiteral), x=\(x), y=\(y))"
+        var args = "proj.add_summary_table(\(PythonLiteralEncoder.encodeString(sheetId)), table_id=\(PythonLiteralEncoder.encodeString(tableId)), name=\(PythonLiteralEncoder.encodeString(name)), source_table_id=\(PythonLiteralEncoder.encodeString(sourceTableId))"
+        if let sourceRange {
+            args += ", source_range=\(PythonLiteralEncoder.encodeString(sourceRange))"
+        }
+        args += ", group_by=\(groupLiteral), values=\(valuesLiteral), x=\(x), y=\(y))"
+        return args
     }
 
     private func pythonColumnList(_ columns: [Int]) -> String {

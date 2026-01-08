@@ -1355,12 +1355,14 @@ class SummaryValueSpec:
 @dataclass
 class SummarySpec:
     source_table_id: str
+    source_range: Optional[str]
     group_by: List[int]
     values: List[SummaryValueSpec]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "sourceTableId": self.source_table_id,
+            "sourceRange": self.source_range,
             "groupBy": list(self.group_by),
             "values": [value.to_dict() for value in self.values],
         }
@@ -1917,7 +1919,27 @@ def _apply_summary_table(project: "Project", summary_table: Table) -> None:
     else:
         body_rows = source.grid_spec.bodyRows
 
-    for row in range(body_rows):
+    row_start = 0
+    row_end = max(0, body_rows - 1)
+    col_start = 0
+    col_end = max(0, source.grid_spec.bodyCols - 1)
+    if spec.source_range:
+        try:
+            region, start_row, start_col, end_row, end_col = parse_range(spec.source_range)
+        except RangeParserError:
+            region = None
+        if region == "body":
+            row_start = max(0, min(start_row, end_row))
+            row_end = min(max(0, body_rows - 1), max(start_row, end_row))
+            col_start = max(0, min(start_col, end_col))
+            col_end = min(max(0, source.grid_spec.bodyCols - 1), max(start_col, end_col))
+            group_by = [col for col in group_by if col_start <= col <= col_end]
+            value_specs = [value_spec for value_spec in value_specs
+                           if col_start <= value_spec.col <= col_end]
+            if not value_specs:
+                return
+
+    for row in range(row_start, row_end + 1):
         group_values = [_unwrap_value(source.cell_values.get(address("body", row, col)))
                         for col in group_by]
         if group_by and all(_is_summary_empty(value) for value in group_values):
@@ -2125,6 +2147,7 @@ class Project:
                           source_table_id: str,
                           group_by: Any,
                           values: Any,
+                          source_range: Optional[str] = None,
                           x: Optional[float] = None,
                           y: Optional[float] = None) -> Table:
         sheet = self._find_sheet(sheet_id)
@@ -2133,6 +2156,7 @@ class Project:
         group_columns = _parse_summary_group_by(group_by)
         value_specs = _parse_summary_values(values)
         summary_spec = SummarySpec(source_table_id=source_table_id,
+                                   source_range=source_range,
                                    group_by=group_columns,
                                    values=value_specs)
         cols = max(1, len(group_columns) + len(value_specs))

@@ -8,6 +8,13 @@ struct ReferenceInsertRequest: Equatable {
     let end: CellSelection
 }
 
+struct EditRequest: Equatable {
+    let tableId: String
+    let selection: CellSelection
+    let initialText: String?
+    let applyRange: TableRangeSelection?
+}
+
 final class CanvasViewModel: ObservableObject {
     @Published private(set) var project: ProjectModel
     @Published private(set) var pythonLog: String
@@ -15,13 +22,17 @@ final class CanvasViewModel: ObservableObject {
     @Published var selectedTableId: String?
     @Published var selectedChartId: String?
     @Published var selectedCell: CellSelection?
+    @Published var selectedRanges: [TableRangeSelection]
     @Published var formulaHighlightState: FormulaHighlightState?
     @Published var activeFormulaEdit: CellSelection?
     @Published var pendingReferenceInsert: ReferenceInsertRequest?
+    @Published var pendingEditRequest: EditRequest?
+    @Published var needsCanvasKeyFocus: Bool
 
     private let transactionManager = TransactionManager()
     private var seedCommands: [String] = []
     private let cellSize = CanvasGridSizing.cellSize
+    private var selectionAnchor: CellSelection?
     var undoManager: UndoManager?
 
     init(project: ProjectModel = ProjectModel(), historyJSON: String? = nil) {
@@ -31,9 +42,12 @@ final class CanvasViewModel: ObservableObject {
         self.selectedTableId = nil
         self.selectedChartId = nil
         self.selectedCell = nil
+        self.selectedRanges = []
         self.formulaHighlightState = nil
         self.activeFormulaEdit = nil
         self.pendingReferenceInsert = nil
+        self.pendingEditRequest = nil
+        self.needsCanvasKeyFocus = false
         self.seedCommands = decodeHistoryCommands(from: historyJSON)
         rebuildLogs()
     }
@@ -49,9 +63,13 @@ final class CanvasViewModel: ObservableObject {
         selectedTableId = nil
         selectedChartId = nil
         selectedCell = nil
+        selectedRanges = []
         formulaHighlightState = nil
         activeFormulaEdit = nil
         pendingReferenceInsert = nil
+        pendingEditRequest = nil
+        needsCanvasKeyFocus = false
+        selectionAnchor = nil
         rebuildLogs()
     }
 
@@ -92,7 +110,8 @@ final class CanvasViewModel: ObservableObject {
     func addChart(toSheetId sheetId: String,
                   tableId: String,
                   chartType: ChartType = .line,
-                  valueRange: String? = nil) -> ChartModel? {
+                  valueRange: String? = nil,
+                  labelRange: String? = nil) -> ChartModel? {
         guard let table = table(withId: tableId) else {
             return nil
         }
@@ -109,6 +128,7 @@ final class CanvasViewModel: ObservableObject {
                                                     endRow: endRow,
                                                     endCol: 0)
         }
+        let resolvedLabelRange = labelRange
         let rect = defaultChartRect()
         let command = AddChartCommand(sheetId: sheetId,
                                       chartId: chartId,
@@ -117,7 +137,7 @@ final class CanvasViewModel: ObservableObject {
                                       chartType: chartType,
                                       tableId: tableId,
                                       valueRange: resolvedRange,
-                                      labelRange: nil,
+                                      labelRange: resolvedLabelRange,
                                       title: "",
                                       xAxisTitle: "",
                                       yAxisTitle: "",
@@ -127,7 +147,36 @@ final class CanvasViewModel: ObservableObject {
     }
 
     @discardableResult
+    func addChartForSelection(toSheetId sheetId: String,
+                              chartType: ChartType = .line) -> ChartModel? {
+        if let selection = activeSelectionRange(),
+           selection.region == .body,
+           let table = table(withId: selection.tableId) {
+            guard let ranges = chartRanges(for: selection, table: table, chartType: chartType) else {
+                return nil
+            }
+            return addChart(toSheetId: sheetId,
+                            tableId: selection.tableId,
+                            chartType: chartType,
+                            valueRange: ranges.valueRange,
+                            labelRange: ranges.labelRange)
+        }
+        guard let table = selectedTable() else {
+            return nil
+        }
+        guard let ranges = chartRangesForTable(table, chartType: chartType) else {
+            return nil
+        }
+        return addChart(toSheetId: sheetId,
+                        tableId: table.id,
+                        chartType: chartType,
+                        valueRange: ranges.valueRange,
+                        labelRange: ranges.labelRange)
+    }
+
+    @discardableResult
     func createSummaryTable(sourceTableId: String,
+                            sourceRange: String? = nil,
                             groupBy: [Int],
                             values: [SummaryValueSpec]) -> TableModel? {
         guard let sourceTable = table(withId: sourceTableId),
@@ -142,7 +191,9 @@ final class CanvasViewModel: ObservableObject {
         }
         let tableId = project.nextTableId()
         let tableName = tableId
-        let summaryRows = estimateSummaryRowCount(sourceTable: sourceTable, groupBy: filteredGroupBy)
+        let summaryRows = estimateSummaryRowCount(sourceTable: sourceTable,
+                                                  groupBy: filteredGroupBy,
+                                                  sourceRange: sourceRange)
         let summaryCols = max(CanvasGridSizing.minBodyCols, filteredGroupBy.count + filteredValues.count)
         let baseRect = defaultTableRect(rows: summaryRows, cols: summaryCols, labelBands: .zero)
         let sizedRect = rectWithGridSize(baseRect, rows: summaryRows, cols: summaryCols, labelBands: .zero)
@@ -151,6 +202,7 @@ final class CanvasViewModel: ObservableObject {
                                                 name: tableName,
                                                 rect: sizedRect,
                                                 sourceTableId: sourceTableId,
+                                                sourceRange: sourceRange,
                                                 groupBy: filteredGroupBy,
                                                 values: filteredValues,
                                                 rows: summaryRows,
@@ -212,7 +264,7 @@ final class CanvasViewModel: ObservableObject {
     func setLabelBands(tableId: String, labelBands: LabelBands) {
         apply(SetLabelBandsCommand(tableId: tableId, labelBands: labelBands))
         syncTableRect(tableId: tableId)
-        clearCellSelectionIfInvalid(tableId: tableId)
+        clearSelectionIfInvalid(tableId: tableId)
     }
 
     func setBodySize(tableId: String, rows: Int, cols: Int) {
@@ -220,18 +272,21 @@ final class CanvasViewModel: ObservableObject {
         let safeCols = max(CanvasGridSizing.minBodyCols, cols)
         apply(ResizeTableCommand(tableId: tableId, rows: safeRows, cols: safeCols))
         syncTableRect(tableId: tableId)
+        clearSelectionIfInvalid(tableId: tableId)
     }
 
     func setBodyRows(tableId: String, rows: Int) {
         let safeRows = max(CanvasGridSizing.minBodyRows, rows)
         apply(ResizeTableCommand(tableId: tableId, rows: safeRows))
         syncTableRect(tableId: tableId)
+        clearSelectionIfInvalid(tableId: tableId)
     }
 
     func setBodyCols(tableId: String, cols: Int) {
         let safeCols = max(CanvasGridSizing.minBodyCols, cols)
         apply(ResizeTableCommand(tableId: tableId, cols: safeCols))
         syncTableRect(tableId: tableId)
+        clearSelectionIfInvalid(tableId: tableId)
     }
 
     func minimizeTable(tableId: String) {
@@ -251,30 +306,164 @@ final class CanvasViewModel: ObservableObject {
     func selectTable(_ tableId: String) {
         selectedTableId = tableId
         selectedChartId = nil
+        selectedCell = nil
+        selectedRanges = []
+        formulaHighlightState = nil
+        selectionAnchor = nil
+        requestCanvasKeyFocus()
     }
 
     func selectChart(_ chartId: String) {
         selectedChartId = chartId
         selectedTableId = nil
         selectedCell = nil
+        selectedRanges = []
         formulaHighlightState = nil
+        selectionAnchor = nil
+        requestCanvasKeyFocus()
     }
 
     func selectCell(_ selection: CellSelection) {
-        selectedTableId = selection.tableId
+        replaceSelection(with: TableRangeSelection(cell: selection),
+                         activeCell: selection,
+                         anchor: selection)
+    }
+
+    func replaceSelection(with range: TableRangeSelection,
+                          activeCell: CellSelection,
+                          anchor: CellSelection? = nil) {
+        guard !range.tableId.isEmpty else {
+            return
+        }
+        selectedTableId = range.tableId
         selectedChartId = nil
-        selectedCell = selection
+        selectedCell = activeCell
+        selectedRanges = [range.normalized]
+        selectionAnchor = anchor ?? activeCell
+        requestCanvasKeyFocus()
+    }
+
+    func addSelection(range: TableRangeSelection, activeCell: CellSelection) {
+        if selectedRanges.isEmpty || selectedTableId != range.tableId {
+            replaceSelection(with: range, activeCell: activeCell, anchor: range.startCell)
+            return
+        }
+        let normalized = range.normalized
+        if !selectedRanges.contains(normalized) {
+            selectedRanges.append(normalized)
+        }
+        selectedTableId = range.tableId
+        selectedChartId = nil
+        selectedCell = activeCell
+        selectionAnchor = activeCell
+        requestCanvasKeyFocus()
+    }
+
+    func toggleSelection(cell: CellSelection) {
+        let range = TableRangeSelection(cell: cell).normalized
+        if selectedRanges.isEmpty || selectedTableId != cell.tableId {
+            replaceSelection(with: range, activeCell: cell, anchor: cell)
+            return
+        }
+        if let index = selectedRanges.firstIndex(of: range) {
+            selectedRanges.remove(at: index)
+            if selectedRanges.isEmpty {
+                selectedCell = nil
+                selectionAnchor = nil
+                selectedTableId = nil
+            } else {
+                selectedCell = selectedRanges.last?.endCell
+            }
+        } else {
+            selectedRanges.append(range)
+            selectedCell = cell
+            selectionAnchor = cell
+        }
+        selectedTableId = cell.tableId
+        selectedChartId = nil
+        requestCanvasKeyFocus()
+    }
+
+    func extendSelection(to cell: CellSelection, addRange: Bool) {
+        guard let anchor = selectionAnchor,
+              anchor.tableId == cell.tableId,
+              anchor.region == cell.region else {
+            replaceSelection(with: TableRangeSelection(cell: cell),
+                             activeCell: cell,
+                             anchor: cell)
+            return
+        }
+        let range = TableRangeSelection(tableId: cell.tableId,
+                                        region: cell.region,
+                                        startRow: anchor.row,
+                                        startCol: anchor.col,
+                                        endRow: cell.row,
+                                        endCol: cell.col)
+        if addRange {
+            addSelection(range: range, activeCell: cell)
+        } else {
+            replaceSelection(with: range, activeCell: cell, anchor: anchor)
+        }
     }
 
     func clearCellSelection() {
         selectedCell = nil
+        selectedRanges = []
+        selectionAnchor = nil
     }
 
     func clearSelection() {
         selectedCell = nil
+        selectedRanges = []
         selectedTableId = nil
         selectedChartId = nil
         formulaHighlightState = nil
+        selectionAnchor = nil
+    }
+
+    func requestCanvasKeyFocus() {
+        needsCanvasKeyFocus = true
+    }
+
+    func consumeCanvasKeyFocus() {
+        needsCanvasKeyFocus = false
+    }
+
+    func activeSelectionRange() -> TableRangeSelection? {
+        if let range = selectedRanges.last {
+            return range
+        }
+        if let cell = selectedCell {
+            return TableRangeSelection(cell: cell)
+        }
+        return nil
+    }
+
+    func selectionRanges(for tableId: String) -> [TableRangeSelection] {
+        selectedRanges.filter { $0.tableId == tableId }
+    }
+
+    func activeRange(for tableId: String) -> TableRangeSelection? {
+        selectedRanges.last { $0.tableId == tableId }
+    }
+
+    func requestEdit(at selection: CellSelection,
+                     initialText: String? = nil,
+                     applyRange: TableRangeSelection? = nil) {
+        pendingEditRequest = EditRequest(tableId: selection.tableId,
+                                         selection: selection,
+                                         initialText: initialText,
+                                         applyRange: applyRange)
+    }
+
+    func consumeEditRequest(_ request: EditRequest) {
+        if pendingEditRequest == request {
+            pendingEditRequest = nil
+        }
+    }
+
+    func isEditing() -> Bool {
+        activeFormulaEdit != nil
     }
 
     func setFormulaHighlights(_ state: FormulaHighlightState?) {
@@ -288,6 +477,7 @@ final class CanvasViewModel: ObservableObject {
     func endFormulaEdit() {
         activeFormulaEdit = nil
         pendingReferenceInsert = nil
+        requestCanvasKeyFocus()
     }
 
     func requestReferenceInsert(start: CellSelection, end: CellSelection) {
@@ -358,6 +548,53 @@ final class CanvasViewModel: ObservableObject {
         apply(SetCellsCommand(tableId: tableId, cellMap: [key: value]), kind: .cellEdit)
     }
 
+    func setRangeValue(range: TableRangeSelection, rawValue: String) {
+        guard !isReadOnlyTable(tableId: range.tableId),
+              let table = table(withId: range.tableId) else {
+            return
+        }
+        let normalized = range.normalized
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("=") {
+            apply(SetFormulaCommand(tableId: range.tableId,
+                                    targetRange: normalized.rangeString(),
+                                    formula: trimmed),
+                  kind: .cellEdit)
+            return
+        }
+        let rowCount = normalized.endRow - normalized.startRow + 1
+        let colCount = normalized.endCol - normalized.startCol + 1
+        guard rowCount > 0, colCount > 0 else {
+            return
+        }
+        var values: [[CellValue]] = []
+        if normalized.region == .body {
+            var columnValues: [CellValue] = []
+            for col in normalized.startCol...normalized.endCol {
+                let columnType = columnTypeForBody(table: table, col: col)
+                let value: CellValue
+                if trimmed.isEmpty {
+                    value = .empty
+                } else if let parsed = CellValue.fromUserInput(rawValue, columnType: columnType) {
+                    value = parsed
+                } else {
+                    return
+                }
+                columnValues.append(value)
+            }
+            values = Array(repeating: columnValues, count: rowCount)
+        } else {
+            let value: CellValue = trimmed.isEmpty ? .empty : .string(trimmed)
+            let row = Array(repeating: value, count: colCount)
+            values = Array(repeating: row, count: rowCount)
+        }
+        setRange(tableId: range.tableId,
+                 region: normalized.region,
+                 startRow: normalized.startRow,
+                 startCol: normalized.startCol,
+                 values: values)
+    }
+
     func setRange(tableId: String,
                   region: GridRegion,
                   startRow: Int,
@@ -388,42 +625,212 @@ final class CanvasViewModel: ObservableObject {
     }
 
     func copySelectionToClipboard() {
-        guard let selection = selectedCell,
-              let table = table(withId: selection.tableId) else {
+        guard let range = activeSelectionRange(),
+              let table = table(withId: range.tableId) else {
             return
         }
-        let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
-        let text: String
-        if selection.region == .body {
-            let columnType = columnTypeForBody(table: table, col: selection.col)
-            let value = table.cellValues[key] ?? .empty
-            text = CellValue.displayString(value, columnType: columnType)
-        } else {
-            text = table.cellValues[key]?.displayString ?? ""
+        let normalized = range.normalized
+        var rows: [String] = []
+        for row in normalized.startRow...normalized.endRow {
+            var columns: [String] = []
+            for col in normalized.startCol...normalized.endCol {
+                let selection = CellSelection(tableId: range.tableId,
+                                              region: range.region,
+                                              row: row,
+                                              col: col)
+                columns.append(displayValue(for: selection, table: table))
+            }
+            rows.append(columns.joined(separator: "\t"))
         }
+        let text = rows.joined(separator: "\n")
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
     }
 
     func pasteFromClipboard() {
-        guard let selection = selectedCell,
+        guard let range = activeSelectionRange(),
               let text = NSPasteboard.general.string(forType: .string),
               !text.isEmpty else {
             return
         }
-        guard !isReadOnlyTable(tableId: selection.tableId) else {
+        guard !isReadOnlyTable(tableId: range.tableId) else {
             return
         }
-        let values = ClipboardParser.values(from: text, region: selection.region)
+        let normalized = range.normalized
+        let values = ClipboardParser.values(from: text, region: range.region)
         guard !values.isEmpty, !(values.first?.isEmpty ?? true) else {
             return
         }
-        setRange(tableId: selection.tableId,
-                 region: selection.region,
-                 startRow: selection.row,
-                 startCol: selection.col,
+        setRange(tableId: range.tableId,
+                 region: range.region,
+                 startRow: normalized.startRow,
+                 startCol: normalized.startCol,
                  values: values)
+    }
+
+    func clearSelectionValues() {
+        let ranges = selectedRanges.isEmpty ? activeSelectionRange().map { [$0] } ?? [] : selectedRanges
+        guard let tableId = ranges.first?.tableId,
+              let table = table(withId: tableId),
+              !isReadOnlyTable(tableId: tableId) else {
+            return
+        }
+        var formulasToClear: [String] = []
+        for key in table.formulas.keys {
+            guard let parsed = try? RangeParser.parse(key) else {
+                continue
+            }
+            if ranges.contains(where: { rangeIntersects(range: $0, address: parsed) }) {
+                formulasToClear.append(key)
+            }
+        }
+        var cellMap: [String: CellValue] = [:]
+        for range in ranges {
+            let normalized = range.normalized
+            for row in normalized.startRow...normalized.endRow {
+                for col in normalized.startCol...normalized.endCol {
+                    let key = RangeParser.address(region: range.region, row: row, col: col)
+                    cellMap[key] = .empty
+                }
+            }
+        }
+        var commands: [any Command] = []
+        for key in formulasToClear {
+            commands.append(SetFormulaCommand(tableId: tableId, targetRange: key, formula: ""))
+        }
+        if !cellMap.isEmpty {
+            commands.append(SetCellsCommand(tableId: tableId, cellMap: cellMap))
+        }
+        guard !commands.isEmpty else {
+            return
+        }
+        if commands.count == 1, let command = commands.first {
+            apply(command, kind: .cellEdit)
+        } else {
+            apply(CommandBatch(commands: commands), kind: .cellEdit)
+        }
+    }
+
+    func handleKeyDown(_ event: NSEvent) -> Bool {
+        if isEditing() {
+            return false
+        }
+        let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        if flags.contains(.command) {
+            if let chars = event.charactersIgnoringModifiers?.lowercased() {
+                switch chars {
+                case "c":
+                    copySelectionToClipboard()
+                    return true
+                case "v":
+                    pasteFromClipboard()
+                    return true
+                case "z":
+                    if flags.contains(.shift) {
+                        undoManager?.redo()
+                    } else {
+                        undoManager?.undo()
+                    }
+                    return true
+                default:
+                    break
+                }
+            }
+        }
+
+        let hasSelection = selectedCell != nil || !selectedRanges.isEmpty
+
+        switch event.keyCode {
+        case 53: // Escape
+            clearSelection()
+            return true
+        case 36, 76: // Return, Enter
+            if flags.contains(.shift) {
+                if hasSelection {
+                    moveSelection(deltaRow: -1,
+                                  deltaCol: 0,
+                                  extend: false,
+                                  addRange: false)
+                    return true
+                }
+                return false
+            }
+            if let selection = selectedCell ?? activeSelectionRange()?.endCell {
+                replaceSelection(with: TableRangeSelection(cell: selection),
+                                 activeCell: selection,
+                                 anchor: selection)
+                requestEdit(at: selection, initialText: nil)
+                return true
+            }
+        case 48: // Tab
+            guard hasSelection else {
+                return false
+            }
+            let direction: (row: Int, col: Int) = flags.contains(.shift) ? (0, -1) : (0, 1)
+            moveSelection(deltaRow: direction.row,
+                          deltaCol: direction.col,
+                          extend: false,
+                          addRange: false)
+            return true
+        case 123: // Left
+            guard hasSelection else {
+                return false
+            }
+            moveSelection(deltaRow: 0,
+                          deltaCol: -1,
+                          extend: flags.contains(.shift),
+                          addRange: flags.contains(.shift) && flags.contains(.command))
+            return true
+        case 124: // Right
+            guard hasSelection else {
+                return false
+            }
+            moveSelection(deltaRow: 0,
+                          deltaCol: 1,
+                          extend: flags.contains(.shift),
+                          addRange: flags.contains(.shift) && flags.contains(.command))
+            return true
+        case 125: // Down
+            guard hasSelection else {
+                return false
+            }
+            moveSelection(deltaRow: 1,
+                          deltaCol: 0,
+                          extend: flags.contains(.shift),
+                          addRange: flags.contains(.shift) && flags.contains(.command))
+            return true
+        case 126: // Up
+            guard hasSelection else {
+                return false
+            }
+            moveSelection(deltaRow: -1,
+                          deltaCol: 0,
+                          extend: flags.contains(.shift),
+                          addRange: flags.contains(.shift) && flags.contains(.command))
+            return true
+        case 51, 117: // Delete, Forward delete
+            guard hasSelection else {
+                return false
+            }
+            clearSelectionValues()
+            return true
+        default:
+            break
+        }
+
+        guard !flags.contains(.command), !flags.contains(.control), !flags.contains(.option),
+              let chars = event.characters, !chars.isEmpty else {
+            return false
+        }
+        if let selection = selectedCell ?? activeSelectionRange()?.endCell {
+            let applyRange = activeSelectionRange().flatMap { range in
+                range.isSingleCell ? nil : range
+            }
+            requestEdit(at: selection, initialText: chars, applyRange: applyRange)
+            return true
+        }
+        return false
     }
 
     private func apply(_ command: any Command, kind: TransactionKind = .general) {
@@ -490,6 +897,7 @@ final class CanvasViewModel: ObservableObject {
                                                             name: table.name,
                                                             rect: table.rect,
                                                             sourceTableId: summarySpec.sourceTableId,
+                                                            sourceRange: summarySpec.sourceRange,
                                                             groupBy: summarySpec.groupBy,
                                                             values: summarySpec.values,
                                                             rows: table.gridSpec.bodyRows,
@@ -558,6 +966,126 @@ final class CanvasViewModel: ObservableObject {
                     y: 80 + offset,
                     width: Double(CanvasChartSizing.defaultSize.width),
                     height: Double(CanvasChartSizing.defaultSize.height))
+    }
+
+    private struct ChartRanges {
+        let valueRange: String
+        let labelRange: String?
+    }
+
+    private func chartRanges(for selection: TableRangeSelection,
+                             table: TableModel,
+                             chartType: ChartType) -> ChartRanges? {
+        let normalized = selection.normalized
+        guard normalized.region == .body else {
+            return nil
+        }
+        let rowStart = max(0, normalized.startRow)
+        let rowEnd = min(normalized.endRow, max(0, table.gridSpec.bodyRows - 1))
+        let colStart = max(0, normalized.startCol)
+        let colEnd = min(normalized.endCol, max(0, table.gridSpec.bodyCols - 1))
+        guard rowStart <= rowEnd, colStart <= colEnd else {
+            return nil
+        }
+        if colStart == colEnd {
+            let valueRange = RangeParser.rangeString(region: .body,
+                                                     startRow: rowStart,
+                                                     startCol: colStart,
+                                                     endRow: rowEnd,
+                                                     endCol: colEnd)
+            return ChartRanges(valueRange: valueRange, labelRange: nil)
+        }
+        let categoryCol = colStart
+        let valueStart = colStart + 1
+        let valueEnd: Int
+        if chartType == .pie {
+            valueEnd = min(valueStart, colEnd)
+        } else {
+            valueEnd = colEnd
+        }
+        if valueStart > colEnd {
+            let valueRange = RangeParser.rangeString(region: .body,
+                                                     startRow: rowStart,
+                                                     startCol: categoryCol,
+                                                     endRow: rowEnd,
+                                                     endCol: categoryCol)
+            return ChartRanges(valueRange: valueRange, labelRange: nil)
+        }
+        let valueRange = RangeParser.rangeString(region: .body,
+                                                 startRow: rowStart,
+                                                 startCol: valueStart,
+                                                 endRow: rowEnd,
+                                                 endCol: valueEnd)
+        let labelRange = RangeParser.rangeString(region: .body,
+                                                 startRow: rowStart,
+                                                 startCol: categoryCol,
+                                                 endRow: rowEnd,
+                                                 endCol: categoryCol)
+        return ChartRanges(valueRange: valueRange, labelRange: labelRange)
+    }
+
+    private func chartRangesForTable(_ table: TableModel,
+                                     chartType: ChartType) -> ChartRanges? {
+        guard table.gridSpec.bodyRows > 0, table.gridSpec.bodyCols > 0 else {
+            return nil
+        }
+        let rowStart = 0
+        let rowEnd = max(0, table.gridSpec.bodyRows - 1)
+        let bodyCols = table.gridSpec.bodyCols
+        if hasLeftLabelData(table) {
+            let valueStart = 0
+            let valueEnd = chartType == .pie ? 0 : max(0, bodyCols - 1)
+            let valueRange = RangeParser.rangeString(region: .body,
+                                                     startRow: rowStart,
+                                                     startCol: valueStart,
+                                                     endRow: rowEnd,
+                                                     endCol: valueEnd)
+            let labelRange = RangeParser.rangeString(region: .leftLabels,
+                                                     startRow: rowStart,
+                                                     startCol: 0,
+                                                     endRow: rowEnd,
+                                                     endCol: 0)
+            return ChartRanges(valueRange: valueRange, labelRange: labelRange)
+        }
+
+        if bodyCols == 1 {
+            let valueRange = RangeParser.rangeString(region: .body,
+                                                     startRow: rowStart,
+                                                     startCol: 0,
+                                                     endRow: rowEnd,
+                                                     endCol: 0)
+            return ChartRanges(valueRange: valueRange, labelRange: nil)
+        }
+        let valueStart = 1
+        let valueEnd = chartType == .pie ? 1 : max(1, bodyCols - 1)
+        let valueRange = RangeParser.rangeString(region: .body,
+                                                 startRow: rowStart,
+                                                 startCol: valueStart,
+                                                 endRow: rowEnd,
+                                                 endCol: valueEnd)
+        let labelRange = RangeParser.rangeString(region: .body,
+                                                 startRow: rowStart,
+                                                 startCol: 0,
+                                                 endRow: rowEnd,
+                                                 endCol: 0)
+        return ChartRanges(valueRange: valueRange, labelRange: labelRange)
+    }
+
+    private func hasLeftLabelData(_ table: TableModel) -> Bool {
+        guard table.gridSpec.labelBands.leftCols > 0 else {
+            return false
+        }
+        let rows = table.gridSpec.bodyRows
+        let cols = table.gridSpec.labelBands.leftCols
+        for row in 0..<rows {
+            for col in 0..<cols {
+                let key = RangeParser.address(region: .leftLabels, row: row, col: col)
+                if let value = table.cellValues[key], value != .empty {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private func rectWithGridSize(_ rect: Rect, rows: Int, cols: Int, labelBands: LabelBands) -> Rect {
@@ -644,12 +1172,15 @@ final class CanvasViewModel: ObservableObject {
         return nil
     }
 
-    private func estimateSummaryRowCount(sourceTable: TableModel, groupBy: [Int]) -> Int {
+    private func estimateSummaryRowCount(sourceTable: TableModel,
+                                         groupBy: [Int],
+                                         sourceRange: String?) -> Int {
         guard !groupBy.isEmpty else {
             return CanvasGridSizing.minBodyRows
         }
+        let rowBounds = summaryRowBounds(table: sourceTable, sourceRange: sourceRange)
         var seen = Set<SummaryKey>()
-        for row in 0..<sourceTable.gridSpec.bodyRows {
+        for row in rowBounds.start...rowBounds.end {
             let values = groupBy.map { col -> CellValue in
                 let key = RangeParser.address(region: .body, row: row, col: col)
                 return sourceTable.cellValues[key] ?? .empty
@@ -662,6 +1193,22 @@ final class CanvasViewModel: ObservableObject {
         return max(CanvasGridSizing.minBodyRows, seen.count)
     }
 
+    private func summaryRowBounds(table: TableModel,
+                                  sourceRange: String?) -> (start: Int, end: Int) {
+        let maxRow = max(0, table.gridSpec.bodyRows - 1)
+        guard let sourceRange,
+              let parsed = try? RangeParser.parse(sourceRange),
+              parsed.region == .body else {
+            return (0, maxRow)
+        }
+        let rowStart = max(0, min(parsed.start.row, parsed.end.row))
+        let rowEnd = min(maxRow, max(parsed.start.row, parsed.end.row))
+        if rowStart > rowEnd {
+            return (0, maxRow)
+        }
+        return (rowStart, rowEnd)
+    }
+
     private func isReadOnlyTable(tableId: String) -> Bool {
         table(withId: tableId)?.summarySpec != nil
     }
@@ -671,6 +1218,22 @@ final class CanvasViewModel: ObservableObject {
             return table.bodyColumnTypes[col]
         }
         return .number
+    }
+
+    private func displayValue(for selection: CellSelection, table: TableModel) -> String {
+        let key = RangeParser.address(region: selection.region, row: selection.row, col: selection.col)
+        if let value = table.cellValues[key], value != .empty {
+            if selection.region == .body {
+                let columnType = columnTypeForBody(table: table, col: selection.col)
+                return CellValue.displayString(value, columnType: columnType)
+            }
+            return value.displayString
+        }
+        if let formula = table.formulas[key]?.formula,
+           !formula.isEmpty {
+            return formula
+        }
+        return ""
     }
 
     private func normalizeRangeValues(table: TableModel,
@@ -755,46 +1318,123 @@ final class CanvasViewModel: ObservableObject {
         apply(SetColumnTypeCommand(tableId: tableId, col: col, columnType: type), kind: .general)
     }
 
-    private func clearCellSelectionIfInvalid(tableId: String) {
-        guard let selection = selectedCell,
-              selection.tableId == tableId,
-              let table = table(withId: tableId),
-              !isSelectionValid(selection, for: table) else {
+    private func clearSelectionIfInvalid(tableId: String) {
+        guard let table = table(withId: tableId) else {
             return
         }
-        selectedCell = nil
+        if let selection = selectedCell,
+           selection.tableId == tableId,
+           !isSelectionValid(selection, for: table) {
+            selectedCell = nil
+        }
+        if !selectedRanges.isEmpty {
+            selectedRanges = selectedRanges.filter { range in
+                guard range.tableId == tableId else {
+                    return true
+                }
+                return isRangeValid(range, for: table)
+            }
+            if let range = activeRange(for: tableId),
+               (selectedCell == nil || !(range.contains(selectedCell!))) {
+                selectedCell = range.endCell
+            }
+        }
+        if selectedRanges.isEmpty, selectedCell == nil {
+            selectionAnchor = nil
+        }
     }
 
     private func isSelectionValid(_ selection: CellSelection, for table: TableModel) -> Bool {
+        let dims = regionDimensions(for: table, region: selection.region)
+        return selection.row >= 0
+            && selection.row < dims.rows
+            && selection.col >= 0
+            && selection.col < dims.cols
+    }
+
+    private func isRangeValid(_ range: TableRangeSelection, for table: TableModel) -> Bool {
+        let dims = regionDimensions(for: table, region: range.region)
+        let norm = range.normalized
+        return norm.startRow >= 0
+            && norm.endRow < dims.rows
+            && norm.startCol >= 0
+            && norm.endCol < dims.cols
+    }
+
+    private func regionDimensions(for table: TableModel, region: GridRegion) -> (rows: Int, cols: Int) {
         let grid = table.gridSpec
         let bands = grid.labelBands
-        switch selection.region {
+        switch region {
         case .body:
-            return selection.row >= 0
-                && selection.row < grid.bodyRows
-                && selection.col >= 0
-                && selection.col < grid.bodyCols
+            return (max(0, grid.bodyRows), max(0, grid.bodyCols))
         case .topLabels:
-            return selection.row >= 0
-                && selection.row < bands.topRows
-                && selection.col >= 0
-                && selection.col < grid.bodyCols
+            return (max(0, bands.topRows), max(0, grid.bodyCols))
         case .bottomLabels:
-            return selection.row >= 0
-                && selection.row < bands.bottomRows
-                && selection.col >= 0
-                && selection.col < grid.bodyCols
+            return (max(0, bands.bottomRows), max(0, grid.bodyCols))
         case .leftLabels:
-            return selection.row >= 0
-                && selection.row < grid.bodyRows
-                && selection.col >= 0
-                && selection.col < bands.leftCols
+            return (max(0, grid.bodyRows), max(0, bands.leftCols))
         case .rightLabels:
-            return selection.row >= 0
-                && selection.row < grid.bodyRows
-                && selection.col >= 0
-                && selection.col < bands.rightCols
+            return (max(0, grid.bodyRows), max(0, bands.rightCols))
         }
+    }
+
+    private func rangeIntersects(range: TableRangeSelection, address: RangeAddress) -> Bool {
+        guard range.region == address.region else {
+            return false
+        }
+        let norm = range.normalized
+        let rowStart = min(address.start.row, address.end.row)
+        let rowEnd = max(address.start.row, address.end.row)
+        let colStart = min(address.start.col, address.end.col)
+        let colEnd = max(address.start.col, address.end.col)
+        let rowsOverlap = norm.startRow <= rowEnd && norm.endRow >= rowStart
+        let colsOverlap = norm.startCol <= colEnd && norm.endCol >= colStart
+        return rowsOverlap && colsOverlap
+    }
+
+    private func clampedCell(from selection: CellSelection,
+                             deltaRow: Int,
+                             deltaCol: Int,
+                             table: TableModel) -> CellSelection {
+        let dims = regionDimensions(for: table, region: selection.region)
+        let maxRow = max(0, dims.rows - 1)
+        let maxCol = max(0, dims.cols - 1)
+        let row = min(max(selection.row + deltaRow, 0), maxRow)
+        let col = min(max(selection.col + deltaCol, 0), maxCol)
+        return CellSelection(tableId: selection.tableId,
+                             region: selection.region,
+                             row: row,
+                             col: col)
+    }
+
+    private func moveSelection(deltaRow: Int,
+                               deltaCol: Int,
+                               extend: Bool,
+                               addRange: Bool) {
+        guard let current = selectedCell ?? activeSelectionRange()?.endCell,
+              let table = table(withId: current.tableId) else {
+            return
+        }
+        let target = clampedCell(from: current, deltaRow: deltaRow, deltaCol: deltaCol, table: table)
+        if extend {
+            if selectionAnchor == nil {
+                selectionAnchor = current
+            }
+            extendSelection(to: target, addRange: addRange)
+            return
+        }
+        if let activeRange = activeSelectionRange(),
+           activeRange.tableId == current.tableId,
+           activeRange.contains(target),
+           !activeRange.isSingleCell {
+            selectedCell = target
+            selectionAnchor = target
+            requestCanvasKeyFocus()
+            return
+        }
+        replaceSelection(with: TableRangeSelection(cell: target),
+                         activeCell: target,
+                         anchor: target)
     }
 }
 
