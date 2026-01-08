@@ -475,6 +475,7 @@ Deliverable:
 - Audit the current interaction model against §5.10 of the spec and document gaps in behavior (selection, editing, chart/summary creation).
 - Implement the specified mouse and keyboard behaviors, including multi-range selection, edit commit/cancel rules, and range-aware chart/summary creation.
 - Update interaction-related documentation/comments as needed to keep behavior discoverable.
+- Copy/paste preserves formulas and adjusts relative references on paste.
 
 Analysis (current vs target):
 - **Selection**: Current model supports single-cell selection and formula-edit insertion on click; multi-range selection and command-modified range selection are not fully implemented.
@@ -497,6 +498,7 @@ Testable increment:
 Unit tests to add/run:
 - Swift: `CanvasViewModelTests` for selection state transitions, multi-range add, chart range derivation, summary source ranges.
 - Swift: `TableCellOverlayTests` for range normalization.
+- Swift: `FormulaReferenceAdjusterTests` for relative reference offsets during paste.
 - Swift: `SummaryTableTests` for `sourceRange` serialization/persistence.
 - Python: `python/canvassheets_api/tests/test_summary_range.py` for `source_range` filtering behavior.
 - Run: `.venv/bin/python3.14 -m pytest` and `xcodebuild test -scheme Nummern -destination 'platform=macOS'`

@@ -2,6 +2,23 @@ import AppKit
 import Combine
 import Foundation
 
+private enum ClipboardPayloadType {
+    static let cells = NSPasteboard.PasteboardType("com.digitalhandstand.nummern.cells")
+}
+
+private struct ClipboardCellPayload: Codable {
+    let value: String?
+    let formula: String?
+}
+
+private struct ClipboardPayload: Codable {
+    let tableId: String
+    let region: GridRegion
+    let startRow: Int
+    let startCol: Int
+    let rows: [[ClipboardCellPayload]]
+}
+
 struct ReferenceInsertRequest: Equatable {
     let targetTableId: String
     let start: CellSelection
@@ -633,26 +650,55 @@ final class CanvasViewModel: ObservableObject {
         }
         let normalized = range.normalized
         var rows: [String] = []
+        var payloadRows: [[ClipboardCellPayload]] = []
         for row in normalized.startRow...normalized.endRow {
             var columns: [String] = []
+            var payloadColumns: [ClipboardCellPayload] = []
             for col in normalized.startCol...normalized.endCol {
                 let selection = CellSelection(tableId: range.tableId,
                                               region: range.region,
                                               row: row,
                                               col: col)
-                columns.append(displayValue(for: selection, table: table))
+                let key = RangeParser.address(region: range.region, row: row, col: col)
+                if let formula = table.formulas[key]?.formula,
+                   !formula.isEmpty {
+                    columns.append(formula)
+                    payloadColumns.append(ClipboardCellPayload(value: nil, formula: formula))
+                } else {
+                    let value = displayValue(for: selection, table: table)
+                    columns.append(value)
+                    payloadColumns.append(ClipboardCellPayload(value: value, formula: nil))
+                }
             }
             rows.append(columns.joined(separator: "\t"))
+            payloadRows.append(payloadColumns)
         }
         let text = rows.joined(separator: "\n")
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        let payload = ClipboardPayload(tableId: range.tableId,
+                                       region: range.region,
+                                       startRow: normalized.startRow,
+                                       startCol: normalized.startCol,
+                                       rows: payloadRows)
+        if let data = try? JSONEncoder().encode(payload) {
+            pasteboard.setData(data, forType: ClipboardPayloadType.cells)
+        }
         pasteboard.setString(text, forType: .string)
     }
 
     func pasteFromClipboard() {
-        guard let range = activeSelectionRange(),
-              let text = NSPasteboard.general.string(forType: .string),
+        guard let range = activeSelectionRange() else {
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        if let data = pasteboard.data(forType: ClipboardPayloadType.cells),
+           let payload = try? JSONDecoder().decode(ClipboardPayload.self, from: data),
+           !payload.rows.isEmpty {
+            pasteClipboardPayload(payload, into: range)
+            return
+        }
+        guard let text = pasteboard.string(forType: .string),
               !text.isEmpty else {
             return
         }
@@ -669,6 +715,79 @@ final class CanvasViewModel: ObservableObject {
                  startRow: normalized.startRow,
                  startCol: normalized.startCol,
                  values: values)
+    }
+
+    private func pasteClipboardPayload(_ payload: ClipboardPayload,
+                                       into range: TableRangeSelection) {
+        guard !isReadOnlyTable(tableId: range.tableId),
+              let table = table(withId: range.tableId) else {
+            return
+        }
+        let normalized = range.normalized
+        let rowDelta = normalized.startRow - payload.startRow
+        let colDelta = normalized.startCol - payload.startCol
+        var values: [[CellValue]] = []
+        var formulaCommands: [any Command] = []
+
+        for (rowOffset, row) in payload.rows.enumerated() {
+            var rowValues: [CellValue] = []
+            for (colOffset, cell) in row.enumerated() {
+                let destRow = normalized.startRow + rowOffset
+                let destCol = normalized.startCol + colOffset
+                let key = RangeParser.address(region: range.region, row: destRow, col: destCol)
+                if let formula = cell.formula, !formula.isEmpty {
+                    let adjusted = FormulaReferenceAdjuster.adjust(formula,
+                                                                  rowDelta: rowDelta,
+                                                                  colDelta: colDelta)
+                    rowValues.append(.empty)
+                    formulaCommands.append(SetFormulaCommand(tableId: range.tableId,
+                                                             targetRange: key,
+                                                             formula: adjusted))
+                } else {
+                    rowValues.append(cellValue(from: cell.value ?? "", region: range.region))
+                }
+            }
+            values.append(rowValues)
+        }
+
+        let normalizedValues = normalizeRangeValues(table: table,
+                                                    region: range.region,
+                                                    startRow: normalized.startRow,
+                                                    startCol: normalized.startCol,
+                                                    values: values)
+        var commands: [any Command] = []
+        if let firstRow = normalizedValues.first, !firstRow.isEmpty {
+            let endRow = normalized.startRow + normalizedValues.count - 1
+            let endCol = normalized.startCol + firstRow.count - 1
+            let rangeString = RangeParser.rangeString(region: range.region,
+                                                      startRow: normalized.startRow,
+                                                      startCol: normalized.startCol,
+                                                      endRow: endRow,
+                                                      endCol: endCol)
+            commands.append(SetRangeCommand(tableId: range.tableId,
+                                            range: rangeString,
+                                            values: normalizedValues))
+        }
+        commands.append(contentsOf: formulaCommands)
+        guard !commands.isEmpty else {
+            return
+        }
+        if commands.count == 1, let command = commands.first {
+            apply(command, kind: .general)
+        } else {
+            apply(CommandBatch(commands: commands), kind: .general)
+        }
+    }
+
+    private func cellValue(from text: String, region: GridRegion) -> CellValue {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .empty
+        }
+        if region == .body {
+            return CellValue.fromUserInput(trimmed)
+        }
+        return .string(trimmed)
     }
 
     func clearSelectionValues() {
@@ -1895,5 +2014,196 @@ private struct SummaryKey: Hashable {
         for value in values {
             hasher.combine(value)
         }
+    }
+}
+
+struct FormulaReferenceAdjuster {
+    static func adjust(_ formula: String, rowDelta: Int, colDelta: Int) -> String {
+        guard rowDelta != 0 || colDelta != 0 else {
+            return formula
+        }
+        let text = formula
+        let matches = parseMatches(in: text)
+        guard !matches.isEmpty else {
+            return formula
+        }
+        let sorted = matches.sorted { $0.range.location > $1.range.location }
+        var adjusted = text
+        for match in sorted {
+            guard match.tableId == nil else {
+                continue
+            }
+            let newStart = adjustCellReference(match.start, rowDelta: rowDelta, colDelta: colDelta) ?? match.start
+            let newEnd = match.hasRange
+                ? (adjustCellReference(match.end, rowDelta: rowDelta, colDelta: colDelta) ?? match.end)
+                : match.end
+            let replacement: String
+            if let regionRaw = match.regionRaw {
+                let rangeBody = match.hasRange ? "\(newStart):\(newEnd)" : newStart
+                replacement = "\(regionRaw)[\(rangeBody)]"
+            } else if match.hasRange {
+                replacement = "\(newStart):\(newEnd)"
+            } else {
+                replacement = newStart
+            }
+            if let swiftRange = Range(match.range, in: adjusted) {
+                adjusted.replaceSubrange(swiftRange, with: replacement)
+            }
+        }
+        return adjusted
+    }
+
+    private struct ParsedMatch {
+        let range: NSRange
+        let tableId: String?
+        let regionRaw: String?
+        let start: String
+        let end: String
+        let hasRange: Bool
+    }
+
+    private static func parseMatches(in text: String) -> [ParsedMatch] {
+        var matches: [ParsedMatch] = []
+        var consumed: [NSRange] = []
+
+        let regionPattern = #"(?i)(?:([A-Za-z0-9_]+)\.)?(body|top_labels|bottom_labels|left_labels|right_labels)\[(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?\]"#
+        if let regionRegex = try? NSRegularExpression(pattern: regionPattern) {
+            let matchesRaw = regionRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
+            for match in matchesRaw {
+                guard match.numberOfRanges >= 4 else {
+                    continue
+                }
+                let tableId = captureGroup(match, index: 1, in: text)
+                let regionRaw = captureGroup(match, index: 2, in: text)
+                let start = captureGroup(match, index: 3, in: text)
+                let end = captureGroup(match, index: 4, in: text) ?? start
+                let hasRange = captureGroup(match, index: 4, in: text) != nil
+                guard let start, let end else {
+                    continue
+                }
+                matches.append(ParsedMatch(range: match.range,
+                                           tableId: tableId,
+                                           regionRaw: regionRaw,
+                                           start: start,
+                                           end: end,
+                                           hasRange: hasRange))
+                consumed.append(match.range)
+            }
+        }
+
+        let simplePattern = #"(?i)(?:([A-Za-z0-9_]+)\.)?(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?"#
+        if let simpleRegex = try? NSRegularExpression(pattern: simplePattern) {
+            let matchesRaw = simpleRegex.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text))
+            for match in matchesRaw {
+                if overlaps(match.range, consumed) {
+                    continue
+                }
+                if !hasValidBoundaries(match.range, in: text) {
+                    continue
+                }
+                let tableId = captureGroup(match, index: 1, in: text)
+                let start = captureGroup(match, index: 2, in: text)
+                let end = captureGroup(match, index: 3, in: text) ?? start
+                let hasRange = captureGroup(match, index: 3, in: text) != nil
+                guard let start, let end else {
+                    continue
+                }
+                matches.append(ParsedMatch(range: match.range,
+                                           tableId: tableId,
+                                           regionRaw: nil,
+                                           start: start,
+                                           end: end,
+                                           hasRange: hasRange))
+            }
+        }
+
+        return matches
+    }
+
+    private static func adjustCellReference(_ input: String,
+                                            rowDelta: Int,
+                                            colDelta: Int) -> String? {
+        let pattern = #"^(\$?)([A-Za-z]+)(\$?)(\d+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return nil
+        }
+        let range = NSRange(input.startIndex..<input.endIndex, in: input)
+        guard let match = regex.firstMatch(in: input, range: range),
+              match.numberOfRanges == 5 else {
+            return nil
+        }
+        let colAbs = captureGroup(match, index: 1, in: input) == "$"
+        let colLabel = captureGroup(match, index: 2, in: input) ?? ""
+        let rowAbs = captureGroup(match, index: 3, in: input) == "$"
+        let rowRaw = captureGroup(match, index: 4, in: input) ?? ""
+        guard let row = Int(rowRaw),
+              let col = try? RangeParser.columnIndex(from: colLabel) else {
+            return nil
+        }
+        var newRow = row
+        var newCol = col
+        if !rowAbs {
+            newRow += rowDelta
+        }
+        if !colAbs {
+            newCol += colDelta
+        }
+        guard newRow >= 0, newCol >= 0 else {
+            return input
+        }
+        let adjustedCol = RangeParser.columnLabel(from: newCol)
+        let colPrefix = colAbs ? "$" : ""
+        let rowPrefix = rowAbs ? "$" : ""
+        return "\(colPrefix)\(adjustedCol)\(rowPrefix)\(newRow)"
+    }
+
+    private static func captureGroup(_ match: NSTextCheckingResult,
+                                     index: Int,
+                                     in text: String) -> String? {
+        guard index < match.numberOfRanges else {
+            return nil
+        }
+        let range = match.range(at: index)
+        guard range.location != NSNotFound,
+              let swiftRange = Range(range, in: text) else {
+            return nil
+        }
+        return String(text[swiftRange])
+    }
+
+    private static func overlaps(_ range: NSRange, _ ranges: [NSRange]) -> Bool {
+        for existing in ranges {
+            let start = max(range.location, existing.location)
+            let end = min(range.location + range.length, existing.location + existing.length)
+            if start < end {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func hasValidBoundaries(_ range: NSRange, in text: String) -> Bool {
+        guard let swiftRange = Range(range, in: text) else {
+            return false
+        }
+        let lower = swiftRange.lowerBound
+        let upper = swiftRange.upperBound
+        if lower > text.startIndex {
+            let prev = text[text.index(before: lower)]
+            if isWordCharacter(prev) {
+                return false
+            }
+        }
+        if upper < text.endIndex {
+            let next = text[upper]
+            if isWordCharacter(next) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static func isWordCharacter(_ char: Character) -> Bool {
+        char.isLetter || char.isNumber || char == "_" || char == "."
     }
 }

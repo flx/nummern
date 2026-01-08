@@ -408,6 +408,7 @@ Keyboard behavior depends on **selection state** (cell/range/table/chart) and **
 
 **Copy/Paste (Cmd+C / Cmd+V)**
 - If a cell or range is selected: copy/paste operates on that selection.
+- Formula cells paste as formulas with relative references adjusted to the new location.
 - If a table/chart is selected: no-op.
 
 **Undo/Redo (Cmd+Z / Shift+Cmd+Z)**
