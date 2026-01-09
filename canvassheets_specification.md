@@ -724,6 +724,10 @@ To make open fast for large files:
   - Run Selection (runs the selected text with the script header/imports and injects `proj = Project()` if missing).
   - Run All (full script run from top to bottom).
   - Reset Runtime (fresh run; Python executes in a new process each time).
+- Auto-run:
+  - UI-driven script changes schedule a debounced run (e.g., 0.4s after the last edit).
+  - If a run finishes after the script changed, discard the stale result and rerun after the debounce window.
+  - Logging is immediate; user edits are never dropped, even if a run is in-flight.
 - Errors:
   - Parse stderr for line numbers when tracebacks are available.
   - Show a line-numbered error in the alert and print the full traceback to the developer console.

@@ -322,6 +322,7 @@ Deliverable:
 - When running a script, parse the generated log section and store it as command history so subsequent edits append to the script that was just run.
 - Strip legacy table alias lines (`table_id = proj.table(...)`) when rebuilding history from the generated region to prevent duplicate aliases.
 - Alias stripping should tolerate formatting differences (spaces around `=`).
+- Auto-run is debounced; run results only apply if the script revision matches the run start, otherwise the stale result is discarded and a new run is scheduled.
 
 Testable increment:
 - Editing user code and running the script updates the document; errors surface in the panel.
@@ -332,6 +333,7 @@ Unit tests to add/run:
 - `ScriptComposerTests.testSelectionScriptUsesImportHeaderWhenMarkerMissing()`
 - `PythonErrorParserTests.testParsesTracebackLineAndMessage()`
 - `PythonErrorParserTests.testParsesRunnerErrorMessage()`
+- `ScriptRunRevisionTests`
 - Run: `xcodebuild test -scheme Nummern -destination 'platform=macOS' -only-testing:NummernTests/ScriptComposerTests`
 
 Status:

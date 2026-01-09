@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var didAppear = false
     @State private var lastPrintedPythonLog: String = ""
     @State private var scriptSelection = NSRange(location: 0, length: 0)
+    @State private var scriptRunRevision = ScriptRunRevision()
     private let autoRunDelay: TimeInterval = 0.4
 
     init(document: Binding<NummernDocument>) {
@@ -257,6 +258,9 @@ struct ContentView: View {
                 scheduleAutoRun()
             }
         }
+        .onChange(of: document.script) { _, _ in
+            scriptRunRevision.bump()
+        }
         .onAppear {
             if selectedSheetId == nil {
                 selectedSheetId = viewModel.project.sheets.first?.id
@@ -334,7 +338,11 @@ struct ContentView: View {
     private func runScript() {
         let script = document.script
         let historyJSON = ScriptComposer.historyJSON(from: script) ?? document.historyJSON
-        executeScript(script: script, historyJSON: historyJSON, updateHistory: true)
+        let runToken = scriptRunRevision.token()
+        executeScript(script: script,
+                      historyJSON: historyJSON,
+                      updateHistory: true,
+                      runToken: runToken)
     }
 
     private func runSelection() {
@@ -342,7 +350,11 @@ struct ContentView: View {
                                                                    selectionRange: scriptSelection) else {
             return
         }
-        executeScript(script: selectionScript, historyJSON: document.historyJSON, updateHistory: false)
+        let runToken = scriptRunRevision.token()
+        executeScript(script: selectionScript,
+                      historyJSON: document.historyJSON,
+                      updateHistory: false,
+                      runToken: runToken)
     }
 
     private func resetRuntime() {
@@ -350,7 +362,10 @@ struct ContentView: View {
         runScript()
     }
 
-    private func executeScript(script: String, historyJSON: String?, updateHistory: Bool) {
+    private func executeScript(script: String,
+                               historyJSON: String?,
+                               updateHistory: Bool,
+                               runToken: Int) {
         guard !isRunningScript else {
             return
         }
@@ -360,6 +375,10 @@ struct ContentView: View {
                 let engine = try PythonEngineClient()
                 let result = try engine.runProject(script: script)
                 DispatchQueue.main.async {
+                    guard scriptRunRevision.matches(runToken) else {
+                        handleStaleRun()
+                        return
+                    }
                     viewModel.load(project: result.project, historyJSON: historyJSON)
                     if updateHistory {
                         document.historyJSON = historyJSON
@@ -369,6 +388,10 @@ struct ContentView: View {
                 }
             } catch {
                 DispatchQueue.main.async {
+                    guard scriptRunRevision.matches(runToken) else {
+                        handleStaleRun()
+                        return
+                    }
                     pythonRunError = formatPythonError(error)
                     isRunningScript = false
                     handlePendingAutoRun()
@@ -503,6 +526,12 @@ struct ContentView: View {
         }
         pendingAutoRun = false
         scheduleAutoRun()
+    }
+
+    private func handleStaleRun() {
+        isRunningScript = false
+        pendingAutoRun = true
+        handlePendingAutoRun()
     }
 
     private func labelBandBinding(table: TableModel,
@@ -873,5 +902,21 @@ enum PythonErrorParser {
             return nil
         }
         return Int(stderr[range])
+    }
+}
+
+struct ScriptRunRevision: Equatable {
+    private(set) var value: Int = 0
+
+    mutating func bump() {
+        value &+= 1
+    }
+
+    func token() -> Int {
+        value
+    }
+
+    func matches(_ token: Int) -> Bool {
+        token == value
     }
 }
