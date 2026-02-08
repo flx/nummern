@@ -1,5 +1,38 @@
 import Foundation
 
+private func rangesIntersect(_ lhs: RangeAddress, _ rhs: RangeAddress) -> Bool {
+    guard lhs.region == rhs.region else {
+        return false
+    }
+    let lhsRowStart = min(lhs.start.row, lhs.end.row)
+    let lhsRowEnd = max(lhs.start.row, lhs.end.row)
+    let lhsColStart = min(lhs.start.col, lhs.end.col)
+    let lhsColEnd = max(lhs.start.col, lhs.end.col)
+    let rhsRowStart = min(rhs.start.row, rhs.end.row)
+    let rhsRowEnd = max(rhs.start.row, rhs.end.row)
+    let rhsColStart = min(rhs.start.col, rhs.end.col)
+    let rhsColEnd = max(rhs.start.col, rhs.end.col)
+    let rowOverlap = lhsRowStart <= rhsRowEnd && lhsRowEnd >= rhsRowStart
+    let colOverlap = lhsColStart <= rhsColEnd && lhsColEnd >= rhsColStart
+    return rowOverlap && colOverlap
+}
+
+private func formulaKeysToRemove(table: TableModel, editedRanges: [RangeAddress]) -> Set<String> {
+    guard !editedRanges.isEmpty else {
+        return []
+    }
+    var keys: Set<String> = []
+    for formulaKey in table.formulas.keys {
+        guard let formulaRange = try? RangeParser.parse(formulaKey) else {
+            continue
+        }
+        if editedRanges.contains(where: { rangesIntersect(formulaRange, $0) }) {
+            keys.insert(formulaKey)
+        }
+    }
+    return keys
+}
+
 struct AddSheetCommand: Command {
     let commandId: String
     let timestamp: Date
@@ -741,6 +774,13 @@ struct SetCellsCommand: Command {
 
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
+            let editedRanges = cellMap.keys.compactMap { key in
+                try? RangeParser.parse(key)
+            }
+            let overlappingFormulaKeys = formulaKeysToRemove(table: table, editedRanges: editedRanges)
+            for key in overlappingFormulaKeys {
+                table.formulas.removeValue(forKey: key)
+            }
             table.cellValues.merge(cellMap) { _, new in new }
             for (key, value) in cellMap {
                 guard let parsed = try? RangeParser.parse(key),
@@ -850,13 +890,18 @@ struct SetRangeCommand: Command {
 
     func apply(to project: inout ProjectModel) {
         project.updateTable(id: tableId) { table in
-            table.rangeValues[range] = RangeValue(values: values, dtype: dtype)
+            let rectangularValues = rectangularized(values)
+            table.rangeValues[range] = RangeValue(values: rectangularValues, dtype: dtype)
             guard let parsed = try? RangeParser.parse(range) else {
                 return
             }
+            let overlappingFormulaKeys = formulaKeysToRemove(table: table, editedRanges: [parsed])
+            for key in overlappingFormulaKeys {
+                table.formulas.removeValue(forKey: key)
+            }
             let startRow = parsed.start.row
             let startCol = parsed.start.col
-            for (rowIndex, rowValues) in values.enumerated() {
+            for (rowIndex, rowValues) in rectangularValues.enumerated() {
                 for (colIndex, value) in rowValues.enumerated() {
                     let row = startRow + rowIndex
                     let col = startCol + colIndex
@@ -890,11 +935,28 @@ struct SetRangeCommand: Command {
     }
 
     func serializeToPython() -> String {
-        var args = "\(PythonLiteralEncoder.encodeString(range)), \(PythonLiteralEncoder.encode2D(values))"
+        let rectangularValues = rectangularized(values)
+        var args = "\(PythonLiteralEncoder.encodeString(range)), \(PythonLiteralEncoder.encode2D(rectangularValues))"
         if let dtype {
             args += ", dtype=\(PythonLiteralEncoder.encodeString(dtype))"
         }
         return "proj.table(\(PythonLiteralEncoder.encodeString(tableId))).set_range(\(args))"
+    }
+
+    private func rectangularized(_ source: [[CellValue]]) -> [[CellValue]] {
+        guard !source.isEmpty else {
+            return source
+        }
+        let width = source.map(\.count).max() ?? 0
+        guard width > 0 else {
+            return []
+        }
+        return source.map { row in
+            if row.count >= width {
+                return row
+            }
+            return row + Array(repeating: .empty, count: width - row.count)
+        }
     }
 
     private func previousCellMap(table: TableModel, range: RangeAddress) -> [String: CellValue] {

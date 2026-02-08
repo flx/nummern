@@ -622,7 +622,8 @@ final class CanvasViewModel: ObservableObject {
         guard !isReadOnlyTable(tableId: tableId) else {
             return
         }
-        guard let firstRow = values.first, !firstRow.isEmpty else {
+        let rectangularValues = rectangularize(values)
+        guard let firstRow = rectangularValues.first, !firstRow.isEmpty else {
             return
         }
         guard let table = table(withId: tableId) else {
@@ -632,8 +633,8 @@ final class CanvasViewModel: ObservableObject {
                                                     region: region,
                                                     startRow: startRow,
                                                     startCol: startCol,
-                                                    values: values)
-        let endRow = startRow + values.count - 1
+                                                    values: rectangularValues)
+        let endRow = startRow + rectangularValues.count - 1
         let endCol = startCol + firstRow.count - 1
         let range = RangeParser.rangeString(region: region,
                                             startRow: startRow,
@@ -750,11 +751,12 @@ final class CanvasViewModel: ObservableObject {
             values.append(rowValues)
         }
 
+        let rectangularValues = rectangularize(values)
         let normalizedValues = normalizeRangeValues(table: table,
                                                     region: range.region,
                                                     startRow: normalized.startRow,
                                                     startCol: normalized.startCol,
-                                                    values: values)
+                                                    values: rectangularValues)
         var commands: [any Command] = []
         if let firstRow = normalizedValues.first, !firstRow.isEmpty {
             let endRow = normalized.startRow + normalizedValues.count - 1
@@ -1413,6 +1415,22 @@ final class CanvasViewModel: ObservableObject {
             normalized.append(normalizedRow)
         }
         return normalized
+    }
+
+    private func rectangularize(_ values: [[CellValue]]) -> [[CellValue]] {
+        guard !values.isEmpty else {
+            return values
+        }
+        let width = values.map(\.count).max() ?? 0
+        guard width > 0 else {
+            return []
+        }
+        return values.map { row in
+            if row.count >= width {
+                return row
+            }
+            return row + Array(repeating: .empty, count: width - row.count)
+        }
     }
 
     func selectedTable() -> TableModel? {

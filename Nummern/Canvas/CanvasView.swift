@@ -66,9 +66,11 @@ struct TableCanvasItem: View {
     @ObservedObject var viewModel: CanvasViewModel
 
     @State private var dragOffset: CGSize = .zero
+    @State private var canMoveFromCurrentDrag = false
     @State private var isResizing = false
     @State private var previewBodyRows: Int?
     @State private var previewBodyCols: Int?
+    private let frameDragInset: CGFloat = 10
 
     var body: some View {
         let bodyRows = previewBodyRows ?? table.gridSpec.bodyRows
@@ -229,12 +231,13 @@ struct TableCanvasItem: View {
                 .cornerRadius(4)
                 .padding(.leading, 12)
                 .offset(y: -8)
-                .gesture(moveGesture)
                 .onTapGesture {
                     viewModel.selectTable(table.id)
                 }
         }
         .frame(width: CGFloat(width), height: CGFloat(height), alignment: .topLeading)
+        .contentShape(Rectangle())
+        .simultaneousGesture(moveGesture(itemSize: CGSize(width: CGFloat(width), height: CGFloat(height))))
         .overlay(alignment: .bottomTrailing) {
             Rectangle()
                 .fill(Color.secondary)
@@ -249,14 +252,26 @@ struct TableCanvasItem: View {
         .position(x: CGFloat(centerX), y: CGFloat(centerY))
     }
 
-    private var moveGesture: some Gesture {
-        DragGesture(coordinateSpace: .named(CanvasCoordinateSpace.name))
+    private func moveGesture(itemSize: CGSize) -> some Gesture {
+        DragGesture(coordinateSpace: .local)
             .onChanged { value in
                 guard !isResizing else { return }
+                if !canMoveFromCurrentDrag {
+                    canMoveFromCurrentDrag = shouldMoveFromFrame(startLocation: value.startLocation,
+                                                                 itemSize: itemSize)
+                }
+                guard canMoveFromCurrentDrag else { return }
                 dragOffset = value.translation
             }
             .onEnded { value in
+                defer {
+                    canMoveFromCurrentDrag = false
+                }
                 guard !isResizing else { return }
+                guard canMoveFromCurrentDrag else {
+                    dragOffset = .zero
+                    return
+                }
                 let metrics = TableGridMetrics(cellSize: CanvasGridSizing.cellSize,
                                                bodyRows: table.gridSpec.bodyRows,
                                                bodyCols: table.gridSpec.bodyCols,
@@ -270,6 +285,23 @@ struct TableCanvasItem: View {
                 dragOffset = .zero
                 viewModel.moveTable(tableId: table.id, to: newRect)
             }
+    }
+
+    private func shouldMoveFromFrame(startLocation: CGPoint, itemSize: CGSize) -> Bool {
+        let fullRect = CGRect(origin: .zero, size: itemSize)
+        guard fullRect.contains(startLocation) else {
+            return false
+        }
+        let resizeHotspot = CGRect(x: max(0, itemSize.width - 24),
+                                   y: max(0, itemSize.height - 24),
+                                   width: 24,
+                                   height: 24)
+        if resizeHotspot.contains(startLocation) {
+            return false
+        }
+        let inset = min(frameDragInset, min(itemSize.width, itemSize.height) / 2)
+        let innerRect = fullRect.insetBy(dx: inset, dy: inset)
+        return !innerRect.contains(startLocation)
     }
 
     private func resizeGesture() -> some Gesture {

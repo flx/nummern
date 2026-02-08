@@ -87,6 +87,24 @@ def test_count_ignores_empty_cells():
     assert table.cell_values["body[A2]"] == 1
 
 
+def test_if_with_comparison_operator():
+    project = Project()
+    table = _make_table(project, "table_1", rows=1, cols=2)
+    table.set_cells({"body[A0]": 3})
+    table.set_formula("body[B0]", "=IF(A0>0, 1, 0)")
+    project.apply_formulas()
+    assert table.cell_values["body[B0]"] == 1
+
+
+def test_if_with_string_literal_comparison():
+    project = Project()
+    table = _make_table(project, "table_1", rows=1, cols=2)
+    table.set_cells({"body[A0]": "ok"})
+    table.set_formula("body[B0]", '=IF(A0="ok", 1, 0)')
+    project.apply_formulas()
+    assert table.cell_values["body[B0]"] == 1
+
+
 def test_absolute_reference():
     project = Project()
     table = _make_table(project, "table_1", rows=3, cols=3)

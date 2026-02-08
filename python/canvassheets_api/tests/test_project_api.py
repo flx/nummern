@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import numpy as np
+import pytest
 
 from canvassheets_api import (
     Project,
@@ -239,3 +240,106 @@ def test_chart_roundtrip_and_updates():
     assert chart_payload["labelRange"] is None
     assert chart_payload["title"] == "Sales"
     assert chart_payload["showLegend"] is False
+
+
+def test_set_range_clears_overlapping_formula():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=1,
+        cols=1,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.set_formula("body[A0]", "=1+1")
+    table.set_range("body[A0:A0]", [[5]])
+
+    assert "body[A0]" not in table.formulas
+    assert table.cell_values["body[A0]"] == 5
+
+
+def test_set_cells_clears_overlapping_formula_range():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=1,
+        cols=2,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.set_formula("body[A0:B0]", "=A0+1")
+    table.set_cells({"body[B0]": 9})
+
+    assert "body[A0:B0]" not in table.formulas
+    assert table.cell_values["body[B0]"] == 9
+
+
+def test_set_range_normalizes_ragged_rows():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table(
+        "sheet_1",
+        table_id="table_1",
+        name="table_1",
+        rows=2,
+        cols=2,
+        labels=dict(top=0, left=0, bottom=0, right=0),
+        x=0,
+        y=0,
+    )
+
+    table.set_range("body[A0:B1]", [[1], [2, 3]])
+
+    assert table.range_values["body[A0:B1]"]["values"] == [[1, None], [2, 3]]
+    assert table.cell_values["body[A0]"] == 1
+    assert table.cell_values["body[B0]"] is None
+    assert table.cell_values["body[A1]"] == 2
+    assert table.cell_values["body[B1]"] == 3
+
+
+def test_duplicate_ids_rejected():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    with pytest.raises(ValueError):
+        project.add_sheet("Sheet 2", sheet_id="sheet_1")
+
+    project.add_table("sheet_1", table_id="table_1", name="table_1", rows=1, cols=1, x=0, y=0)
+    with pytest.raises(ValueError):
+        project.add_table("sheet_1", table_id="table_1", name="other", rows=1, cols=1, x=10, y=10)
+
+    project.add_chart("sheet_1",
+                      chart_id="chart_1",
+                      name="chart_1",
+                      chart_type="line",
+                      table_id="table_1",
+                      value_range="body[A0:A0]",
+                      x=0,
+                      y=0)
+    with pytest.raises(ValueError):
+        project.add_chart("sheet_1",
+                          chart_id="chart_1",
+                          name="chart_2",
+                          chart_type="bar",
+                          table_id="table_1",
+                          value_range="body[A0:A0]",
+                          x=10,
+                          y=10)
+
+
+def test_unsupported_formula_mode_raises():
+    project = Project()
+    project.add_sheet("Sheet 1", sheet_id="sheet_1")
+    table = project.add_table("sheet_1", table_id="table_1", name="table_1", rows=1, cols=1, x=0, y=0)
+
+    with pytest.raises(ValueError):
+        table.set_formula("body[A0]", "x+1", mode="python")

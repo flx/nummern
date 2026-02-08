@@ -100,6 +100,39 @@ def parse_range(range_str: str) -> Tuple[str, int, int, int, int]:
     raise RangeParserError("Invalid range format")
 
 
+def _range_bounds(range_ref: Tuple[str, int, int, int, int]) -> Tuple[str, int, int, int, int]:
+    region, start_row, start_col, end_row, end_col = range_ref
+    row_start, row_end = sorted((start_row, end_row))
+    col_start, col_end = sorted((start_col, end_col))
+    return region, row_start, row_end, col_start, col_end
+
+
+def _ranges_intersect(lhs: Tuple[str, int, int, int, int],
+                      rhs: Tuple[str, int, int, int, int]) -> bool:
+    lhs_region, lhs_row_start, lhs_row_end, lhs_col_start, lhs_col_end = _range_bounds(lhs)
+    rhs_region, rhs_row_start, rhs_row_end, rhs_col_start, rhs_col_end = _range_bounds(rhs)
+    if lhs_region != rhs_region:
+        return False
+    row_overlap = lhs_row_start <= rhs_row_end and lhs_row_end >= rhs_row_start
+    col_overlap = lhs_col_start <= rhs_col_end and lhs_col_end >= rhs_col_start
+    return row_overlap and col_overlap
+
+
+def _rectangularize_values(values: List[List[Any]], fill: Any = None) -> List[List[Any]]:
+    if not values:
+        return values
+    width = max((len(row) for row in values), default=0)
+    if width <= 0:
+        return []
+    result: List[List[Any]] = []
+    for row in values:
+        if len(row) < width:
+            result.append(list(row) + [fill] * (width - len(row)))
+        else:
+            result.append(list(row))
+    return result
+
+
 class FormulaError(ValueError):
     pass
 
@@ -453,13 +486,46 @@ def _tokenize_formula(text: str) -> List[Token]:
     tokens: List[Token] = []
     index = 0
     length = len(text)
+
     def next_non_space(pos: int) -> str:
         while pos < length and text[pos].isspace():
             pos += 1
         return text[pos] if pos < length else ""
+
     while index < length:
         ch = text[index]
         if ch.isspace():
+            index += 1
+            continue
+        if ch in ('"', "'"):
+            quote = ch
+            start = index
+            index += 1
+            chars: List[str] = []
+            while index < length:
+                current = text[index]
+                if current == "\\":
+                    next_index = index + 1
+                    if next_index >= length:
+                        raise FormulaError("Unterminated string literal")
+                    chars.append(text[next_index])
+                    index += 2
+                    continue
+                if current == quote:
+                    index += 1
+                    break
+                chars.append(current)
+                index += 1
+            else:
+                raise FormulaError("Unterminated string literal")
+            tokens.append(Token("STRING", "".join(chars), start))
+            continue
+        if text.startswith("<=", index) or text.startswith(">=", index) or text.startswith("<>", index):
+            tokens.append(Token("CMP", text[index:index + 2], index))
+            index += 2
+            continue
+        if ch in "<>=":
+            tokens.append(Token("CMP", ch, index))
             index += 1
             continue
         if ch in "+-*/^":
@@ -508,6 +574,11 @@ class NumberNode:
 @dataclass(frozen=True)
 class BoolNode:
     value: bool
+
+
+@dataclass(frozen=True)
+class StringNode:
+    value: str
 
 
 @dataclass(frozen=True)
@@ -570,7 +641,7 @@ class FormulaParser:
     def parse(self) -> Any:
         if self._peek().type == "EOF":
             raise FormulaError("Empty formula")
-        expr = self._parse_expression()
+        expr = self._parse_comparison()
         if self._peek().type != "EOF":
             token = self._peek()
             raise FormulaError(f"Unexpected token '{token.value}' at position {token.pos}")
@@ -589,6 +660,14 @@ class FormulaParser:
             self._advance()
             return True
         return False
+
+    def _parse_comparison(self) -> Any:
+        node = self._parse_expression()
+        while self._peek().type == "CMP":
+            op = self._advance().value
+            right = self._parse_expression()
+            node = BinaryOpNode(op=op, left=node, right=right)
+        return node
 
     def _parse_expression(self) -> Any:
         node = self._parse_term()
@@ -626,6 +705,9 @@ class FormulaParser:
         if token.type == "NUMBER":
             self._advance()
             return NumberNode(value=float(token.value))
+        if token.type == "STRING":
+            self._advance()
+            return StringNode(value=token.value)
         if token.type == "CELL":
             return self._parse_reference()
         if token.type == "IDENT":
@@ -649,7 +731,7 @@ class FormulaParser:
                 return BoolNode(value=(upper == "TRUE"))
         if token.type == "(":
             self._advance()
-            expr = self._parse_expression()
+            expr = self._parse_comparison()
             if not self._match(")"):
                 raise FormulaError("Expected ')'")
             return expr
@@ -662,7 +744,7 @@ class FormulaParser:
         args: List[Any] = []
         if self._peek().type != ")":
             while True:
-                args.append(self._parse_expression())
+                args.append(self._parse_comparison())
                 if self._match(")"):
                     break
                 if not self._match(","):
@@ -953,6 +1035,45 @@ def _ensure_scalar(value: Any) -> Any:
     return value
 
 
+def _comparison_operand(value: Any) -> Any:
+    value = _unwrap_value(value)
+    if _is_empty_value(value):
+        return ""
+    np_generic = getattr(np, "generic", None)
+    if np_generic is not None and isinstance(value, np_generic):
+        return value.item()
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    return value
+
+
+def _comparison_operands(left: Any, right: Any) -> Tuple[Any, Any]:
+    left_value = _comparison_operand(left)
+    right_value = _comparison_operand(right)
+    left_number = _coerce_number(left_value)
+    right_number = _coerce_number(right_value)
+    if left_number is not None and right_number is not None:
+        return left_number, right_number
+    return str(left_value), str(right_value)
+
+
+def _compare_values(left: Any, right: Any, op: str) -> bool:
+    lhs, rhs = _comparison_operands(left, right)
+    if op == "=":
+        return lhs == rhs
+    if op == "<>":
+        return lhs != rhs
+    if op == "<":
+        return lhs < rhs
+    if op == "<=":
+        return lhs <= rhs
+    if op == ">":
+        return lhs > rhs
+    if op == ">=":
+        return lhs >= rhs
+    raise FormulaError(f"Unsupported comparison operator: {op}")
+
+
 def _to_numeric_array(values: Any) -> np.ndarray:
     array = np.array(values, dtype=object)
 
@@ -1149,6 +1270,8 @@ def _evaluate_formula(node: Any, context: FormulaContext) -> Any:
         return node.value
     if isinstance(node, BoolNode):
         return node.value
+    if isinstance(node, StringNode):
+        return node.value
     if isinstance(node, UnaryOpNode):
         value = _ensure_scalar(_evaluate_formula(node.operand, context))
         if node.op == "-":
@@ -1159,6 +1282,8 @@ def _evaluate_formula(node: Any, context: FormulaContext) -> Any:
     if isinstance(node, BinaryOpNode):
         left = _ensure_scalar(_evaluate_formula(node.left, context))
         right = _ensure_scalar(_evaluate_formula(node.right, context))
+        if node.op in {"=", "<>", "<", "<=", ">", ">="}:
+            return _compare_values(left, right, node.op)
         if node.op == "+":
             return _require_number(left) + _require_number(right)
         if node.op == "-":
@@ -1545,39 +1670,58 @@ class Table:
         if index < len(self.body_column_types):
             self.body_column_types[index] = str(type)
 
+    def _remove_formulas_overlapping(self,
+                                     edited_ranges: List[Tuple[str, int, int, int, int]]) -> None:
+        if not edited_ranges:
+            return
+        for formula_key in list(self.formulas.keys()):
+            try:
+                formula_range = parse_range(_normalize_ref(formula_key))
+            except RangeParserError:
+                continue
+            if any(_ranges_intersect(formula_range, edited) for edited in edited_ranges):
+                self.formulas.pop(formula_key, None)
+                self.formula_order.pop(formula_key, None)
+
     def set_cells(self, mapping: Dict[str, Any]) -> None:
         max_row: Optional[int] = None
         max_col: Optional[int] = None
+        edited_ranges: List[Tuple[str, int, int, int, int]] = []
         for key in mapping.keys():
             try:
-                region, start_row, start_col, end_row, end_col = parse_range(key)
+                parsed = parse_range(key)
             except RangeParserError:
                 continue
+            region, start_row, start_col, end_row, end_col = parsed
+            edited_ranges.append(parsed)
             if region != "body":
                 continue
             row = max(start_row, end_row)
             col = max(start_col, end_col)
             max_row = row if max_row is None else max(max_row, row)
             max_col = col if max_col is None else max(max_col, col)
+        self._remove_formulas_overlapping(edited_ranges)
         if max_row is not None and max_col is not None:
             self._ensure_body_size(max_row + 1, max_col + 1)
         for key, value in mapping.items():
             self.cell_values[key] = value
 
     def set_range(self, range_str: str, values: List[List[Any]], dtype: Optional[str] = None) -> None:
-        self.range_values[range_str] = {"values": values, "dtype": dtype}
+        normalized_values = _rectangularize_values(values, fill=None)
+        self.range_values[range_str] = {"values": normalized_values, "dtype": dtype}
         try:
-            region, start_row, start_col, _, _ = parse_range(range_str)
+            region, start_row, start_col, end_row, end_col = parse_range(range_str)
         except RangeParserError:
             return
+        self._remove_formulas_overlapping([(region, start_row, start_col, end_row, end_col)])
         if region == "body":
-            value_rows = len(values)
-            value_cols = max((len(row) for row in values), default=0)
+            value_rows = len(normalized_values)
+            value_cols = max((len(row) for row in normalized_values), default=0)
             if value_rows > 0 and value_cols > 0:
                 end_row = start_row + value_rows - 1
                 end_col = start_col + value_cols - 1
                 self._ensure_body_size(end_row + 1, end_col + 1)
-        for row_index, row_values in enumerate(values):
+        for row_index, row_values in enumerate(normalized_values):
             for col_index, value in enumerate(row_values):
                 row = start_row + row_index
                 col = start_col + col_index
@@ -1598,6 +1742,9 @@ class Table:
             self.formulas.pop(target_range, None)
             self.formula_order.pop(target_range, None)
             return
+        mode_value = str(mode)
+        if mode_value != "spreadsheet":
+            raise ValueError(f"Unsupported formula mode: {mode_value}")
         try:
             region, start_row, start_col, end_row, end_col = parse_range(target_range)
         except RangeParserError:
@@ -1606,7 +1753,7 @@ class Table:
             row = max(start_row, end_row)
             col = max(start_col, end_col)
             self._ensure_body_size(row + 1, col + 1)
-        self.formulas[target_range] = {"formula": formula, "mode": mode}
+        self.formulas[target_range] = {"formula": formula, "mode": mode_value}
         self.formula_order[target_range] = _next_formula_order()
 
     def insert_rows(self, at: int, count: int) -> None:
@@ -1702,6 +1849,12 @@ class Table:
             return changed
 
         if mode != "spreadsheet":
+            for row in range(start_row, end_row + 1):
+                for col in range(start_col, end_col + 1):
+                    key = address(region, row, col)
+                    if self.cell_values.get(key) != "#ERROR":
+                        changed = True
+                    self.cell_values[key] = "#ERROR"
             return changed
 
         try:
@@ -2083,6 +2236,8 @@ class Project:
         self.sheets: List[Sheet] = []
 
     def add_sheet(self, name: str, sheet_id: str) -> Sheet:
+        if self._find_sheet(sheet_id) is not None:
+            raise ValueError(f"Duplicate sheet_id: {sheet_id}")
         sheet = Sheet(id=sheet_id, name=name)
         self.sheets.append(sheet)
         return sheet
@@ -2104,6 +2259,8 @@ class Project:
         sheet = self._find_sheet(sheet_id)
         if sheet is None:
             raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        if self._table_exists(table_id):
+            raise ValueError(f"Duplicate table_id: {table_id}")
         bands = LabelBands.from_labels(labels)
         grid_spec = GridSpec(bodyRows=int(rows), bodyCols=int(cols), labelBands=bands)
         rect_value = Rect.from_value(rect) if rect is not None else self._default_rect(
@@ -2133,6 +2290,8 @@ class Project:
         sheet = self._find_sheet(sheet_id)
         if sheet is None:
             raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        if self._chart_exists(chart_id):
+            raise ValueError(f"Duplicate chart_id: {chart_id}")
         rect_value = Rect.from_value(rect) if rect is not None else self._default_chart_rect(
             x=x, y=y, width=width, height=height
         )
@@ -2165,6 +2324,9 @@ class Project:
         sheet = self._find_sheet(sheet_id)
         if sheet is None:
             raise KeyError(f"Unknown sheet_id: {sheet_id}")
+        if self._table_exists(table_id):
+            raise ValueError(f"Duplicate table_id: {table_id}")
+        self.table(source_table_id)
         group_columns = _parse_summary_group_by(group_by)
         value_specs = _parse_summary_values(values)
         summary_spec = SummarySpec(source_table_id=source_table_id,
@@ -2264,6 +2426,20 @@ class Project:
             if sheet.id == sheet_id:
                 return sheet
         return None
+
+    def _table_exists(self, table_id: str) -> bool:
+        for sheet in self.sheets:
+            for table in sheet.tables:
+                if table.id == table_id:
+                    return True
+        return False
+
+    def _chart_exists(self, chart_id: str) -> bool:
+        for sheet in self.sheets:
+            for chart in sheet.charts:
+                if chart.id == chart_id:
+                    return True
+        return False
 
 
 def export_numpy_script(project: Project,

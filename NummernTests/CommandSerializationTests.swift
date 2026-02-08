@@ -55,4 +55,13 @@ final class CommandSerializationTests: XCTestCase {
         XCTAssertEqual(command.serializeToPython(),
                        "proj.chart('chart_1').set_spec(chart_type='bar', value_range='body[A0:A3]', label_range=None, title='Sales', show_legend=False)")
     }
+
+    func testSetRangeSerializationPadsRaggedRows() {
+        let command = SetRangeCommand(tableId: "table_1",
+                                      range: "body[A0:B1]",
+                                      values: [[.number(1)], [.number(2), .number(3)]])
+
+        XCTAssertEqual(command.serializeToPython(),
+                       "proj.table('table_1').set_range('body[A0:B1]', [[1, None], [2, 3]])")
+    }
 }
