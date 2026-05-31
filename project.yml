@@ -18,6 +18,10 @@ targets:
     resources:
       - path: Nummern/Assets.xcassets
       - path: python
+        excludes:
+          - "**/__pycache__/**"
+          - "**/*.egg-info/**"
+          - "tests/**"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.digitalhandstand.nummern
