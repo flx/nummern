@@ -35,6 +35,36 @@ class ChartSpec:
         if self.chart_type not in CHART_TYPES:
             raise ValueError(f"Unknown chart type: {self.chart_type!r}")
 
+    _UNSET = object()
+
+    def set_position(self, x: float, y: float) -> "ChartSpec":
+        self.rect.x = float(x)
+        self.rect.y = float(y)
+        return self
+
+    def set_spec(self, chart_type: Optional[str] = None, value_range: Optional[str] = None,
+                 label_range: Any = _UNSET, title: Optional[str] = None,
+                 x_axis_title: Optional[str] = None, y_axis_title: Optional[str] = None,
+                 show_legend: Optional[bool] = None) -> "ChartSpec":
+        """Edit a chart in place (recorded as ``chart_id.set_spec(...)``)."""
+        if chart_type is not None:
+            if chart_type not in CHART_TYPES:
+                raise ValueError(f"Unknown chart type: {chart_type!r}")
+            self.chart_type = chart_type
+        if value_range is not None:
+            self.value_range = value_range
+        if label_range is not ChartSpec._UNSET:
+            self.label_range = label_range
+        if title is not None:
+            self.title = title
+        if x_axis_title is not None:
+            self.x_axis_title = x_axis_title
+        if y_axis_title is not None:
+            self.y_axis_title = y_axis_title
+        if show_legend is not None:
+            self.show_legend = bool(show_legend)
+        return self
+
     def to_dict(self) -> Dict[str, Any]:
         data = {k: v for k, v in asdict(self).items() if k != "rect"}
         data["rect"] = self.rect.to_dict()

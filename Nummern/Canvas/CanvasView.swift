@@ -16,6 +16,9 @@ struct CanvasView: View {
                     ForEach(sheet.tables) { table in
                         DraggableTable(document: document, table: table)
                     }
+                    ForEach(sheet.charts) { chart in
+                        DraggableChart(document: document, chart: chart)
+                    }
                 }
             }
             .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
@@ -32,7 +35,48 @@ struct CanvasView: View {
             maxX = max(maxX, CGFloat(table.rect.x + table.rect.w) + 120)
             maxY = max(maxY, CGFloat(table.rect.y + table.rect.h) + 120)
         }
+        for chart in sheet?.charts ?? [] {
+            maxX = max(maxX, CGFloat(chart.rect.x + chart.rect.w) + 120)
+            maxY = max(maxY, CGFloat(chart.rect.y + chart.rect.h) + 120)
+        }
         return CGSize(width: maxX, height: maxY)
+    }
+}
+
+/// A chart on the canvas: draggable, selectable, renders computed data.
+private struct DraggableChart: View {
+    @ObservedObject var document: NummernDocument
+    let chart: ChartSnapshot
+    @State private var translation: CGSize = .zero
+
+    private var isSelected: Bool {
+        if case .chart(let id) = document.selection { return id == chart.id }
+        return false
+    }
+
+    var body: some View {
+        ChartView(chart: chart, table: document.project.table(id: chart.table_id))
+            .frame(width: CGFloat(chart.rect.w), height: CGFloat(chart.rect.h))
+            .background(Color(nsColor: .textBackgroundColor))
+            .overlay(RoundedRectangle(cornerRadius: 6)
+                .stroke(isSelected ? Color.accentColor : Color.gray.opacity(0.4),
+                        lineWidth: isSelected ? 2 : 1))
+            .cornerRadius(6)
+            .shadow(radius: isSelected ? 4 : 1)
+            .offset(x: CGFloat(chart.rect.x) + translation.width,
+                    y: CGFloat(chart.rect.y) + translation.height)
+            .onTapGesture { document.selection = .chart(chart.id) }
+            .gesture(
+                DragGesture()
+                    .onChanged { translation = $0.translation }
+                    .onEnded { value in
+                        let newX = chart.rect.x + Double(value.translation.width)
+                        let newY = chart.rect.y + Double(value.translation.height)
+                        translation = .zero
+                        document.previewChartRect(chartId: chart.id, x: newX, y: newY)
+                        document.moveChart(chart.id, to: CGPoint(x: newX, y: newY))
+                    }
+            )
     }
 }
 

@@ -113,6 +113,33 @@ struct AddSummaryCommand: Command {
     }
 }
 
+struct SetChartPositionCommand: Command {
+    let chartId: String
+    let x: Double
+    let y: Double
+    func toPython() -> String {
+        "\(chartId).set_position(x=\(PythonLiteralEncoder.number(x)), y=\(PythonLiteralEncoder.number(y)))"
+    }
+}
+
+struct SetChartSpecCommand: Command {
+    let chartId: String
+    var chartType: String?
+    var title: String?
+    var showLegend: Bool?
+    var valueRange: String?
+    var labelRange: String?
+    func toPython() -> String {
+        var parts: [String] = []
+        if let chartType { parts.append("chart_type=\(PythonLiteralEncoder.string(chartType))") }
+        if let valueRange { parts.append("value_range=\(PythonLiteralEncoder.string(valueRange))") }
+        if let labelRange { parts.append("label_range=\(PythonLiteralEncoder.string(labelRange))") }
+        if let title { parts.append("title=\(PythonLiteralEncoder.string(title))") }
+        if let showLegend { parts.append("show_legend=\(showLegend ? "True" : "False")") }
+        return "\(chartId).set_spec(" + parts.joined(separator: ", ") + ")"
+    }
+}
+
 struct AddChartCommand: Command {
     let sheetId: String
     let id: String

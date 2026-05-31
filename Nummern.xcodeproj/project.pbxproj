@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0603FAFF79E771773A75826F /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9D542E0EEC9B7BC73C2CEA1 /* ChartView.swift */; };
 		12F1E3A39BB5D835D99DFC09 /* ClipboardParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC012784901AF5375E37CF5C /* ClipboardParser.swift */; };
 		1399D64C1A9426D28D4CF77B /* CommandLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */; };
 		2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */; };
@@ -21,11 +22,15 @@
 		8032D5DE8F3DB40690BE28A8 /* PythonLiteralEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */; };
 		8982BD614B1F55EEF76AD7A1 /* FormulaProvenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */; };
 		93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB95A865250410B9758875D /* CellInput.swift */; };
+		9357CC833D2088F76B2096B6 /* ChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDF5775CC9C0CA9E6F616B30 /* ChartTests.swift */; };
 		95E1FDFF7303EB62508AE3EC /* CodePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B833D7800A0763D4F55AF48 /* CodePanelTests.swift */; };
 		A4EBD7F4FB7DF88501C85EA9 /* CommandLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2402D30C51E3829B71E5B52E /* CommandLog.swift */; };
+		AB4B8131B8AA273012C4AE54 /* ChartData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06FFDCAE8B3F04D08F0EC113 /* ChartData.swift */; };
 		AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F53315EB6A192D34ACF893 /* CanvasView.swift */; };
 		BA1DB739508956BF013FF0D0 /* PythonErrorParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCBB1BE27942D9C773A091AA /* PythonErrorParser.swift */; };
+		BA707B8D7626450145F985E2 /* ChartInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E564C4147FBF6B1B35E41B42 /* ChartInspector.swift */; };
 		C14E5516A29426D456B60132 /* PythonRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 582471011F263A38C527493B /* PythonRunner.swift */; };
+		CE9B75ED882485F5C4D1AEC7 /* SelectionDerivation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127D93936BD66A5FF7281269 /* SelectionDerivation.swift */; };
 		D14038A69B6D44ACCC2AB12B /* ScriptEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F34D26D77C64C3B8DB7065 /* ScriptEditor.swift */; };
 		D14C66CC1FC5AE9C7BA2FB78 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC8240BDF750C639E5E53A /* Command.swift */; };
 		D571A1635CA555289B1882AB /* ScriptComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B2E3D3597E722E08E11EEE /* ScriptComposer.swift */; };
@@ -48,8 +53,10 @@
 
 /* Begin PBXFileReference section */
 		03AA6410B8450253CC842448 /* NummernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NummernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		06FFDCAE8B3F04D08F0EC113 /* ChartData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartData.swift; sourceTree = "<group>"; };
 		0B833D7800A0763D4F55AF48 /* CodePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodePanelTests.swift; sourceTree = "<group>"; };
 		0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaProvenance.swift; sourceTree = "<group>"; };
+		127D93936BD66A5FF7281269 /* SelectionDerivation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionDerivation.swift; sourceTree = "<group>"; };
 		1B824175D286F166413BCEF2 /* ProjectSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSnapshot.swift; sourceTree = "<group>"; };
 		2402D30C51E3829B71E5B52E /* CommandLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLog.swift; sourceTree = "<group>"; };
 		35231066F4D104796642FF38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -66,13 +73,16 @@
 		8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLogTests.swift; sourceTree = "<group>"; };
 		8F8EB2AF980125E28660978C /* EditingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingLogicTests.swift; sourceTree = "<group>"; };
 		B2E923F4F4C1A8BB56932C00 /* CellValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellValue.swift; sourceTree = "<group>"; };
+		BDF5775CC9C0CA9E6F616B30 /* ChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartTests.swift; sourceTree = "<group>"; };
 		BFBC8240BDF750C639E5E53A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
 		CC012784901AF5375E37CF5C /* ClipboardParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardParser.swift; sourceTree = "<group>"; };
 		CCBB1BE27942D9C773A091AA /* PythonErrorParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonErrorParser.swift; sourceTree = "<group>"; };
+		D9D542E0EEC9B7BC73C2CEA1 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		D9F53315EB6A192D34ACF893 /* CanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasView.swift; sourceTree = "<group>"; };
 		DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NummernApp.swift; sourceTree = "<group>"; };
 		DF4DFC8BA610B026B324FE89 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E46889BED0715AB20AA4B225 /* NummernDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NummernDocument.swift; sourceTree = "<group>"; };
+		E564C4147FBF6B1B35E41B42 /* ChartInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartInspector.swift; sourceTree = "<group>"; };
 		EA2F6F09848FEF792872B2EA /* CommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandTests.swift; sourceTree = "<group>"; };
 		F37C808F2665515E9C83AC5E /* Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commands.swift; sourceTree = "<group>"; };
 		F94ADEA377BFD4CC45042A25 /* Nummern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nummern.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -103,14 +113,25 @@
 				35231066F4D104796642FF38 /* ContentView.swift */,
 				DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */,
 				8E611E3B2EF5C2CDFBEC5926 /* Canvas */,
+				51D5C619C985B5248D74F596 /* Charts */,
 				CE95CC61CA4427FF5D99E98F /* CodePanel */,
 				CA3B8F61ADB2101E497589C1 /* Command */,
 				058F79934810086CDB1D3A9B /* Document */,
 				6A8D4D78E87EF9086A6E67A3 /* Grid */,
+				782D95D55E875CBA2341A3F8 /* Inspector */,
 				B4CBF0ADCE1994BB6F33B8B7 /* Model */,
 				1D5F00EF88CC6ABC2002D69F /* Python */,
 			);
 			path = Nummern;
+			sourceTree = "<group>";
+		};
+		51D5C619C985B5248D74F596 /* Charts */ = {
+			isa = PBXGroup;
+			children = (
+				06FFDCAE8B3F04D08F0EC113 /* ChartData.swift */,
+				D9D542E0EEC9B7BC73C2CEA1 /* ChartView.swift */,
+			);
+			path = Charts;
 			sourceTree = "<group>";
 		};
 		5F1D48734800B726668BA0D4 = {
@@ -130,6 +151,14 @@
 				CC012784901AF5375E37CF5C /* ClipboardParser.swift */,
 			);
 			path = Grid;
+			sourceTree = "<group>";
+		};
+		782D95D55E875CBA2341A3F8 /* Inspector */ = {
+			isa = PBXGroup;
+			children = (
+				E564C4147FBF6B1B35E41B42 /* ChartInspector.swift */,
+			);
+			path = Inspector;
 			sourceTree = "<group>";
 		};
 		8E611E3B2EF5C2CDFBEC5926 /* Canvas */ = {
@@ -154,6 +183,7 @@
 		921E28C28FE3E9C5102A5C57 /* NummernTests */ = {
 			isa = PBXGroup;
 			children = (
+				BDF5775CC9C0CA9E6F616B30 /* ChartTests.swift */,
 				0B833D7800A0763D4F55AF48 /* CodePanelTests.swift */,
 				8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */,
 				EA2F6F09848FEF792872B2EA /* CommandTests.swift */,
@@ -182,6 +212,7 @@
 				0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */,
 				4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */,
 				67B2E3D3597E722E08E11EEE /* ScriptComposer.swift */,
+				127D93936BD66A5FF7281269 /* SelectionDerivation.swift */,
 			);
 			path = Command;
 			sourceTree = "<group>";
@@ -280,6 +311,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9357CC833D2088F76B2096B6 /* ChartTests.swift in Sources */,
 				95E1FDFF7303EB62508AE3EC /* CodePanelTests.swift in Sources */,
 				1399D64C1A9426D28D4CF77B /* CommandLogTests.swift in Sources */,
 				2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */,
@@ -297,6 +329,9 @@
 				D654F84097BF8C668EB81F7F /* CellAddress.swift in Sources */,
 				93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */,
 				6CDF0D8474B4B166CEA93E93 /* CellValue.swift in Sources */,
+				AB4B8131B8AA273012C4AE54 /* ChartData.swift in Sources */,
+				BA707B8D7626450145F985E2 /* ChartInspector.swift in Sources */,
+				0603FAFF79E771773A75826F /* ChartView.swift in Sources */,
 				12F1E3A39BB5D835D99DFC09 /* ClipboardParser.swift in Sources */,
 				D14C66CC1FC5AE9C7BA2FB78 /* Command.swift in Sources */,
 				A4EBD7F4FB7DF88501C85EA9 /* CommandLog.swift in Sources */,
@@ -312,6 +347,7 @@
 				C14E5516A29426D456B60132 /* PythonRunner.swift in Sources */,
 				D571A1635CA555289B1882AB /* ScriptComposer.swift in Sources */,
 				D14038A69B6D44ACCC2AB12B /* ScriptEditor.swift in Sources */,
+				CE9B75ED882485F5C4D1AEC7 /* SelectionDerivation.swift in Sources */,
 				28E6916387BBEEFB9B680A86 /* TableFrameView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

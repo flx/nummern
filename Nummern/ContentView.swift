@@ -13,6 +13,10 @@ struct ContentView: View {
             HSplitView {
                 CanvasView(document: document)
                     .frame(minWidth: 480)
+                if let chartId = document.selectedChartId {
+                    ChartInspector(document: document, chartId: chartId)
+                        .frame(width: 240)
+                }
                 if showCode {
                     CodePanel(document: document).frame(minWidth: 320)
                 }
@@ -35,6 +39,18 @@ struct ContentView: View {
                 Label("Add Table", systemImage: "tablecells")
             }
             .disabled(document.project.sheets.isEmpty)
+            Menu {
+                Button("Line") { document.addChart(chartType: "line") }
+                Button("Bar") { document.addChart(chartType: "bar") }
+                Button("Pie") { document.addChart(chartType: "pie") }
+            } label: {
+                Label("Add Chart", systemImage: "chart.xyaxis.line")
+            }
+            .disabled(document.currentTableId == nil)
+            Button { document.addSummary() } label: {
+                Label("Summarize", systemImage: "sum")
+            }
+            .disabled(document.currentTableId == nil)
             Spacer()
             if document.isRunning { ProgressView().controlSize(.small) }
             Button { showCode.toggle() } label: {

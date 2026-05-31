@@ -131,6 +131,91 @@ final class NummernDocument: ReferenceFileDocument {
         scheduleRun()
     }
 
+    // MARK: charts & summaries
+
+    /// The table implied by the current selection (a table or a cell in one).
+    var currentTableId: String? {
+        switch selection {
+        case .table(let id): return id
+        case .cell(let id, _, _): return id
+        default: return nil
+        }
+    }
+
+    private func sheetId(ofTable tableId: String) -> String? {
+        project.sheets.first { $0.tables.contains { $0.id == tableId } }?.id
+    }
+
+    var selectedChartId: String? {
+        if case .chart(let id) = selection { return id }
+        return nil
+    }
+
+    func chart(id: String) -> ChartSnapshot? {
+        for sheet in project.sheets { if let c = sheet.charts.first(where: { $0.id == id }) { return c } }
+        return nil
+    }
+
+    @discardableResult
+    func addChart(chartType: String) -> String? {
+        guard let tableId = currentTableId, let table = project.table(id: tableId),
+              let sheet = sheetId(ofTable: tableId) else {
+            lastError = "Select a table to chart."
+            return nil
+        }
+        let ranges = SelectionDerivation.chartRanges(SelectionDerivation.bodyRect(table))
+        let id = nextId("chart")
+        log.append(AddChartCommand(sheetId: sheet, id: id, chartType: chartType, tableId: tableId,
+                                   valueRange: ranges.value, labelRange: ranges.label, title: ""))
+        selection = .chart(id)
+        scheduleRun()
+        return id
+    }
+
+    @discardableResult
+    func addSummary() -> String? {
+        guard let tableId = currentTableId, let table = project.table(id: tableId),
+              let sheet = sheetId(ofTable: tableId) else {
+            lastError = "Select a table to summarize."
+            return nil
+        }
+        let spec = SelectionDerivation.summarySpec(SelectionDerivation.bodyRect(table),
+                                                   table: table, scoped: false)
+        guard !spec.values.isEmpty else {
+            lastError = "No numeric columns to summarize."
+            return nil
+        }
+        let id = nextId("table")
+        log.append(AddSummaryCommand(sheetId: sheet, id: id, sourceId: tableId,
+                                     groupBy: spec.groupBy, values: spec.values))
+        selection = .table(id)
+        scheduleRun()
+        return id
+    }
+
+    func setChartSpec(_ chartId: String, chartType: String? = nil, title: String? = nil,
+                      showLegend: Bool? = nil, valueRange: String? = nil, labelRange: String? = nil) {
+        log.append(SetChartSpecCommand(chartId: chartId, chartType: chartType, title: title,
+                                       showLegend: showLegend, valueRange: valueRange,
+                                       labelRange: labelRange))
+        scheduleRun()
+    }
+
+    func moveChart(_ chartId: String, to point: CGPoint) {
+        log.append(SetChartPositionCommand(chartId: chartId, x: Double(point.x), y: Double(point.y)))
+        scheduleRun()
+    }
+
+    func previewChartRect(chartId: String, x: Double, y: Double) {
+        for s in project.sheets.indices {
+            if let c = project.sheets[s].charts.firstIndex(where: { $0.id == chartId }) {
+                project.sheets[s].charts[c].rect.x = x
+                project.sheets[s].charts[c].rect.y = y
+                return
+            }
+        }
+    }
+
     // MARK: cell selection & editing
 
     var selectedCell: (tableId: String, row: Int, col: Int)? {

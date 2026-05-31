@@ -39,3 +39,16 @@ def test_chart_spec_roundtrip():
     again = ChartSpec.from_dict(spec.to_dict())
     assert again.chart_type == "bar"
     assert again.value_range == "B0:B3"
+
+
+def test_chart_set_spec_edits_in_place():
+    proj, s, t = build()
+    chart = proj.add_chart(s, "line", "t1", value_range="B0:C3")
+    chart.set_spec(chart_type="bar", title="Updated", show_legend=False)
+    data = to_dict(proj)["sheets"][0]["charts"][0]
+    assert data["chart_type"] == "bar"
+    assert data["title"] == "Updated"
+    assert data["show_legend"] is False
+    # value_range preserved when not passed
+    assert data["value_range"] == "B0:C3"
+
