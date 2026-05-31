@@ -23,6 +23,26 @@ enum GridGeometry {
         t.grid.labels.top + t.grid.rows + t.grid.labels.bottom
     }
 
+    static func size(_ t: TableSnapshot) -> CGSize {
+        CGSize(width: CGFloat(totalCols(t)) * cellWidth, height: CGFloat(totalRows(t)) * cellHeight)
+    }
+
+    /// Rows whose vertical span intersects `rect` — drives virtualized drawing.
+    static func visibleRows(in rect: CGRect, totalRows: Int) -> Range<Int> {
+        visibleSpan(start: rect.minY, end: rect.maxY, step: cellHeight, count: totalRows)
+    }
+
+    static func visibleCols(in rect: CGRect, totalCols: Int) -> Range<Int> {
+        visibleSpan(start: rect.minX, end: rect.maxX, step: cellWidth, count: totalCols)
+    }
+
+    private static func visibleSpan(start: CGFloat, end: CGFloat, step: CGFloat, count: Int) -> Range<Int> {
+        guard count > 0, step > 0, end > start else { return 0..<0 }
+        let first = max(0, Int((start / step).rounded(.down)))
+        let last = min(count, Int((end / step).rounded(.up)))
+        return first < last ? first..<last : 0..<0
+    }
+
     /// Resolve a full-grid coordinate `(gr, gc)` to its region and value.
     static func cell(_ t: TableSnapshot, gr: Int, gc: Int) -> CellInfo {
         let lab = t.grid.labels

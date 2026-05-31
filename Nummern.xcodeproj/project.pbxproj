@@ -24,6 +24,7 @@
 		93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB95A865250410B9758875D /* CellInput.swift */; };
 		9357CC833D2088F76B2096B6 /* ChartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDF5775CC9C0CA9E6F616B30 /* ChartTests.swift */; };
 		95E1FDFF7303EB62508AE3EC /* CodePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B833D7800A0763D4F55AF48 /* CodePanelTests.swift */; };
+		A34D99D8600E93D43FC83220 /* TableGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */; };
 		A4EBD7F4FB7DF88501C85EA9 /* CommandLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2402D30C51E3829B71E5B52E /* CommandLog.swift */; };
 		AB4B8131B8AA273012C4AE54 /* ChartData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06FFDCAE8B3F04D08F0EC113 /* ChartData.swift */; };
 		AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F53315EB6A192D34ACF893 /* CanvasView.swift */; };
@@ -35,6 +36,7 @@
 		D14C66CC1FC5AE9C7BA2FB78 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC8240BDF750C639E5E53A /* Command.swift */; };
 		D571A1635CA555289B1882AB /* ScriptComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B2E3D3597E722E08E11EEE /* ScriptComposer.swift */; };
 		D654F84097BF8C668EB81F7F /* CellAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */; };
+		D7C6650D961A7A8078F75F26 /* GridVirtualizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */; };
 		E5D5B368413E873EBBC2DDA0 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37C808F2665515E9C83AC5E /* Commands.swift */; };
 		E6BE42409CD670533CA6F737 /* NummernDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46889BED0715AB20AA4B225 /* NummernDocument.swift */; };
 		F2721778DFDD0D7E4A8AA776 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF4DFC8BA610B026B324FE89 /* Assets.xcassets */; };
@@ -66,12 +68,14 @@
 		582471011F263A38C527493B /* PythonRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunner.swift; sourceTree = "<group>"; };
 		5A99B1CABA5C88CA011EE979 /* GridGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridGeometry.swift; sourceTree = "<group>"; };
 		5CB95A865250410B9758875D /* CellInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellInput.swift; sourceTree = "<group>"; };
+		5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridVirtualizationTests.swift; sourceTree = "<group>"; };
 		61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellAddress.swift; sourceTree = "<group>"; };
 		670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableFrameView.swift; sourceTree = "<group>"; };
 		67B2E3D3597E722E08E11EEE /* ScriptComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptComposer.swift; sourceTree = "<group>"; };
 		691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunnerTests.swift; sourceTree = "<group>"; };
 		8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLogTests.swift; sourceTree = "<group>"; };
 		8F8EB2AF980125E28660978C /* EditingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingLogicTests.swift; sourceTree = "<group>"; };
+		A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableGridView.swift; sourceTree = "<group>"; };
 		B2E923F4F4C1A8BB56932C00 /* CellValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellValue.swift; sourceTree = "<group>"; };
 		BDF5775CC9C0CA9E6F616B30 /* ChartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartTests.swift; sourceTree = "<group>"; };
 		BFBC8240BDF750C639E5E53A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
@@ -167,6 +171,7 @@
 				D9F53315EB6A192D34ACF893 /* CanvasView.swift */,
 				5A99B1CABA5C88CA011EE979 /* GridGeometry.swift */,
 				670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */,
+				A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */,
 			);
 			path = Canvas;
 			sourceTree = "<group>";
@@ -188,6 +193,7 @@
 				8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */,
 				EA2F6F09848FEF792872B2EA /* CommandTests.swift */,
 				8F8EB2AF980125E28660978C /* EditingLogicTests.swift */,
+				5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */,
 				40A6918818600E18700C92D1 /* ModelDecodingTests.swift */,
 				691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */,
 			);
@@ -316,6 +322,7 @@
 				1399D64C1A9426D28D4CF77B /* CommandLogTests.swift in Sources */,
 				2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */,
 				41EE2E8F495474F85DCCF8A3 /* EditingLogicTests.swift in Sources */,
+				D7C6650D961A7A8078F75F26 /* GridVirtualizationTests.swift in Sources */,
 				44E15F5131FB0A28462B1AA4 /* ModelDecodingTests.swift in Sources */,
 				2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */,
 			);
@@ -349,6 +356,7 @@
 				D14038A69B6D44ACCC2AB12B /* ScriptEditor.swift in Sources */,
 				CE9B75ED882485F5C4D1AEC7 /* SelectionDerivation.swift in Sources */,
 				28E6916387BBEEFB9B680A86 /* TableFrameView.swift in Sources */,
+				A34D99D8600E93D43FC83220 /* TableGridView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
