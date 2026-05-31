@@ -102,7 +102,10 @@ private struct DraggableTable: View {
 
     var body: some View {
         TableFrameView(table: table, isSelected: isSelected, selectedCell: selectedCell,
-                       onSelectCell: { r, c in document.selectCell(tableId: table.id, row: r, col: c) })
+                       onSelectCell: { r, c in document.selectCell(tableId: table.id, row: r, col: c) },
+                       onNavigate: { document.moveSelection($0) },
+                       onClear: { document.clearSelectedCell() },
+                       onEscape: { document.clearSelection() })
             .offset(x: CGFloat(table.rect.x) + translation.width,
                     y: CGFloat(table.rect.y) + translation.height)
             .onTapGesture { document.selection = .table(table.id) }

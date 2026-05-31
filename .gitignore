@@ -6,3 +6,7 @@ xcuserdata/
 .venv/
 __pycache__/
 resume.txt
+# iCloud/Finder sync duplicates (e.g. "TableFrameView 2.swift")
+* [0-9].swift
+* [0-9].py
+* [0-9].xcodeproj/

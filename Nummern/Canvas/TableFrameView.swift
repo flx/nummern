@@ -7,13 +7,17 @@ struct TableFrameView: View {
     let isSelected: Bool
     var selectedCell: (row: Int, col: Int)? = nil
     var onSelectCell: ((Int, Int) -> Void)? = nil
+    var onNavigate: ((KeyboardNavigator.Key) -> Void)? = nil
+    var onClear: (() -> Void)? = nil
+    var onEscape: (() -> Void)? = nil
 
     private var gridSize: CGSize { GridGeometry.size(table) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             titleBar
-            TableGridView(table: table, selectedCell: selectedCell, onSelectCell: onSelectCell)
+            TableGridView(table: table, selectedCell: selectedCell, onSelectCell: onSelectCell,
+                          onNavigate: onNavigate, onClear: onClear, onEscape: onEscape)
                 .frame(width: gridSize.width, height: gridSize.height)
         }
         .background(Color(nsColor: .textBackgroundColor))

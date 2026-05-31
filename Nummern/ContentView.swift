@@ -1,7 +1,10 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @ObservedObject var document: NummernDocument
+    @Environment(\.undoManager) private var undoManager
     @State private var showCode = false
 
     var body: some View {
@@ -27,6 +30,8 @@ struct ContentView: View {
         }
         .toolbar { toolbarContent }
         .frame(minWidth: 800, minHeight: 560)
+        .onAppear { document.undoManager = undoManager }
+        .onChange(of: undoManager) { _, manager in document.undoManager = manager }
     }
 
     @ToolbarContentBuilder
@@ -51,12 +56,40 @@ struct ContentView: View {
                 Label("Summarize", systemImage: "sum")
             }
             .disabled(document.currentTableId == nil)
+            Button { importCSV() } label: {
+                Label("Import CSV", systemImage: "square.and.arrow.down")
+            }
+            Button { exportCSV() } label: {
+                Label("Export CSV", systemImage: "square.and.arrow.up")
+            }
+            .disabled(document.currentTableId == nil)
             Spacer()
             if document.isRunning { ProgressView().controlSize(.small) }
             Button { showCode.toggle() } label: {
                 Label("Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
         }
+    }
+
+    // MARK: CSV panels
+
+    private func importCSV() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText, .text]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        document.importCSV(text: text)
+    }
+
+    private func exportCSV() {
+        guard let tableId = document.currentTableId,
+              let csv = document.exportCSV(tableId: tableId) else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "\(tableId).csv"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private var sheetTabs: some View {

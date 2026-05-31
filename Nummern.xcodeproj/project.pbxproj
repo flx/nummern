@@ -13,10 +13,12 @@
 		2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */; };
 		28E6916387BBEEFB9B680A86 /* TableFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */; };
 		2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2F6F09848FEF792872B2EA /* CommandTests.swift */; };
+		3AB132B65F3E79A6219EF272 /* CSVCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6B1F004A7BD47CA742DC0C /* CSVCodec.swift */; };
 		3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */; };
 		41EE2E8F495474F85DCCF8A3 /* EditingLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8EB2AF980125E28660978C /* EditingLogicTests.swift */; };
 		44E15F5131FB0A28462B1AA4 /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A6918818600E18700C92D1 /* ModelDecodingTests.swift */; };
 		4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35231066F4D104796642FF38 /* ContentView.swift */; };
+		5086D8854CB74C744BD0B8D9 /* InteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7442154CC1508A0D110B8492 /* InteractionTests.swift */; };
 		53B20B195F1EECA19000CAB6 /* ProjectSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B824175D286F166413BCEF2 /* ProjectSnapshot.swift */; };
 		6CDF0D8474B4B166CEA93E93 /* CellValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E923F4F4C1A8BB56932C00 /* CellValue.swift */; };
 		8032D5DE8F3DB40690BE28A8 /* PythonLiteralEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */; };
@@ -39,6 +41,7 @@
 		D7C6650D961A7A8078F75F26 /* GridVirtualizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */; };
 		E5D5B368413E873EBBC2DDA0 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37C808F2665515E9C83AC5E /* Commands.swift */; };
 		E6BE42409CD670533CA6F737 /* NummernDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46889BED0715AB20AA4B225 /* NummernDocument.swift */; };
+		F2397C68E379EC00C6FF2A80 /* KeyboardNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF8A68E906C9FC9BBA2047AD /* KeyboardNavigator.swift */; };
 		F2721778DFDD0D7E4A8AA776 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF4DFC8BA610B026B324FE89 /* Assets.xcassets */; };
 		FBA90A6E4C56D1D661BC5B52 /* GridGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A99B1CABA5C88CA011EE979 /* GridGeometry.swift */; };
 /* End PBXBuildFile section */
@@ -67,12 +70,14 @@
 		57F34D26D77C64C3B8DB7065 /* ScriptEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptEditor.swift; sourceTree = "<group>"; };
 		582471011F263A38C527493B /* PythonRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunner.swift; sourceTree = "<group>"; };
 		5A99B1CABA5C88CA011EE979 /* GridGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridGeometry.swift; sourceTree = "<group>"; };
+		5C6B1F004A7BD47CA742DC0C /* CSVCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVCodec.swift; sourceTree = "<group>"; };
 		5CB95A865250410B9758875D /* CellInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellInput.swift; sourceTree = "<group>"; };
 		5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridVirtualizationTests.swift; sourceTree = "<group>"; };
 		61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellAddress.swift; sourceTree = "<group>"; };
 		670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableFrameView.swift; sourceTree = "<group>"; };
 		67B2E3D3597E722E08E11EEE /* ScriptComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptComposer.swift; sourceTree = "<group>"; };
 		691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunnerTests.swift; sourceTree = "<group>"; };
+		7442154CC1508A0D110B8492 /* InteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionTests.swift; sourceTree = "<group>"; };
 		8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLogTests.swift; sourceTree = "<group>"; };
 		8F8EB2AF980125E28660978C /* EditingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingLogicTests.swift; sourceTree = "<group>"; };
 		A0ED0D1C4A2A81742A18D33F /* TableGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableGridView.swift; sourceTree = "<group>"; };
@@ -90,6 +95,7 @@
 		EA2F6F09848FEF792872B2EA /* CommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandTests.swift; sourceTree = "<group>"; };
 		F37C808F2665515E9C83AC5E /* Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Commands.swift; sourceTree = "<group>"; };
 		F94ADEA377BFD4CC45042A25 /* Nummern.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nummern.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FF8A68E906C9FC9BBA2047AD /* KeyboardNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNavigator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -153,6 +159,8 @@
 				61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */,
 				5CB95A865250410B9758875D /* CellInput.swift */,
 				CC012784901AF5375E37CF5C /* ClipboardParser.swift */,
+				5C6B1F004A7BD47CA742DC0C /* CSVCodec.swift */,
+				FF8A68E906C9FC9BBA2047AD /* KeyboardNavigator.swift */,
 			);
 			path = Grid;
 			sourceTree = "<group>";
@@ -194,6 +202,7 @@
 				EA2F6F09848FEF792872B2EA /* CommandTests.swift */,
 				8F8EB2AF980125E28660978C /* EditingLogicTests.swift */,
 				5E9DF4B8D3E88CC9D43ECAA4 /* GridVirtualizationTests.swift */,
+				7442154CC1508A0D110B8492 /* InteractionTests.swift */,
 				40A6918818600E18700C92D1 /* ModelDecodingTests.swift */,
 				691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */,
 			);
@@ -323,6 +332,7 @@
 				2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */,
 				41EE2E8F495474F85DCCF8A3 /* EditingLogicTests.swift in Sources */,
 				D7C6650D961A7A8078F75F26 /* GridVirtualizationTests.swift in Sources */,
+				5086D8854CB74C744BD0B8D9 /* InteractionTests.swift in Sources */,
 				44E15F5131FB0A28462B1AA4 /* ModelDecodingTests.swift in Sources */,
 				2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */,
 			);
@@ -332,6 +342,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3AB132B65F3E79A6219EF272 /* CSVCodec.swift in Sources */,
 				AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */,
 				D654F84097BF8C668EB81F7F /* CellAddress.swift in Sources */,
 				93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */,
@@ -346,6 +357,7 @@
 				4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */,
 				8982BD614B1F55EEF76AD7A1 /* FormulaProvenance.swift in Sources */,
 				FBA90A6E4C56D1D661BC5B52 /* GridGeometry.swift in Sources */,
+				F2397C68E379EC00C6FF2A80 /* KeyboardNavigator.swift in Sources */,
 				3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */,
 				E6BE42409CD670533CA6F737 /* NummernDocument.swift in Sources */,
 				53B20B195F1EECA19000CAB6 /* ProjectSnapshot.swift in Sources */,

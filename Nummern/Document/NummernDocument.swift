@@ -30,6 +30,41 @@ final class NummernDocument: ReferenceFileDocument {
     private var counters: [String: Int] = ["sheet": 0, "table": 0, "chart": 0]
     private let runner: PythonRunner?
     private var runGeneration = 0
+    /// The environment UndoManager (set by the view). Registering undo here also
+    /// marks the document dirty so SwiftUI knows to save.
+    weak var undoManager: UndoManager?
+
+    // MARK: recording with undo
+
+    /// Append a command, register its inverse for undo, and re-run.
+    private func record(_ command: Command, name: String) {
+        record([command], name: name)
+    }
+
+    /// Append several commands as a single undo step.
+    private func record(_ commands: [Command], name: String) {
+        let previous = log.commands
+        commands.forEach { log.append($0) }
+        registerUndo(restoring: previous, name: name)
+        scheduleRun()
+    }
+
+    private func registerUndo(restoring commands: [Command], name: String) {
+        undoManager?.registerUndo(withTarget: self) { document in
+            document.restore(commands, name: name)
+        }
+        undoManager?.setActionName(name)
+    }
+
+    /// Swap the command list to a prior/next state. Registers the opposite move,
+    /// so this drives both undo and redo.
+    func restore(_ commands: [Command], name: String) {
+        let current = log.commands
+        log.replaceAll(commands)
+        selection = .none
+        registerUndo(restoring: current, name: name)
+        scheduleRun()
+    }
 
     // MARK: lifecycle
 
@@ -49,6 +84,13 @@ final class NummernDocument: ReferenceFileDocument {
         self.runner = try? PythonRunner()
         seedCounters(fromScript: loadedScript ?? "")
         scriptText = log.script()
+        // Snapshot fast-open: show the cached project.json immediately, then
+        // re-run the script to reconcile (the script stays the source of truth).
+        if let jsonData = wrapper.fileWrappers?["project.json"]?.regularFileContents,
+           let snapshot = try? JSONDecoder().decode(ProjectSnapshot.self, from: jsonData) {
+            project = snapshot
+            selectedSheetId = snapshot.sheets.first?.id
+        }
         runNow()
     }
 
@@ -88,9 +130,8 @@ final class NummernDocument: ReferenceFileDocument {
     @discardableResult
     func addSheet(name: String) -> String {
         let id = nextId("sheet")
-        log.append(AddSheetCommand(id: id, name: name))
         if selectedSheetId == nil { selectedSheetId = id }
-        scheduleRun()
+        record(AddSheetCommand(id: id, name: name), name: "Add Sheet")
         return id
     }
 
@@ -99,36 +140,30 @@ final class NummernDocument: ReferenceFileDocument {
         guard let sheetId = selectedSheetId ?? project.sheets.first?.id else { return nil }
         let id = nextId("table")
         let origin = nextTableOrigin()
-        log.append(AddTableCommand(sheetId: sheetId, id: id, x: origin.x, y: origin.y,
-                                   rows: rows, cols: cols, labels: labels))
         selection = .table(id)
-        scheduleRun()
+        record(AddTableCommand(sheetId: sheetId, id: id, x: origin.x, y: origin.y,
+                               rows: rows, cols: cols, labels: labels), name: "Add Table")
         return id
     }
 
     func moveTable(_ id: String, to point: CGPoint) {
-        log.append(SetPositionCommand(tableId: id, x: Double(point.x), y: Double(point.y)))
-        scheduleRun()
+        record(SetPositionCommand(tableId: id, x: Double(point.x), y: Double(point.y)), name: "Move Table")
     }
 
     func resizeTable(_ id: String, rows: Int, cols: Int) {
-        log.append(ResizeCommand(tableId: id, rows: rows, cols: cols))
-        scheduleRun()
+        record(ResizeCommand(tableId: id, rows: rows, cols: cols), name: "Resize Table")
     }
 
     func setLiteral(_ id: String, range: String, values: [[CellValue]]) {
-        log.append(SetLiteralCommand(tableId: id, range: range, values: values))
-        scheduleRun()
+        record(SetLiteralCommand(tableId: id, range: range, values: values), name: "Edit Cells")
     }
 
     func setExpr(_ id: String, target: String, expr: String) {
-        log.append(SetExprCommand(tableId: id, target: target, expr: expr))
-        scheduleRun()
+        record(SetExprCommand(tableId: id, target: target, expr: expr), name: "Set Formula")
     }
 
     func setLabelBand(_ id: String, region: String, values: [String]) {
-        log.append(SetLabelBandCommand(tableId: id, region: region, values: values))
-        scheduleRun()
+        record(SetLabelBandCommand(tableId: id, region: region, values: values), name: "Edit Labels")
     }
 
     // MARK: charts & summaries
@@ -165,10 +200,10 @@ final class NummernDocument: ReferenceFileDocument {
         }
         let ranges = SelectionDerivation.chartRanges(SelectionDerivation.bodyRect(table))
         let id = nextId("chart")
-        log.append(AddChartCommand(sheetId: sheet, id: id, chartType: chartType, tableId: tableId,
-                                   valueRange: ranges.value, labelRange: ranges.label, title: ""))
         selection = .chart(id)
-        scheduleRun()
+        record(AddChartCommand(sheetId: sheet, id: id, chartType: chartType, tableId: tableId,
+                               valueRange: ranges.value, labelRange: ranges.label, title: ""),
+               name: "Add Chart")
         return id
     }
 
@@ -186,24 +221,22 @@ final class NummernDocument: ReferenceFileDocument {
             return nil
         }
         let id = nextId("table")
-        log.append(AddSummaryCommand(sheetId: sheet, id: id, sourceId: tableId,
-                                     groupBy: spec.groupBy, values: spec.values))
         selection = .table(id)
-        scheduleRun()
+        record(AddSummaryCommand(sheetId: sheet, id: id, sourceId: tableId,
+                                 groupBy: spec.groupBy, values: spec.values), name: "Add Summary")
         return id
     }
 
     func setChartSpec(_ chartId: String, chartType: String? = nil, title: String? = nil,
                       showLegend: Bool? = nil, valueRange: String? = nil, labelRange: String? = nil) {
-        log.append(SetChartSpecCommand(chartId: chartId, chartType: chartType, title: title,
-                                       showLegend: showLegend, valueRange: valueRange,
-                                       labelRange: labelRange))
-        scheduleRun()
+        record(SetChartSpecCommand(chartId: chartId, chartType: chartType, title: title,
+                                   showLegend: showLegend, valueRange: valueRange,
+                                   labelRange: labelRange), name: "Edit Chart")
     }
 
     func moveChart(_ chartId: String, to point: CGPoint) {
-        log.append(SetChartPositionCommand(chartId: chartId, x: Double(point.x), y: Double(point.y)))
-        scheduleRun()
+        record(SetChartPositionCommand(chartId: chartId, x: Double(point.x), y: Double(point.y)),
+               name: "Move Chart")
     }
 
     func previewChartRect(chartId: String, x: Double, y: Double) {
@@ -249,6 +282,50 @@ final class NummernDocument: ReferenceFileDocument {
         case .formula(let expr):
             setExpr(sel.tableId, target: ref, expr: expr)
         }
+    }
+
+    // MARK: keyboard navigation (README §5.10.8)
+
+    func moveSelection(_ key: KeyboardNavigator.Key) {
+        guard let sel = selectedCell, let table = project.table(id: sel.tableId) else { return }
+        let next = KeyboardNavigator.move(from: (sel.row, sel.col), key: key,
+                                          rows: table.grid.rows, cols: table.grid.cols)
+        selection = .cell(tableId: sel.tableId, row: next.row, col: next.col)
+    }
+
+    func clearSelection() { selection = .none }
+
+    func clearSelectedCell() {
+        guard let sel = selectedCell else { return }
+        let ref = CellAddress.cellRef(row: sel.row, col: sel.col)
+        record(ClearRangeCommand(tableId: sel.tableId, range: ref), name: "Clear Cell")
+    }
+
+    // MARK: CSV import / export (README §5.7)
+
+    /// Import CSV/TSV text as a new label-free table. The engine infers per-column
+    /// dtypes from the values.
+    func importCSV(text: String) {
+        let block = ClipboardParser.parse(text)
+        guard !block.isEmpty, let sheetId = selectedSheetId ?? project.sheets.first?.id else { return }
+        let cols = block.map(\.count).max() ?? 0
+        guard cols > 0 else { return }
+        let id = nextId("table")
+        let origin = nextTableOrigin()
+        let range = "A0:\(CellAddress.cellRef(row: block.count - 1, col: cols - 1))"
+        selection = .table(id)
+        record([
+            AddTableCommand(sheetId: sheetId, id: id, x: origin.x, y: origin.y,
+                            rows: block.count, cols: cols,
+                            labels: .init(top: 0, left: 0, bottom: 0, right: 0)),
+            SetLiteralCommand(tableId: id, range: range, values: block),
+        ], name: "Import CSV")
+    }
+
+    /// CSV for a table's body (trimmed to its content bounds).
+    func exportCSV(tableId: String) -> String? {
+        guard let table = project.table(id: tableId) else { return nil }
+        return CSVCodec.encode(CSVCodec.bodyBlock(table))
     }
 
     /// Local immediate rect update during a drag (no command recorded yet).
