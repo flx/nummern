@@ -5,6 +5,8 @@ import SwiftUI
 struct TableFrameView: View {
     let table: TableSnapshot
     let isSelected: Bool
+    var selectedCell: (row: Int, col: Int)? = nil
+    var onSelectCell: ((Int, Int) -> Void)? = nil
 
     private var totalCols: Int { GridGeometry.totalCols(table) }
     private var totalRows: Int { GridGeometry.totalRows(table) }
@@ -47,6 +49,8 @@ struct TableFrameView: View {
 
     private func cellView(_ info: GridGeometry.CellInfo) -> some View {
         let isLabel = info.region != .body && info.region != .corner
+        let isSelectedCell = info.region == .body
+            && selectedCell?.row == info.row && selectedCell?.col == info.col
         return Text(info.value.displayText())
             .font(.system(size: 11, design: isLabel ? .default : .monospaced))
             .fontWeight(isLabel ? .semibold : .regular)
@@ -56,7 +60,12 @@ struct TableFrameView: View {
             .padding(.horizontal, 3)
             .frame(width: GridGeometry.cellWidth, height: GridGeometry.cellHeight)
             .background(background(info.region))
-            .overlay(Rectangle().stroke(Color.gray.opacity(0.18), lineWidth: 0.5))
+            .overlay(Rectangle().stroke(isSelectedCell ? Color.accentColor : Color.gray.opacity(0.18),
+                                        lineWidth: isSelectedCell ? 1.5 : 0.5))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if info.region == .body { onSelectCell?(info.row, info.col) }
+            }
     }
 
     private func alignment(_ info: GridGeometry.CellInfo) -> Alignment {

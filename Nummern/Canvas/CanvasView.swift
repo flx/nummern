@@ -44,12 +44,21 @@ private struct DraggableTable: View {
     @State private var translation: CGSize = .zero
 
     private var isSelected: Bool {
-        if case .table(let id) = document.selection { return id == table.id }
-        return false
+        switch document.selection {
+        case .table(let id): return id == table.id
+        case .cell(let id, _, _): return id == table.id
+        default: return false
+        }
+    }
+
+    private var selectedCell: (row: Int, col: Int)? {
+        if case .cell(let id, let r, let c) = document.selection, id == table.id { return (r, c) }
+        return nil
     }
 
     var body: some View {
-        TableFrameView(table: table, isSelected: isSelected)
+        TableFrameView(table: table, isSelected: isSelected, selectedCell: selectedCell,
+                       onSelectCell: { r, c in document.selectCell(tableId: table.id, row: r, col: c) })
             .offset(x: CGFloat(table.rect.x) + translation.width,
                     y: CGFloat(table.rect.y) + translation.height)
             .onTapGesture { document.selection = .table(table.id) }

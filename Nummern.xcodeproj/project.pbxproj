@@ -7,20 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12F1E3A39BB5D835D99DFC09 /* ClipboardParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC012784901AF5375E37CF5C /* ClipboardParser.swift */; };
 		1399D64C1A9426D28D4CF77B /* CommandLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */; };
 		2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */; };
 		28E6916387BBEEFB9B680A86 /* TableFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */; };
 		2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA2F6F09848FEF792872B2EA /* CommandTests.swift */; };
 		3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */; };
+		41EE2E8F495474F85DCCF8A3 /* EditingLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8EB2AF980125E28660978C /* EditingLogicTests.swift */; };
 		44E15F5131FB0A28462B1AA4 /* ModelDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A6918818600E18700C92D1 /* ModelDecodingTests.swift */; };
 		4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35231066F4D104796642FF38 /* ContentView.swift */; };
 		53B20B195F1EECA19000CAB6 /* ProjectSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B824175D286F166413BCEF2 /* ProjectSnapshot.swift */; };
 		6CDF0D8474B4B166CEA93E93 /* CellValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E923F4F4C1A8BB56932C00 /* CellValue.swift */; };
 		8032D5DE8F3DB40690BE28A8 /* PythonLiteralEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */; };
+		8982BD614B1F55EEF76AD7A1 /* FormulaProvenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */; };
+		93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB95A865250410B9758875D /* CellInput.swift */; };
 		A4EBD7F4FB7DF88501C85EA9 /* CommandLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2402D30C51E3829B71E5B52E /* CommandLog.swift */; };
 		AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F53315EB6A192D34ACF893 /* CanvasView.swift */; };
 		C14E5516A29426D456B60132 /* PythonRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 582471011F263A38C527493B /* PythonRunner.swift */; };
 		D14C66CC1FC5AE9C7BA2FB78 /* Command.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBC8240BDF750C639E5E53A /* Command.swift */; };
+		D654F84097BF8C668EB81F7F /* CellAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */; };
 		E5D5B368413E873EBBC2DDA0 /* Commands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37C808F2665515E9C83AC5E /* Commands.swift */; };
 		E6BE42409CD670533CA6F737 /* NummernDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46889BED0715AB20AA4B225 /* NummernDocument.swift */; };
 		F2721778DFDD0D7E4A8AA776 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF4DFC8BA610B026B324FE89 /* Assets.xcassets */; };
@@ -39,6 +44,7 @@
 
 /* Begin PBXFileReference section */
 		03AA6410B8450253CC842448 /* NummernTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NummernTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormulaProvenance.swift; sourceTree = "<group>"; };
 		1B824175D286F166413BCEF2 /* ProjectSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSnapshot.swift; sourceTree = "<group>"; };
 		2402D30C51E3829B71E5B52E /* CommandLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLog.swift; sourceTree = "<group>"; };
 		35231066F4D104796642FF38 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -46,11 +52,15 @@
 		4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonLiteralEncoder.swift; sourceTree = "<group>"; };
 		582471011F263A38C527493B /* PythonRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunner.swift; sourceTree = "<group>"; };
 		5A99B1CABA5C88CA011EE979 /* GridGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GridGeometry.swift; sourceTree = "<group>"; };
+		5CB95A865250410B9758875D /* CellInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellInput.swift; sourceTree = "<group>"; };
+		61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellAddress.swift; sourceTree = "<group>"; };
 		670DE8E0FAEB1025367A6FEC /* TableFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableFrameView.swift; sourceTree = "<group>"; };
 		691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PythonRunnerTests.swift; sourceTree = "<group>"; };
 		8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandLogTests.swift; sourceTree = "<group>"; };
+		8F8EB2AF980125E28660978C /* EditingLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingLogicTests.swift; sourceTree = "<group>"; };
 		B2E923F4F4C1A8BB56932C00 /* CellValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CellValue.swift; sourceTree = "<group>"; };
 		BFBC8240BDF750C639E5E53A /* Command.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Command.swift; sourceTree = "<group>"; };
+		CC012784901AF5375E37CF5C /* ClipboardParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardParser.swift; sourceTree = "<group>"; };
 		D9F53315EB6A192D34ACF893 /* CanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasView.swift; sourceTree = "<group>"; };
 		DCFA7B0009EDEEDB9A88C0D4 /* NummernApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NummernApp.swift; sourceTree = "<group>"; };
 		DF4DFC8BA610B026B324FE89 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -86,6 +96,7 @@
 				8E611E3B2EF5C2CDFBEC5926 /* Canvas */,
 				CA3B8F61ADB2101E497589C1 /* Command */,
 				058F79934810086CDB1D3A9B /* Document */,
+				6A8D4D78E87EF9086A6E67A3 /* Grid */,
 				B4CBF0ADCE1994BB6F33B8B7 /* Model */,
 				1D5F00EF88CC6ABC2002D69F /* Python */,
 			);
@@ -99,6 +110,16 @@
 				921E28C28FE3E9C5102A5C57 /* NummernTests */,
 				91C3558B4F2D77B51E2A1270 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		6A8D4D78E87EF9086A6E67A3 /* Grid */ = {
+			isa = PBXGroup;
+			children = (
+				61C1A367CB8BA8D9C0D1408F /* CellAddress.swift */,
+				5CB95A865250410B9758875D /* CellInput.swift */,
+				CC012784901AF5375E37CF5C /* ClipboardParser.swift */,
+			);
+			path = Grid;
 			sourceTree = "<group>";
 		};
 		8E611E3B2EF5C2CDFBEC5926 /* Canvas */ = {
@@ -125,6 +146,7 @@
 			children = (
 				8800A3D0F45FBB4D37801C93 /* CommandLogTests.swift */,
 				EA2F6F09848FEF792872B2EA /* CommandTests.swift */,
+				8F8EB2AF980125E28660978C /* EditingLogicTests.swift */,
 				40A6918818600E18700C92D1 /* ModelDecodingTests.swift */,
 				691D1FAA838454D6940F3BEB /* PythonRunnerTests.swift */,
 			);
@@ -146,6 +168,7 @@
 				BFBC8240BDF750C639E5E53A /* Command.swift */,
 				2402D30C51E3829B71E5B52E /* CommandLog.swift */,
 				F37C808F2665515E9C83AC5E /* Commands.swift */,
+				0D86EE0F3943CD9BD9C5C7CA /* FormulaProvenance.swift */,
 				4AB2A1CD8F4C04E73483DB54 /* PythonLiteralEncoder.swift */,
 			);
 			path = Command;
@@ -239,6 +262,7 @@
 			files = (
 				1399D64C1A9426D28D4CF77B /* CommandLogTests.swift in Sources */,
 				2F1CE204050313BD45AF35CC /* CommandTests.swift in Sources */,
+				41EE2E8F495474F85DCCF8A3 /* EditingLogicTests.swift in Sources */,
 				44E15F5131FB0A28462B1AA4 /* ModelDecodingTests.swift in Sources */,
 				2177B0BB1D35DDAAC53D01EF /* PythonRunnerTests.swift in Sources */,
 			);
@@ -249,11 +273,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				AF1C142429BCD82C8A900BB2 /* CanvasView.swift in Sources */,
+				D654F84097BF8C668EB81F7F /* CellAddress.swift in Sources */,
+				93453BC08EEC5DF49C632C1D /* CellInput.swift in Sources */,
 				6CDF0D8474B4B166CEA93E93 /* CellValue.swift in Sources */,
+				12F1E3A39BB5D835D99DFC09 /* ClipboardParser.swift in Sources */,
 				D14C66CC1FC5AE9C7BA2FB78 /* Command.swift in Sources */,
 				A4EBD7F4FB7DF88501C85EA9 /* CommandLog.swift in Sources */,
 				E5D5B368413E873EBBC2DDA0 /* Commands.swift in Sources */,
 				4C71A36EAF618CE4C1926EAB /* ContentView.swift in Sources */,
+				8982BD614B1F55EEF76AD7A1 /* FormulaProvenance.swift in Sources */,
 				FBA90A6E4C56D1D661BC5B52 /* GridGeometry.swift in Sources */,
 				3E472ECE5A10DDEB37AE75B6 /* NummernApp.swift in Sources */,
 				E6BE42409CD670533CA6F737 /* NummernDocument.swift in Sources */,

@@ -8,6 +8,8 @@ struct ContentView: View {
         VStack(spacing: 0) {
             sheetTabs
             Divider()
+            FormulaBar(document: document)
+            Divider()
             HSplitView {
                 CanvasView(document: document)
                     .frame(minWidth: 480)
@@ -64,6 +66,34 @@ struct ContentView: View {
         }
         .padding(8)
         .background(Color.orange.opacity(0.12))
+    }
+}
+
+/// Edits the selected cell. A leading `=` records a Python expression (`SetExpr`),
+/// otherwise a literal value (`SetLiteral`); both re-run the engine.
+struct FormulaBar: View {
+    @ObservedObject var document: NummernDocument
+    @State private var text: String = ""
+
+    private var label: String {
+        guard let sel = document.selectedCell else { return "—" }
+        return "\(sel.tableId) · \(CellAddress.cellRef(row: sel.row, col: sel.col))"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 130, alignment: .leading)
+            TextField("value or =python expression", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+                .disabled(document.selectedCell == nil)
+                .onSubmit { document.commitCellInput(text) }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .onChange(of: document.selection) { _, _ in text = document.selectedCellText() }
     }
 }
 

@@ -124,6 +124,41 @@ final class NummernDocument: ReferenceFileDocument {
         scheduleRun()
     }
 
+    // MARK: cell selection & editing
+
+    var selectedCell: (tableId: String, row: Int, col: Int)? {
+        if case .cell(let id, let r, let c) = selection { return (id, r, c) }
+        return nil
+    }
+
+    func selectCell(tableId: String, row: Int, col: Int) {
+        selection = .cell(tableId: tableId, row: row, col: col)
+    }
+
+    /// Text to show in the formula bar for the selected cell: the recorded
+    /// expression if it's formula-defined (provenance), else the literal value.
+    func selectedCellText() -> String {
+        guard let sel = selectedCell else { return "" }
+        let ref = CellAddress.cellRef(row: sel.row, col: sel.col)
+        if let expr = FormulaProvenance.expression(for: sel.tableId, ref: ref, in: log.commands) {
+            return "=\(expr)"
+        }
+        guard let table = project.table(id: sel.tableId) else { return "" }
+        return table.cell(row: sel.row, col: sel.col).displayText()
+    }
+
+    /// Commit formula-bar / cell-editor text to the selected cell.
+    func commitCellInput(_ text: String) {
+        guard let sel = selectedCell else { return }
+        let ref = CellAddress.cellRef(row: sel.row, col: sel.col)
+        switch CellInput.parse(text) {
+        case .literal(let value):
+            setLiteral(sel.tableId, range: ref, values: [[value]])
+        case .formula(let expr):
+            setExpr(sel.tableId, target: ref, expr: expr)
+        }
+    }
+
     /// Local immediate rect update during a drag (no command recorded yet).
     func previewRect(tableId: String, x: Double, y: Double) {
         mutateTable(tableId) { $0.rect.x = x; $0.rect.y = y }
