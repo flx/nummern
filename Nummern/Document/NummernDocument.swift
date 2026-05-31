@@ -15,12 +15,17 @@ final class NummernDocument: ReferenceFileDocument {
     static var readableContentTypes: [UTType] { [.nummern] }
 
     // Canonical + display state
-    let log: CommandLog
+    private(set) var log: CommandLog
     @Published private(set) var project: ProjectSnapshot = .empty
     @Published var selectedSheetId: String?
     @Published var selection: Selection = .none
     @Published var lastError: String?
     @Published private(set) var isRunning = false
+    /// The script shown/edited in the code panel. Kept in sync with `log` after
+    /// each recorded command; the user may also edit it freely and Run.
+    @Published var scriptText: String = ""
+    /// Latest run's stdout+stderr for the console.
+    @Published private(set) var consoleText: String = ""
 
     private var counters: [String: Int] = ["sheet": 0, "table": 0, "chart": 0]
     private let runner: PythonRunner?
@@ -33,15 +38,17 @@ final class NummernDocument: ReferenceFileDocument {
         self.log = CommandLog()
         self.runner = try? PythonRunner()
         addSheet(name: "Sheet 1")
+        scriptText = log.script()
     }
 
     init(configuration: ReadConfiguration) throws {
         let wrapper = configuration.file
-        let scriptData = wrapper.fileWrappers?["script.py"]?.regularFileContents
-        let scriptText = scriptData.flatMap { String(data: $0, encoding: .utf8) }
-        self.log = CommandLog.parse(scriptText ?? CommandLog().script())
+        let loadedScript = wrapper.fileWrappers?["script.py"]?.regularFileContents
+            .flatMap { String(data: $0, encoding: .utf8) }
+        self.log = CommandLog.parse(loadedScript ?? CommandLog().script())
         self.runner = try? PythonRunner()
-        seedCounters(fromScript: scriptText ?? "")
+        seedCounters(fromScript: loadedScript ?? "")
+        scriptText = log.script()
         runNow()
     }
 
@@ -181,33 +188,74 @@ final class NummernDocument: ReferenceFileDocument {
 
     // MARK: running the engine
 
+    /// Record-driven run: refresh the editor text from the canonical log and run.
     func scheduleRun() {
-        // Debounced re-run (S5 will add edit-coalescing); for now run on a hop.
-        runGeneration += 1
-        let generation = runGeneration
-        let script = log.script()
+        scriptText = log.script()
+        performRun(scriptText)
+    }
+
+    /// Run All: run exactly what the user sees, and re-parse the generated region
+    /// back into the command log so subsequent UI edits append to it (README §6.4).
+    func runAll() {
+        log = CommandLog.parse(scriptText)
+        seedCounters(fromScript: scriptText)
+        performRun(scriptText)
+    }
+
+    /// Reset Runtime: a fresh run of the canonical script (every run is already a
+    /// new Python process).
+    func resetRuntime() {
+        scriptText = log.script()
+        performRun(scriptText)
+    }
+
+    /// Run a selected fragment with imports + an injected project if needed.
+    func runSelection(_ selection: String) {
+        guard !selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let composed = ScriptComposer.selectionScript(header: log.userCode, selection: selection)
+        performRun(composed)
+    }
+
+    private func performRun(_ script: String) {
         guard let runner else {
             lastError = "Python engine unavailable."
             return
         }
+        runGeneration += 1
+        let generation = runGeneration
         isRunning = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let outcome: Result<PythonRunner.RunResult, Error>
-            do { outcome = .success(try runner.run(script: script, emit: .json)) }
-            catch { outcome = .failure(error) }
-            DispatchQueue.main.async { self?.applyOutcome(outcome, generation: generation) }
+            var snapshot: ProjectSnapshot?
+            var stdout = "", stderr = "", failure: String?
+            do {
+                let result = try runner.run(script: script, emit: .json)
+                snapshot = result.snapshot; stdout = result.stdout; stderr = result.stderr
+            } catch let error as PythonRunError {
+                stderr = error.stderrText ?? ""
+                failure = error.errorDescription ?? "Run failed."
+            } catch {
+                failure = error.localizedDescription
+            }
+            DispatchQueue.main.async {
+                self?.applyRun(generation, snapshot: snapshot, stdout: stdout,
+                               stderr: stderr, failure: failure)
+            }
         }
     }
 
-    private func applyOutcome(_ outcome: Result<PythonRunner.RunResult, Error>, generation: Int) {
+    private func applyRun(_ generation: Int, snapshot: ProjectSnapshot?,
+                          stdout: String, stderr: String, failure: String?) {
         guard generation == runGeneration else { return }   // discard stale run
         isRunning = false
-        switch outcome {
-        case .failure(let error):
-            lastError = error.localizedDescription
-        case .success(let result):
-            lastError = nil
-            project = result.snapshot
+        consoleText = [stdout, stderr].filter { !$0.isEmpty }.joined(separator: "\n")
+        if failure != nil {
+            let parsed = PythonErrorParser.parse(stderr)
+            lastError = stderr.isEmpty ? failure : parsed.displayString()
+            return
+        }
+        lastError = nil
+        if let snapshot {
+            project = snapshot
             if selectedSheetId == nil { selectedSheetId = project.sheets.first?.id }
         }
     }
@@ -218,6 +266,7 @@ final class NummernDocument: ReferenceFileDocument {
         if let result = try? runner.run(script: log.script(), emit: .json) {
             project = result.snapshot
             if selectedSheetId == nil { selectedSheetId = project.sheets.first?.id }
+            consoleText = result.stdout
         }
     }
 

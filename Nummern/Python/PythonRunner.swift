@@ -16,6 +16,15 @@ enum PythonRunError: LocalizedError {
         case .timedOut(let t): return "Python run timed out after \(t)s."
         }
     }
+
+    /// The captured stderr, when the failure carries one.
+    var stderrText: String? {
+        switch self {
+        case .failed(_, let stderr): return stderr
+        case .invalidOutput(_, let stderr): return stderr
+        default: return nil
+        }
+    }
 }
 
 /// Runs a recorded script via `python -m canvassheets run <script> --emit json`

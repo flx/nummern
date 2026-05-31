@@ -97,17 +97,51 @@ struct FormulaBar: View {
     }
 }
 
-/// Minimal read-only code view (editable Run controls land in S5).
+/// Editable code panel: the script (header + generated region), Run controls,
+/// and a console. Editing + Run All re-parses the generated region back into the
+/// command log so later UI edits append to what was just run.
 struct CodePanel: View {
     @ObservedObject var document: NummernDocument
+    @State private var selectedRange = NSRange(location: 0, length: 0)
+
+    private var hasSelection: Bool { selectedRange.length > 0 }
+
     var body: some View {
+        VStack(spacing: 0) {
+            controls
+            Divider()
+            ScriptEditor(text: $document.scriptText, selectedRange: $selectedRange)
+                .frame(minHeight: 200)
+            Divider()
+            console
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 8) {
+            Button("Run All") { document.runAll() }
+                .keyboardShortcut("r", modifiers: [.command])
+            Button("Run Selection") {
+                document.runSelection(document.scriptText.substring(nsRange: selectedRange))
+            }
+            .disabled(!hasSelection)
+            Button("Reset Runtime") { document.resetRuntime() }
+            Spacer()
+            if document.isRunning { ProgressView().controlSize(.small) }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+    }
+
+    private var console: some View {
         ScrollView {
-            Text(document.log.script())
-                .font(.system(size: 11, design: .monospaced))
+            Text(document.consoleText.isEmpty ? "—" : document.consoleText)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
+        .frame(height: 110)
         .background(Color(nsColor: .textBackgroundColor))
     }
 }
